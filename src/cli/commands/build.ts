@@ -547,15 +547,47 @@ function parseSizeLimit(input: string): number {
 }
 
 async function analyzeBuildResult(result: any): Promise<void> {
-  void result
-  logger.info('正在分析打包结果...')
+  const { createBundleAnalyzer } = await import('../../utils/bundle-analyzer')
 
-  // TODO: 实现打包分析功能
-  // 可以显示：
-  // - 模块依赖图
-  // - 包大小分析
-  // - 重复依赖检测
-  // - 性能建议
+  logger.newLine()
+  logger.info('📊 正在分析打包结果...')
 
-  logger.info('分析完成')
+  const analyzer = createBundleAnalyzer(logger)
+  const report = await analyzer.generateReport(result.outputs || [])
+
+  // 显示体积分析
+  logger.newLine()
+  logger.info('📦 体积分析:')
+  logger.info(`  总大小: ${(report.sizeAnalysis.total / 1024).toFixed(2)} KB`)
+
+  if (report.sizeAnalysis.byModule.length > 0) {
+    logger.info('  最大模块:')
+    report.sizeAnalysis.byModule.slice(0, 5).forEach(m => {
+      logger.info(`    ${m.module}: ${(m.size / 1024).toFixed(2)} KB (${m.percentage.toFixed(1)}%)`)
+    })
+  }
+
+  // 显示重复依赖
+  if (report.duplicates.length > 0) {
+    logger.newLine()
+    logger.warn(`⚠️  发现 ${report.duplicates.length} 个重复依赖:`)
+    report.duplicates.forEach(dup => {
+      logger.warn(`  ${dup.name}: ${dup.versions.length} 个版本`)
+    })
+  }
+
+  // 显示优化建议
+  if (report.suggestions.length > 0) {
+    logger.newLine()
+    logger.info('💡 优化建议:')
+    report.suggestions.forEach((sug, index) => {
+      const icon = sug.severity === 'high' ? '🔴' : sug.severity === 'medium' ? '🟡' : '🟢'
+      logger.info(`  ${icon} ${sug.title}`)
+      logger.info(`     ${sug.description}`)
+      logger.info(`     建议: ${sug.solution}`)
+    })
+  }
+
+  logger.newLine()
+  logger.success('✅ 分析完成')
 }

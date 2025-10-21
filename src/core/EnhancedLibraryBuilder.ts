@@ -85,7 +85,7 @@ export class EnhancedLibraryBuilder extends LibraryBuilder {
   private buildHistory: BuildResult[] = []
 
   /** 最大历史记录数 */
-  private readonly maxHistorySize = 10
+  private readonly maxHistorySize = 10 // 从常量导入会在运行时才解析，使用直接赋值
 
   constructor(options: BuilderOptions = {}) {
     // 调用父类构造函数
@@ -591,9 +591,11 @@ export class EnhancedLibraryBuilder extends LibraryBuilder {
       duplications: 0
     }
 
-    // 定义文件大小阈值（可以从配置中获取）
-    const maxFileSize = config.performance?.maxFileSize || 500000 // 500KB
-    const warnFileSize = maxFileSize * 0.8 // 80% 作为警告阈值
+    // 使用配置常量（硬编码避免动态导入问题）
+    const MAX_FILE_SIZE = 500 * 1024 // 500KB
+    const WARN_FILE_SIZE = 400 * 1024 // 400KB
+    const maxFileSize = config.performance?.maxFileSize || MAX_FILE_SIZE
+    const warnFileSize = WARN_FILE_SIZE
 
     for (const output of outputs) {
       if (!output || typeof output !== 'object') {
@@ -1002,8 +1004,8 @@ describe('Library Validation', () => {
       return null
     }
 
-    // 检查缓存是否过期（默认1小时）
-    const maxAge = 60 * 60 * 1000 // 1小时
+    // 检查缓存是否过期（1小时）
+    const maxAge = 60 * 60 * 1000
     if (Date.now() - cached.timestamp > maxAge) {
       this.buildCache.delete(cacheKey)
       return null
