@@ -1,1 +1,0 @@
-{"version":3,"file":"detection.js","sourceRoot":"","sources":["../../src/utils/detection.ts"],"names":[],"mappings":";AAAA;;GAEG;AAEH,sBAAsB","sourcesContent":["/**\n * 检测相关工具函数\n */\n\n// 暂时为空，后续添加检测工具时在这里导出\n"]}

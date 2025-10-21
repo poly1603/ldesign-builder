@@ -1,1 +1,0 @@
-{"version":3,"file":"main.js","sourceRoot":"","sources":["../../../../src/tests/fixtures/multi-entry/main.ts"],"names":[],"mappings":"AAAA,MAAM,UAAU,IAAI;IAClB,OAAO,eAAe,CAAA;AACxB,CAAC;AAED,eAAe,IAAI,CAAA","sourcesContent":["export function main() {\n  return 'main function'\n}\n\nexport default main\n"]}

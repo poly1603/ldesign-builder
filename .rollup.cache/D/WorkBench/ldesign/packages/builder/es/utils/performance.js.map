@@ -1,1 +1,0 @@
-{"version":3,"file":"performance.js","sourceRoot":"","sources":["../../src/utils/performance.ts"],"names":[],"mappings":";AAAA;;GAEG;AAEH,sBAAsB","sourcesContent":["/**\r\n * 性能相关工具函数\r\n */\r\n\r\n// 暂时为空，后续添加性能工具时在这里导出\r\n"]}

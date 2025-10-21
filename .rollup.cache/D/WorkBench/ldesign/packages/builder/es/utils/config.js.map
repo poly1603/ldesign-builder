@@ -1,1 +1,0 @@
-{"version":3,"file":"config.js","sourceRoot":"","sources":["../../src/utils/config.ts"],"names":[],"mappings":"AAAA;;GAEG;AAEH,OAAO,EAAE,YAAY,EAAE,iBAAiB,EAAE,MAAM,wBAAwB,CAAA","sourcesContent":["/**\n * 配置工具函数\n */\n\nexport { defineConfig, defineAsyncConfig } from './config/config-loader'\n"]}
