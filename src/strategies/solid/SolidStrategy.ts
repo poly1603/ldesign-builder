@@ -121,7 +121,8 @@ export class SolidStrategy implements ILibraryStrategy {
   }
 
   private warn(message: string): void {
-    console.warn(`[SolidStrategy] ${message}`)
+    // 静默处理，避免控制台警告
+    // 如需调试，可通过 logger 输出
   }
 
   private buildOutputConfig(config: BuilderConfig): any {

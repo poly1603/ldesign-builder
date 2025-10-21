@@ -333,7 +333,7 @@ export class TypeScriptStrategy implements ILibraryStrategy {
 
     // TypeScript 插件 - 始终添加，由 getTypeScriptOptions 决定声明相关行为
     const tsOptions = this.getTypeScriptOptions(config)
-    console.log('[TypeScriptStrategy] TypeScript 插件选项:', JSON.stringify(tsOptions, null, 2))
+    // 调试选项已移除，避免日志污染
 
     plugins.push({
       name: 'typescript',
@@ -521,7 +521,8 @@ export class TypeScriptStrategy implements ILibraryStrategy {
         return
       }
 
-      console.warn(`Warning: ${warning.message}`)
+      // 静默处理，不输出警告
+      // 如需调试，可通过 logger.warn 输出
     }
   }
 }

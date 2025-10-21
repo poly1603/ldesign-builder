@@ -60,9 +60,16 @@ export { createIncrementalBuildManager, IncrementalBuildManager } from './utils/
 export { createParallelProcessor, ParallelProcessor } from './utils/parallel-processor'
 export { createStreamFileProcessor, StreamFileProcessor } from './utils/stream-file-processor'
 export { createBuildReportGenerator, BuildReportGenerator } from './utils/build-report-generator'
+export { createBundleAnalyzer, BundleAnalyzer } from './utils/bundle-analyzer'
+export { createSmartWatcher, SmartWatcher } from './utils/smart-watcher'
 export { tailwindPlugin } from './plugins/tailwind'
 export { cssInJSPlugin } from './plugins/css-in-js'
 export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules-advanced'
+export { swcPlugin, swcMinifyPlugin } from './compilers/swc-compiler'
+export { createConfigSchemaValidator, ConfigSchemaValidator } from './config/schema-validator'
+export { createInteractiveConfigGenerator, InteractiveConfigGenerator } from './cli/interactive-init'
+export { createOptimizationAdvisor, OptimizationAdvisor } from './advisor/optimization-advisor'
+export { createDependencyGraphVisualizer, DependencyGraphVisualizer } from './visualize/dependency-graph-visualizer'
 
 // 便捷函数
 export { defineConfig, defineAsyncConfig } from './utils/config'
