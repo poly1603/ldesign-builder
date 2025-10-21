@@ -1,0 +1,1 @@
+{"version":3,"file":"validation.js","sourceRoot":"","sources":["../../src/utils/validation.ts"],"names":[],"mappings":";AAAA;;GAEG;AAEH,sBAAsB","sourcesContent":["/**\n * 验证相关工具函数\n */\n\n// 暂时为空，后续添加验证工具时在这里导出\n"]}
