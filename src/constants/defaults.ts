@@ -45,13 +45,14 @@ export const BUILD_CONSTANTS = {
  * 默认构建器配置
  */
 export const DEFAULT_BUILDER_CONFIG: Omit<
-  Required<Omit<BuilderConfig, 'env' | 'library' | 'libraryType'>>,
+  Required<Omit<BuilderConfig, 'env' | 'library' | 'libraryType' | 'qwik'>>,
   never
 > & {
   env: Record<string, Partial<BuilderConfig>>
   library: Required<LibraryBuildOptions>
   // 默认库类型，可以被自动检测覆盖
   libraryType: LibraryType
+  qwik?: import('../types/library').QwikLibraryConfig
 } = {
   // 基础配置
   input: 'src/index.ts', // 保留作为兼容，但优先使用 output 中的配置

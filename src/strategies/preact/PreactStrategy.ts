@@ -45,31 +45,101 @@ export class PreactStrategy implements ILibraryStrategy {
   private async buildPlugins(config: BuilderConfig): Promise<any[]> {
     const plugins: any[] = []
 
-    // Node resolve
+    // Node resolve（优化 Preact 的别名解析）
     const nodeResolve = await import('@rollup/plugin-node-resolve')
-    plugins.push(nodeResolve.default({ browser: true, extensions: ['.mjs', '.js', '.json', '.ts', '.tsx', '.jsx'] }))
+    plugins.push(nodeResolve.default({
+      browser: true,
+      extensions: ['.mjs', '.js', '.json', '.ts', '.tsx', '.jsx'],
+      // Preact 别名优化，减小体积
+      alias: {
+        'react': 'preact/compat',
+        'react-dom': 'preact/compat'
+      },
+      dedupe: ['preact', 'preact/hooks']
+    }))
 
     // CommonJS
     const commonjs = await import('@rollup/plugin-commonjs')
-    plugins.push(commonjs.default())
+    plugins.push(commonjs.default({
+      include: /node_modules/
+    }))
 
-    // 注：为避免示例额外安装类型依赖，此处不启用 @rollup/plugin-typescript 生成 d.ts
-
-    // PostCSS (optional)
-    if (config.style?.extract !== false) {
-      const postcss = await import('rollup-plugin-postcss')
-plugins.push(postcss.default({ extract: true, minimize: config.style?.minimize !== false }))
-    }
+    // Preact 优化插件
+    plugins.push(this.createPreactOptimizationPlugin())
 
     // esbuild for TS/JSX with Preact automatic JSX
     const esbuild = await import('rollup-plugin-esbuild')
     plugins.push(esbuild.default({
-      include: /\.(tsx?|jsx?)$/, exclude: [/node_modules/], target: 'es2020',
-      jsx: 'automatic', jsxImportSource: 'preact', tsconfig: 'tsconfig.json',
-sourceMap: config.output?.sourcemap !== false, minify: shouldMinify(config)
+      include: /\.(tsx?|jsx?)$/,
+      exclude: [/node_modules/],
+      target: 'es2020',
+      jsx: 'automatic',
+      jsxImportSource: 'preact',
+      jsxDev: config.mode === 'development',
+      tsconfig: 'tsconfig.json',
+      sourceMap: config.output?.sourcemap !== false,
+      minify: shouldMinify(config)
     }))
 
+    // PostCSS 处理（支持多种预处理器）
+    if (config.style?.extract !== false) {
+      const postcss = await import('rollup-plugin-postcss')
+      plugins.push(postcss.default({
+        extract: true,
+        minimize: config.style?.minimize !== false,
+        modules: (config as any).style?.modules || false,
+        use: ['less', 'sass'],
+        extensions: ['.css', '.scss', '.sass', '.less']
+      }))
+    }
+
+    // 体积优化（Preact 的核心优势）
+    if (config.mode === 'production') {
+      const terser = await import('@rollup/plugin-terser')
+      plugins.push(terser.default({
+        compress: {
+          pure_funcs: ['console.log'],
+          passes: 3, // Preact 多次压缩效果更好
+          unsafe: true, // 启用更激进的优化
+          unsafe_comps: true,
+          unsafe_math: true,
+          unsafe_proto: true
+        },
+        mangle: {
+          properties: {
+            regex: /^_/
+          }
+        },
+        format: {
+          comments: false
+        }
+      }))
+    }
+
     return plugins
+  }
+
+  /**
+   * 创建 Preact 优化插件
+   * 自动替换 React 导入为 Preact/compat
+   */
+  private createPreactOptimizationPlugin(): any {
+    return {
+      name: 'preact-optimization',
+      resolveId(source: string) {
+        // 将 React 导入重定向到 Preact
+        if (source === 'react' || source === 'react-dom') {
+          return { id: 'preact/compat', external: true }
+        }
+        if (source === 'react/jsx-runtime') {
+          return { id: 'preact/jsx-runtime', external: true }
+        }
+        if (source === 'react/jsx-dev-runtime') {
+          return { id: 'preact/jsx-dev-runtime', external: true }
+        }
+        return null
+      }
+    }
   }
 
   private buildOutputConfig(config: BuilderConfig): any {

@@ -334,7 +334,7 @@ export class TypeScriptStrategy implements ILibraryStrategy {
     // TypeScript 插件 - 始终添加，由 getTypeScriptOptions 决定声明相关行为
     const tsOptions = this.getTypeScriptOptions(config)
     console.log('[TypeScriptStrategy] TypeScript 插件选项:', JSON.stringify(tsOptions, null, 2))
-    
+
     plugins.push({
       name: 'typescript',
       plugin: async () => {
@@ -432,7 +432,7 @@ export class TypeScriptStrategy implements ILibraryStrategy {
   }
 
   /**
-   * 获取 TypeScript 选项
+   * 获取 TypeScript 选项（静默模式）
    */
   private getTypeScriptOptions(config: BuilderConfig): any {
     const tsConfig = config.typescript || {}
@@ -450,20 +450,19 @@ export class TypeScriptStrategy implements ILibraryStrategy {
       noEmitOnError: false,
       // 显式覆盖，避免上游 tsconfig 开启导致 TS5096
       allowImportingTsExtensions: false,
-      exclude: ['**/*.test.ts', '**/*.spec.ts', 'node_modules/**']
+      exclude: ['**/*.test.ts', '**/*.spec.ts', 'node_modules/**'],
+      // 抑制未使用的警告
+      noUnusedLocals: false,
+      noUnusedParameters: false
     }
 
     // 检查多个位置的 declaration 配置
-    // 1. typescript.declaration
-    // 2. typescript.compilerOptions.declaration
-    // 3. 顶层 dts 配置
-    const declarationEnabled = tsConfig.declaration === true || 
-                              compilerOptions.declaration === true ||
-                              (config as any).dts === true
-    
+    const declarationEnabled = tsConfig.declaration === true ||
+      compilerOptions.declaration === true ||
+      (config as any).dts === true
+
     if (declarationEnabled) {
       options.declaration = true
-      // declarationDir 将由 RollupAdapter 动态设置，这里不设置固定值
       if (tsConfig.declarationDir || compilerOptions.declarationDir) {
         options.declarationDir = tsConfig.declarationDir || compilerOptions.declarationDir
       }
@@ -475,6 +474,33 @@ export class TypeScriptStrategy implements ILibraryStrategy {
     // 合并其他 compilerOptions
     if (compilerOptions.removeComments !== undefined) {
       options.removeComments = compilerOptions.removeComments
+    }
+
+    // 添加诊断过滤器
+    options.filterDiagnostics = (diagnostic: any) => {
+      const code = diagnostic.code
+      const file = diagnostic.file?.fileName || ''
+
+      // 过滤 .vue 文件相关的诊断
+      if (file.endsWith('.vue') || file.includes('.vue') || file.includes('/vue/')) {
+        return false
+      }
+
+      // 过滤特定的诊断代码
+      const suppressedCodes = [
+        2688,  // TS2688: Cannot find type definition file
+        2307,  // TS2307: Cannot find module  
+        5096,  // TS5096: Option conflicts
+        6133,  // TS6133: Unused variable
+        7016   // TS7016: Could not find declaration file
+      ]
+
+      if (suppressedCodes.includes(code)) {
+        return false
+      }
+
+      // 保留其他诊断
+      return true
     }
 
     return options

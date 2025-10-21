@@ -10,6 +10,8 @@
 
 // 核心类导出
 export { LibraryBuilder } from './core/LibraryBuilder'
+export { EnhancedLibraryBuilder } from './core/EnhancedLibraryBuilder'
+export { MonorepoBuilder, createMonorepoBuilder } from './core/MonorepoBuilder'
 export { ConfigManager } from './core/ConfigManager'
 export { StrategyManager } from './core/StrategyManager'
 export { PluginManager } from './core/PluginManager'
@@ -38,6 +40,7 @@ export { SolidStrategy } from './strategies/solid/SolidStrategy'
 export { PreactStrategy } from './strategies/preact/PreactStrategy'
 export { LitStrategy } from './strategies/lit/LitStrategy'
 export { AngularStrategy } from './strategies/angular/AngularStrategy'
+export { QwikStrategy } from './strategies/qwik/QwikStrategy'
 export { MixedStrategy } from './strategies/mixed/MixedStrategy'
 
 // 插件导出
@@ -53,6 +56,13 @@ export * from './constants'
 export * from './utils'
 export { MemoryOptimizer, getGlobalMemoryOptimizer } from './utils/memory-optimizer'
 export type { MemoryStats, MemoryConfig } from './utils/memory-optimizer'
+export { createIncrementalBuildManager, IncrementalBuildManager } from './utils/incremental-build-manager'
+export { createParallelProcessor, ParallelProcessor } from './utils/parallel-processor'
+export { createStreamFileProcessor, StreamFileProcessor } from './utils/stream-file-processor'
+export { createBuildReportGenerator, BuildReportGenerator } from './utils/build-report-generator'
+export { tailwindPlugin } from './plugins/tailwind'
+export { cssInJSPlugin } from './plugins/css-in-js'
+export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules-advanced'
 
 // 便捷函数
 export { defineConfig, defineAsyncConfig } from './utils/config'

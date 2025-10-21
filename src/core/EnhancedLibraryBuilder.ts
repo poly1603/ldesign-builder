@@ -1,42 +1,32 @@
 /**
  * 增强版库构建器主控制器类
  * 
- * 这是 @ldesign/builder 的核心增强版类，提供更强大的构建功能和验证机制
+ * 继承自 LibraryBuilder，提供更强大的构建功能和验证机制
+ * - 构建缓存
+ * - 依赖分析
+ * - 代码质量检查
+ * - 增强的验证和报告
  * 
  * @author LDesign Team
  * @version 2.0.0
  */
 
-import { EventEmitter } from 'events'
 import { createHash } from 'crypto'
 import * as fs from 'fs-extra'
 import * as path from 'path'
+import { LibraryBuilder } from './LibraryBuilder'
 import {
-  ILibraryBuilder,
-  BuilderOptions,
   BuilderStatus,
-  BuildResult,
-  BuildWatcher
+  type BuilderOptions,
+  type BuildResult
 } from '../types/builder'
 import type { BuilderConfig } from '../types/config'
-import type { ValidationResult } from '../types/common'
-import type { LibraryType } from '../types/library'
+import { LibraryType } from '../types/library'
 import type {
   ValidationResult as PostBuildValidationResult,
   ValidationContext
 } from '../types/validation'
-import { ConfigManager } from './ConfigManager'
-import { StrategyManager } from './StrategyManager'
-import { PluginManager } from './PluginManager'
-import { LibraryDetector } from './LibraryDetector'
-import { PerformanceMonitor } from './PerformanceMonitor'
-import { PostBuildValidator } from './PostBuildValidator'
-import { BundlerAdapterFactory } from '../adapters/base/AdapterFactory'
-import type { IBundlerAdapter } from '../types/adapter'
-import { Logger, createLogger } from '../utils/logger'
-import { ErrorHandler, createErrorHandler } from '../utils/error-handler'
 import { ErrorCode } from '../constants/errors'
-import { DEFAULT_BUILDER_CONFIG } from '../constants/defaults'
 
 /**
  * 构建缓存接口
@@ -82,47 +72,9 @@ interface CodeQualityResult {
 
 /**
  * 增强版库构建器主控制器类
+ * 继承自 LibraryBuilder，添加额外的功能
  */
-export class EnhancedLibraryBuilder extends EventEmitter implements ILibraryBuilder {
-  /** 当前状态 */
-  private status: BuilderStatus = BuilderStatus.IDLE
-
-  /** 当前配置 */
-  private config: BuilderConfig
-
-  /** 打包核心适配器 */
-  private bundlerAdapter!: IBundlerAdapter
-
-  /** 策略管理器 */
-  private strategyManager!: StrategyManager
-
-  /** 配置管理器 */
-  private configManager!: ConfigManager
-
-  /** 插件管理器 */
-  private pluginManager!: PluginManager
-
-  /** 日志记录器 */
-  private logger!: Logger
-
-  /** 错误处理器 */
-  private errorHandler!: ErrorHandler
-
-  /** 性能监控器 */
-  private performanceMonitor!: PerformanceMonitor
-
-  /** 库类型检测器 */
-  private libraryDetector!: LibraryDetector
-
-  /** 打包后验证器 */
-  private postBuildValidator!: PostBuildValidator
-
-  /** 当前构建统计 */
-  private currentStats: any = null
-
-  /** 当前性能指标 */
-  private currentMetrics: any = null
-
+export class EnhancedLibraryBuilder extends LibraryBuilder {
   /** 构建缓存 */
   private buildCache: Map<string, BuildCache> = new Map()
 
@@ -136,28 +88,19 @@ export class EnhancedLibraryBuilder extends EventEmitter implements ILibraryBuil
   private readonly maxHistorySize = 10
 
   constructor(options: BuilderOptions = {}) {
-    super()
+    // 调用父类构造函数
+    super(options)
 
-    // 初始化各种服务
-    this.initializeServices(options)
-
-    // 设置事件监听器
-    this.setupEventListeners()
-
-    // 设置错误处理
-    this.setupErrorHandling()
-
-    // 初始化配置
-    this.config = { ...DEFAULT_BUILDER_CONFIG, ...options.config }
-
-    // 临时禁用缓存加载以解决缓存bug
-    // this.loadBuildCache()
+    // 加载构建缓存
+    this.loadBuildCache().catch(() => {
+      // 缓存加载失败不影响正常使用
+    })
   }
 
   /**
    * 执行库构建（增强版）
    */
-  async build(config?: BuilderConfig): Promise<BuildResult> {
+  override async build(config?: BuilderConfig): Promise<BuildResult> {
     const buildId = this.generateBuildId()
 
     try {
@@ -175,13 +118,15 @@ export class EnhancedLibraryBuilder extends EventEmitter implements ILibraryBuil
         )
       }
 
-      // 检查构建缓存 - 临时禁用缓存以解决缓存bug
+      // 检查构建缓存
       const cacheKey = this.generateCacheKey(mergedConfig)
       const cachedResult = this.getCachedBuild(cacheKey)
 
-      // 临时强制禁用缓存
-      if (false && cachedResult) {
+      // 验证缓存是否仍然有效
+      if (cachedResult && await this.isCacheValid(cachedResult, mergedConfig)) {
         this.logger.info('使用缓存的构建结果')
+        // 更新缓存时间戳
+        cachedResult.timestamp = Date.now()
         return cachedResult as BuildResult
       }
 
@@ -969,27 +914,166 @@ describe('Library Validation', () => {
   }
 
   /**
-   * 生成缓存键
+   * 生成缓存键（优化版）
+   * 只考虑影响构建结果的关键配置，忽略不影响输出的配置变化
    */
   private generateCacheKey(config: BuilderConfig): string {
-    const configStr = JSON.stringify({
-      input: config.input,
-      output: config.output,
-      external: config.external,
-      plugins: config.plugins?.map(p => p.name || 'unknown'),
+    // 提取关键配置，忽略不影响构建的配置（如日志级别等）
+    const keyConfig = {
+      // 输入配置
+      input: this.normalizeInput(config.input),
+      // 输出配置（只取关键字段）
+      output: this.normalizeOutput(config.output),
+      // 外部依赖
+      external: Array.isArray(config.external)
+        ? config.external.sort()
+        : config.external,
+      // 插件（只取插件名和关键选项）
+      plugins: config.plugins?.map(p => ({
+        name: p.name || 'unknown',
+        // 只取影响输出的选项哈希
+        optionsHash: p.options ? createHash('md5').update(JSON.stringify(p.options)).digest('hex').substring(0, 8) : ''
+      })),
+      // 打包器类型
       bundler: config.bundler,
-      libraryType: config.libraryType
-    })
+      // 库类型
+      libraryType: config.libraryType,
+      // 模式
+      mode: config.mode,
+      // TypeScript 配置（关键部分）
+      typescript: config.typescript ? {
+        target: config.typescript.target,
+        module: config.typescript.module,
+        declaration: config.typescript.declaration
+      } : undefined,
+      // 压缩配置
+      minify: config.performance?.minify,
+      // Tree shaking
+      treeshake: config.performance?.treeshaking,
+      // Source map
+      sourcemap: config.output?.sourcemap
+    }
 
-    return createHash('md5').update(configStr).digest('hex')
+    const configStr = JSON.stringify(keyConfig, Object.keys(keyConfig).sort())
+    return createHash('sha256').update(configStr).digest('hex')
+  }
+
+  /**
+   * 规范化输入配置
+   */
+  private normalizeInput(input: any): any {
+    if (typeof input === 'string') {
+      return input
+    }
+    if (Array.isArray(input)) {
+      return input.sort()
+    }
+    if (typeof input === 'object' && input !== null) {
+      const sorted: Record<string, any> = {}
+      Object.keys(input).sort().forEach(key => {
+        sorted[key] = input[key]
+      })
+      return sorted
+    }
+    return input
+  }
+
+  /**
+   * 规范化输出配置
+   */
+  private normalizeOutput(output: any): any {
+    if (!output) return output
+
+    return {
+      format: output.format,
+      dir: output.dir,
+      esm: output.esm,
+      cjs: output.cjs,
+      umd: output.umd
+    }
   }
 
   /**
    * 获取缓存的构建结果
    */
-  private getCachedBuild(_cacheKey: string): BuildResult | null {
-    // 临时强制返回 null 以禁用缓存
-    return null
+  private getCachedBuild(cacheKey: string): BuildResult | null {
+    const cached = this.buildCache.get(cacheKey)
+    if (!cached) {
+      return null
+    }
+
+    // 检查缓存是否过期（默认1小时）
+    const maxAge = 60 * 60 * 1000 // 1小时
+    if (Date.now() - cached.timestamp > maxAge) {
+      this.buildCache.delete(cacheKey)
+      return null
+    }
+
+    return cached.buildResult
+  }
+
+  /**
+   * 验证缓存是否仍然有效
+   * 检查源文件、配置等是否发生变化
+   */
+  private async isCacheValid(cachedResult: BuildResult, config: BuilderConfig): Promise<boolean> {
+    try {
+      // 1. 检查输入文件是否存在且未被修改
+      const inputFiles = this.getInputFiles(config.input)
+      for (const file of inputFiles) {
+        if (!await fs.pathExists(file)) {
+          return false
+        }
+
+        // 检查文件修改时间
+        const stats = await fs.stat(file)
+        if (stats.mtimeMs > cachedResult.timestamp) {
+          return false
+        }
+      }
+
+      // 2. 检查输出文件是否存在
+      if (cachedResult.outputs) {
+        for (const output of cachedResult.outputs) {
+          if (output.fileName) {
+            const outputPath = path.resolve(process.cwd(), output.fileName)
+            if (!await fs.pathExists(outputPath)) {
+              return false
+            }
+          }
+        }
+      }
+
+      // 3. 检查依赖是否变化（package.json）
+      const pkgPath = path.join(process.cwd(), 'package.json')
+      if (await fs.pathExists(pkgPath)) {
+        const pkgStats = await fs.stat(pkgPath)
+        if (pkgStats.mtimeMs > cachedResult.timestamp) {
+          return false
+        }
+      }
+
+      return true
+    } catch {
+      return false
+    }
+  }
+
+  /**
+   * 从配置中提取输入文件列表
+   */
+  private getInputFiles(input: any): string[] {
+    const files: string[] = []
+
+    if (typeof input === 'string') {
+      files.push(input)
+    } else if (Array.isArray(input)) {
+      files.push(...input.filter(i => typeof i === 'string'))
+    } else if (typeof input === 'object' && input !== null) {
+      files.push(...Object.values(input).filter(i => typeof i === 'string'))
+    }
+
+    return files
   }
 
   /**
@@ -1015,34 +1099,75 @@ describe('Library Validation', () => {
   /**
    * 加载构建缓存
    */
-  // @ts-ignore - 临时禁用未使用警告
   private async loadBuildCache(): Promise<void> {
-    const cacheFile = path.join(process.cwd(), '.ldesign-builder-cache.json')
+    const cacheFile = path.join(process.cwd(), 'node_modules', '.cache', '@ldesign', 'builder-cache.json')
 
     try {
       if (await fs.pathExists(cacheFile)) {
         const cacheData = await fs.readJson(cacheFile)
 
-        for (const [key, value] of Object.entries(cacheData)) {
-          this.buildCache.set(key, value as BuildCache)
+        // 验证缓存数据格式
+        if (cacheData && typeof cacheData === 'object') {
+          for (const [key, value] of Object.entries(cacheData)) {
+            // 验证缓存项的有效性
+            if (this.isValidCacheEntry(value)) {
+              this.buildCache.set(key, value as BuildCache)
+            }
+          }
         }
+
+        this.logger.debug(`已加载 ${this.buildCache.size} 个缓存项`)
       }
     } catch (error) {
-      this.logger.debug('无法加载构建缓存:', error)
+      this.logger.debug('加载构建缓存失败:', error)
+      // 缓存加载失败不影响构建
     }
+  }
+
+  /**
+   * 验证缓存项是否有效
+   */
+  private isValidCacheEntry(entry: any): boolean {
+    return (
+      entry &&
+      typeof entry === 'object' &&
+      entry.buildResult &&
+      entry.timestamp &&
+      typeof entry.timestamp === 'number' &&
+      // 缓存不超过7天
+      Date.now() - entry.timestamp < 7 * 24 * 60 * 60 * 1000
+    )
   }
 
   /**
    * 保存构建缓存
    */
   private async saveBuildCache(): Promise<void> {
-    const cacheFile = path.join(process.cwd(), '.ldesign-builder-cache.json')
+    const cacheDir = path.join(process.cwd(), 'node_modules', '.cache', '@ldesign')
+    const cacheFile = path.join(cacheDir, 'builder-cache.json')
 
     try {
-      const cacheData = Object.fromEntries(this.buildCache.entries())
+      // 确保缓存目录存在
+      await fs.ensureDir(cacheDir)
+
+      // 只保存有效的缓存项
+      const validCache = new Map()
+      const now = Date.now()
+      const maxAge = 7 * 24 * 60 * 60 * 1000 // 7天
+
+      for (const [key, value] of this.buildCache.entries()) {
+        if (value.timestamp && now - value.timestamp < maxAge) {
+          validCache.set(key, value)
+        }
+      }
+
+      const cacheData = Object.fromEntries(validCache.entries())
       await fs.writeJson(cacheFile, cacheData, { spaces: 2 })
+
+      this.logger.debug(`已保存 ${validCache.size} 个缓存项`)
     } catch (error) {
-      this.logger.debug('无法保存构建缓存:', error)
+      this.logger.debug('保存构建缓存失败:', error)
+      // 缓存保存失败不影响构建
     }
   }
 
@@ -1127,344 +1252,30 @@ describe('Library Validation', () => {
     return false
   }
 
-  // ... 继承自原有 LibraryBuilder 的其他方法 ...
-
   /**
-   * 启动监听构建模式
+   * 初始化（覆盖父类方法，添加增强功能）
    */
-  async buildWatch(config?: BuilderConfig): Promise<BuildWatcher> {
-    try {
-      this.setStatus(BuilderStatus.WATCHING)
-
-      const mergedConfig = config ? this.mergeConfig(this.config, config) : this.config
-
-      if (mergedConfig.bundler && mergedConfig.bundler !== this.bundlerAdapter.name) {
-        this.setBundler(mergedConfig.bundler)
-      }
-
-      // 获取库类型（优先使用项目根目录进行检测，而不是入口文件路径）
-      const projectRoot = mergedConfig.cwd || process.cwd()
-      let libraryType = mergedConfig.libraryType || await this.detectLibraryType(projectRoot)
-
-      if (typeof libraryType === 'string') {
-        libraryType = libraryType as LibraryType
-      }
-
-      const strategy = this.strategyManager.getStrategy(libraryType)
-      const strategyConfig = await strategy.applyStrategy(mergedConfig)
-
-      const watcher = await this.bundlerAdapter.watch(strategyConfig)
-
-      this.emit('watch:start', {
-        patterns: watcher.patterns,
-        timestamp: Date.now()
-      })
-
-      return watcher
-
-    } catch (error) {
-      this.setStatus(BuilderStatus.ERROR)
-      throw this.errorHandler.createError(
-        ErrorCode.BUILD_FAILED,
-        '启动监听模式失败',
-        { cause: error as Error }
-      )
-    }
+  override async initialize(): Promise<void> {
+    await super.initialize()
+    // 加载增强功能的缓存
+    await this.loadBuildCache().catch(() => {
+      // 缓存加载失败不影响正常使用
+    })
   }
 
   /**
-   * 合并配置
+   * 销毁资源（覆盖父类方法，添加增强功能清理）
    */
-  mergeConfig(base: BuilderConfig, override: BuilderConfig): BuilderConfig {
-    return this.configManager.mergeConfigs(base, override)
-  }
-
-  /**
-   * 验证配置
-   */
-  validateConfig(config: BuilderConfig): ValidationResult {
-    return this.configManager.validateConfig(config)
-  }
-
-  /**
-   * 加载配置文件
-   */
-  async loadConfig(configPath?: string): Promise<BuilderConfig> {
-    const config = await this.configManager.loadConfig(configPath ? { configFile: configPath } : {})
-    this.config = config
-    return config
-  }
-
-  /**
-   * 切换打包核心
-   */
-  setBundler(bundler: 'rollup' | 'rolldown'): void {
-    try {
-      this.bundlerAdapter = BundlerAdapterFactory.create(bundler, {
-        logger: this.logger,
-        performanceMonitor: this.performanceMonitor
-      })
-
-      this.logger.info(`已切换到 ${bundler} 打包核心`)
-
-    } catch (error) {
-      throw this.errorHandler.createError(
-        ErrorCode.ADAPTER_NOT_AVAILABLE,
-        `切换到 ${bundler} 失败`,
-        { cause: error as Error }
-      )
-    }
-  }
-
-  /**
-   * 获取当前打包核心
-   */
-  getBundler(): 'rollup' | 'rolldown' {
-    return this.bundlerAdapter.name
-  }
-
-  /**
-   * 设置库类型
-   */
-  setLibraryType(type: LibraryType): void {
-    if (this.config) {
-      this.config.libraryType = type
-    }
-    this.logger.info(`已设置库类型为: ${type}`)
-  }
-
-  /**
-   * 检测库类型
-   * - 传入的路径可能是文件路径或子目录，这里做归一化：
-   *   1) 若为文件路径，取其所在目录
-   *   2) 自下而上查找最近的 package.json 作为项目根
-   *   3) 若未找到，回退到当前工作目录
-   */
-  async detectLibraryType(projectPath: string): Promise<LibraryType> {
-    let base = projectPath
-
-    try {
-      const stat = await fs.stat(projectPath).catch(() => null as any)
-      if (stat && stat.isFile()) {
-        base = path.dirname(projectPath)
-      }
-
-      // 自下而上查找最近的 package.json
-      let current = base
-      let resolvedRoot = ''
-      for (let i = 0; i < 10; i++) {
-        const pkg = path.join(current, 'package.json')
-        if (await fs.pathExists(pkg)) {
-          resolvedRoot = current
-          break
-        }
-        const parent = path.dirname(current)
-        if (parent === current) break
-        current = parent
-      }
-
-      const root = resolvedRoot || (this.config?.cwd || process.cwd())
-      const result = await this.libraryDetector.detect(root)
-      return result.type
-
-    } catch {
-      // 发生错误时，回退到 cwd
-      const fallbackRoot = this.config?.cwd || process.cwd()
-      const result = await this.libraryDetector.detect(fallbackRoot)
-      return result.type
-    }
-  }
-
-  /**
-   * 获取当前状态
-   */
-  getStatus(): BuilderStatus {
-    return this.status
-  }
-
-  /**
-   * 是否正在构建
-   */
-  isBuilding(): boolean {
-    return this.status === 'building'
-  }
-
-  /**
-   * 是否正在监听
-   */
-  isWatching(): boolean {
-    return this.status === 'watching'
-  }
-
-  /**
-   * 初始化
-   */
-  async initialize(): Promise<void> {
-    this.setStatus(BuilderStatus.INITIALIZING)
-
-    try {
-      await this.loadConfig()
-      this.setBundler(this.config?.bundler || 'rollup')
-      this.setStatus(BuilderStatus.IDLE)
-      this.logger.success('EnhancedLibraryBuilder 初始化完成')
-    } catch (error) {
-      this.setStatus(BuilderStatus.ERROR)
-      throw this.errorHandler.createError(
-        ErrorCode.BUILD_FAILED,
-        '初始化失败',
-        { cause: error as Error }
-      )
-    }
-  }
-
-  /**
-   * 销毁资源
-   */
-  async dispose(): Promise<void> {
-    this.setStatus(BuilderStatus.DISPOSED)
-
+  override async dispose(): Promise<void> {
     // 保存缓存
     await this.saveBuildCache()
 
-    if (this.bundlerAdapter) {
-      await this.bundlerAdapter.dispose()
-    }
+    // 清理增强功能的缓存和历史
+    this.buildCache.clear()
+    this.dependencyCache.clear()
+    this.buildHistory = []
 
-    if (this.pluginManager) {
-      await this.pluginManager.dispose()
-    }
-
-    if (this.postBuildValidator) {
-      await this.postBuildValidator.dispose()
-    }
-
-    this.removeAllListeners()
-
-    this.logger.info('EnhancedLibraryBuilder 已销毁')
-  }
-
-  /**
-   * 获取构建统计信息
-   */
-  getStats(): any {
-    return this.currentStats
-  }
-
-  /**
-   * 获取性能指标
-   */
-  getPerformanceMetrics(): any {
-    return this.currentMetrics
-  }
-
-  /**
-   * 初始化各种服务
-   */
-  private initializeServices(options: BuilderOptions): void {
-    this.logger = options.logger || createLogger({
-      level: 'info',
-      prefix: '@ldesign/builder'
-    })
-
-    this.errorHandler = createErrorHandler({
-      logger: this.logger,
-      showSuggestions: true
-    })
-
-    this.performanceMonitor = new PerformanceMonitor({
-      logger: this.logger
-    })
-
-    this.configManager = new ConfigManager({
-      logger: this.logger
-    })
-
-    this.strategyManager = new StrategyManager({
-      autoDetection: true,
-      cache: true
-    } as any)
-
-    this.pluginManager = new PluginManager({
-      cache: true,
-      hotReload: false
-    } as any)
-
-    this.libraryDetector = new LibraryDetector({
-      logger: this.logger
-    })
-
-    this.postBuildValidator = new PostBuildValidator({}, {
-      logger: this.logger,
-      errorHandler: this.errorHandler
-    })
-
-    this.bundlerAdapter = BundlerAdapterFactory.create('rollup', {
-      logger: this.logger,
-      performanceMonitor: this.performanceMonitor
-    })
-  }
-
-  /**
-   * 设置事件监听器
-   */
-  private setupEventListeners(): void {
-    this.configManager.on('config:change', (config: BuilderConfig) => {
-      this.config = config
-      this.emit('config:change', {
-        config,
-        oldConfig: this.config,
-        timestamp: Date.now()
-      })
-    })
-  }
-
-  /**
-   * 设置错误处理
-   */
-  private setupErrorHandling(): void {
-    this.on('error', (error) => {
-      this.errorHandler.handle(error, 'EnhancedLibraryBuilder')
-    })
-  }
-
-  /**
-   * 设置状态
-   */
-  private setStatus(status: BuilderStatus): void {
-    const oldStatus = this.status
-    this.status = status
-
-    this.emit('status:change', {
-      status,
-      oldStatus,
-      timestamp: Date.now()
-    })
-  }
-
-  /**
-   * 生成构建 ID
-   */
-  private generateBuildId(): string {
-    return `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
-  }
-
-  /**
-   * 处理构建错误
-   */
-  private handleBuildError(error: Error, buildId: string): Error {
-    this.performanceMonitor.recordError(buildId, error)
-
-    if (error instanceof Error) {
-      return this.errorHandler.createError(
-        ErrorCode.BUILD_FAILED,
-        `构建失败: ${error.message}`,
-        { cause: error }
-      )
-    }
-
-    return this.errorHandler.createError(
-      ErrorCode.BUILD_FAILED,
-      '构建失败: 未知错误'
-    )
+    // 调用父类的 dispose 方法
+    await super.dispose()
   }
 }

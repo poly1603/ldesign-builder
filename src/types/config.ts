@@ -94,6 +94,9 @@ export interface BuilderConfig {
   /** 样式配置 */
   style?: StyleLibraryConfig
 
+  /** Qwik 配置 */
+  qwik?: import('./library').QwikLibraryConfig
+
   /** 性能配置 */
   performance?: PerformanceConfig
 

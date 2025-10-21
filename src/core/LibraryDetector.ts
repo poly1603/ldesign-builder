@@ -64,6 +64,7 @@ export class LibraryDetector {
         preact: 0,
         lit: 0,
         angular: 0,
+        qwik: 0,
         mixed: 0
       }
 
@@ -78,6 +79,7 @@ export class LibraryDetector {
         preact: [],
         lit: [],
         angular: [],
+        qwik: [],
         mixed: []
       }
 
@@ -115,7 +117,7 @@ export class LibraryDetector {
                 else if (/(^|[^\d])3(\D|$)/.test(vueVer)) vueMajor = 3
               }
             }
-          } catch {}
+          } catch { }
 
           const forcedType = vueMajor === 2 ? LibraryType.VUE2 : LibraryType.VUE3
           const forcedEvidence = [

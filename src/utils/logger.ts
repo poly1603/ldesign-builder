@@ -307,6 +307,126 @@ export class Logger {
     const bar = '█'.repeat(filled) + '░'.repeat(empty)
     return this.colors ? chalk.cyan(bar) : bar
   }
+
+  /**
+   * 创建高级进度条（带颜色渐变）
+   */
+  createAdvancedProgressBar(current: number, total: number, options: {
+    width?: number
+    showPercent?: boolean
+    showCount?: boolean
+    label?: string
+  } = {}): string {
+    const { width = 30, showPercent = true, showCount = true, label = '' } = options
+    const percent = Math.min(100, Math.max(0, (current / total) * 100))
+    const filled = Math.round((percent / 100) * width)
+    const empty = width - filled
+
+    // 根据进度选择颜色
+    let barColor = chalk.cyan
+    if (percent >= 100) {
+      barColor = chalk.green
+    } else if (percent >= 75) {
+      barColor = chalk.cyan
+    } else if (percent >= 50) {
+      barColor = chalk.yellow
+    } else {
+      barColor = chalk.red
+    }
+
+    const bar = this.colors
+      ? barColor('█'.repeat(filled)) + chalk.gray('░'.repeat(empty))
+      : '█'.repeat(filled) + '░'.repeat(empty)
+
+    let result = label ? `${label} ` : ''
+    result += `[${bar}]`
+
+    if (showPercent) {
+      result += ` ${percent.toFixed(1)}%`
+    }
+
+    if (showCount) {
+      result += ` (${current}/${total})`
+    }
+
+    return result
+  }
+
+  /**
+   * 创建旋转动画
+   */
+  createSpinner(phase: number = 0): string {
+    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    const frame = frames[phase % frames.length]
+    return this.colors ? chalk.cyan(frame) : frame
+  }
+
+  /**
+   * 显示构建摘要
+   */
+  showBuildSummary(data: {
+    duration: number
+    fileCount: number
+    totalSize: number
+    status: 'success' | 'failed' | 'warning'
+    warnings?: number
+    errors?: number
+  }): void {
+    if (!this.shouldLog(LogLevelEnum.INFO)) return
+
+    this.newLine()
+    this.divider('=', 60)
+
+    const statusIcon = data.status === 'success' ? '✓' : data.status === 'failed' ? '✗' : '⚠'
+    const statusColor = data.status === 'success' ? chalk.green : data.status === 'failed' ? chalk.red : chalk.yellow
+    const statusText = statusColor.bold(`${statusIcon} 构建${data.status === 'success' ? '成功' : data.status === 'failed' ? '失败' : '完成（有警告）'}`)
+
+    console.log(statusText)
+    this.divider('-', 60)
+
+    console.log(`⏱  耗时: ${chalk.yellow(this.formatDuration(data.duration))}`)
+    console.log(`📦 文件: ${chalk.cyan(data.fileCount)} 个`)
+    console.log(`📊 总大小: ${chalk.cyan(this.formatBytes(data.totalSize))}`)
+
+    if (data.warnings && data.warnings > 0) {
+      console.log(`⚠️  警告: ${chalk.yellow(data.warnings)} 个`)
+    }
+
+    if (data.errors && data.errors > 0) {
+      console.log(`❌ 错误: ${chalk.red(data.errors)} 个`)
+    }
+
+    this.divider('=', 60)
+    this.newLine()
+  }
+
+  /**
+   * 格式化持续时间
+   */
+  private formatDuration(ms: number): string {
+    if (ms < 1000) {
+      return `${ms.toFixed(0)}ms`
+    } else if (ms < 60000) {
+      return `${(ms / 1000).toFixed(2)}s`
+    } else {
+      const minutes = Math.floor(ms / 60000)
+      const seconds = ((ms % 60000) / 1000).toFixed(2)
+      return `${minutes}m ${seconds}s`
+    }
+  }
+
+  /**
+   * 格式化字节大小
+   */
+  private formatBytes(bytes: number): string {
+    if (bytes < 1024) {
+      return `${bytes} B`
+    } else if (bytes < 1024 * 1024) {
+      return `${(bytes / 1024).toFixed(2)} KB`
+    } else {
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    }
+  }
 }
 
 /**

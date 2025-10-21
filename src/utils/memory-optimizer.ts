@@ -55,7 +55,7 @@ export class MemoryOptimizer {
     this.monitorTimer = setInterval(() => {
       const stats = this.getMemoryStats()
       this.memoryHistory.push(stats)
-      
+
       // 保留最近100条记录
       if (this.memoryHistory.length > 100) {
         this.memoryHistory.shift()
@@ -87,7 +87,7 @@ export class MemoryOptimizer {
   getMemoryStats(): MemoryStats {
     const memUsage = process.memoryUsage()
     const heapStats = v8.getHeapStatistics()
-    
+
     return {
       heapUsed: memUsage.heapUsed / 1024 / 1024, // MB
       heapTotal: memUsage.heapTotal / 1024 / 1024, // MB
@@ -125,7 +125,7 @@ export class MemoryOptimizer {
       const after = this.getMemoryStats()
       const freed = before.heapUsed - after.heapUsed
       this.gcCount++
-      
+
       if (freed > 0) {
         this.logger.debug(`垃圾回收完成，释放 ${freed.toFixed(2)}MB 内存`)
       }
@@ -153,7 +153,7 @@ export class MemoryOptimizer {
         delete require.cache[key]
       }
     })
-    
+
     // 手动触发GC
     this.forceGC()
   }
@@ -170,7 +170,7 @@ export class MemoryOptimizer {
   } {
     const current = this.getMemoryStats()
     const average = this.memoryHistory.reduce((sum, s) => sum + s.heapUsed, 0) / (this.memoryHistory.length || 1)
-    
+
     // 计算趋势
     let trend: 'increasing' | 'stable' | 'decreasing' = 'stable'
     if (this.memoryHistory.length > 10) {
@@ -178,7 +178,7 @@ export class MemoryOptimizer {
       const older = this.memoryHistory.slice(-20, -10)
       const recentAvg = recent.reduce((sum, s) => sum + s.heapUsed, 0) / recent.length
       const olderAvg = older.reduce((sum, s) => sum + s.heapUsed, 0) / older.length
-      
+
       if (recentAvg > olderAvg * 1.1) {
         trend = 'increasing'
       } else if (recentAvg < olderAvg * 0.9) {
@@ -202,6 +202,73 @@ export class MemoryOptimizer {
     this.peakMemory = 0
     this.memoryHistory = []
     this.gcCount = 0
+  }
+
+  /**
+   * 创建内存安全的迭代器
+   * 用于处理大型数组，避免一次性加载到内存
+   */
+  async* createSafeIterator<T>(
+    items: T[],
+    options: {
+      batchSize?: number
+      onBatch?: (batch: T[], index: number) => void | Promise<void>
+    } = {}
+  ): AsyncGenerator<T> {
+    const { batchSize = 100, onBatch } = options
+
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize)
+
+      if (onBatch) {
+        await onBatch(batch, i)
+      }
+
+      for (const item of batch) {
+        yield item
+      }
+
+      // 每个批次后检查内存
+      const stats = this.getMemoryStats()
+      if (stats.heapUsed > this.config.gcThreshold) {
+        this.logger.debug('批处理中触发 GC')
+        this.forceGC()
+      }
+    }
+  }
+
+  /**
+   * 智能内存分配
+   * 根据当前内存使用情况决定是否继续操作
+   */
+  canAllocate(requiredMB: number): boolean {
+    const stats = this.getMemoryStats()
+    const available = this.config.maxHeapUsage - stats.heapUsed
+
+    if (requiredMB > available) {
+      this.logger.warn(`内存不足: 需要 ${requiredMB}MB，可用 ${available.toFixed(2)}MB`)
+
+      // 尝试 GC 后再次检查
+      if (this.config.enableAutoGC) {
+        this.forceGC()
+        const newStats = this.getMemoryStats()
+        const newAvailable = this.config.maxHeapUsage - newStats.heapUsed
+        return requiredMB <= newAvailable
+      }
+
+      return false
+    }
+
+    return true
+  }
+
+  /**
+   * 销毁
+   */
+  dispose(): void {
+    this.stopMonitoring()
+    this.memoryHistory = []
+    this.forceGC()
   }
 }
 

@@ -19,6 +19,7 @@ import type { PerformanceMetrics } from '../../types/performance'
 import type { BuilderConfig } from '../../types/config'
 import path from 'path'
 import fs from 'fs'
+import { promises as fsPromises } from 'fs'
 import { execSync } from 'child_process'
 import { Logger } from '../../utils/logger'
 import { BuilderError } from '../../utils/error-handler'
@@ -145,14 +146,7 @@ export class RollupAdapter implements IBundlerAdapter {
       const rollup = await this.loadRollup()
       const rollupConfig = await this.transformConfig(config)
 
-      this.logger.info('开始 Rollup 构建...')
-
-      // 显示构建配置信息
-      if (this.multiConfigs && this.multiConfigs.length > 1) {
-        const formats = this.multiConfigs.map(c => String(c.output?.format || 'es').toUpperCase()).join(', ')
-        this.logger.info(`构建格式: ${formats}`)
-      }
-
+      // 静默开始构建（减少日志输出）
       const startTime = Date.now()
 
       // 收集带格式信息的输出
@@ -160,13 +154,8 @@ export class RollupAdapter implements IBundlerAdapter {
 
       // 如果有多个配置，使用并行构建提升速度
       if (this.multiConfigs && this.multiConfigs.length > 1) {
-        this.logger.info(`开始并行构建 ${this.multiConfigs.length} 个配置...`)
-
-        // 并行构建所有配置
+        // 并行构建所有配置（静默模式）
         const buildPromises = this.multiConfigs.map(async (singleConfig, index) => {
-          const formatName = String(singleConfig.output?.format || 'es').toUpperCase()
-          this.logger.info(`[${index + 1}/${this.multiConfigs!.length}] 构建 ${formatName} 格式...`)
-
           const bundle = await rollup.rollup(singleConfig)
 
           // 生成并记录输出（保留每个配置的 format）
@@ -179,8 +168,6 @@ export class RollupAdapter implements IBundlerAdapter {
           // 写入文件
           await bundle.write(singleConfig.output)
           await bundle.close()
-
-          this.logger.success(`[${index + 1}/${this.multiConfigs!.length}] ${formatName} 格式构建完成`)
 
           return formatResults
         })
@@ -293,8 +280,6 @@ export class RollupAdapter implements IBundlerAdapter {
         bundler: 'rollup',
         mode: 'production'
       }
-
-      this.logger.success(`Rollup 构建完成 (${duration}ms)`)
 
       // 复制 DTS 文件到所有格式的输出目录
       await this.copyDtsFiles(config as any)
@@ -1639,14 +1624,21 @@ export class RollupAdapter implements IBundlerAdapter {
         return
       }
 
-      // 过滤 typescript 插件的 TS5096 等诊断噪音
+      // 过滤 TypeScript 警告（完全静默）
       if (warning.code === 'PLUGIN_WARNING' && warning.plugin === 'typescript') {
         const msg = String(warning.message || '')
-        if (msg.includes('TS5096')) return
+
+        // 完全过滤所有 TypeScript 警告
+        if (msg.includes('TS')) return
+
+        // 不在控制台显示
+        return
       }
 
-      // 其他告警交给默认处理
-      defaultHandler(warning)
+      // 其他严重警告输出到控制台
+      if (warning.code === 'PLUGIN_ERROR') {
+        defaultHandler(warning)
+      }
     }
   }
 

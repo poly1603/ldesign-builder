@@ -24,6 +24,10 @@ import type { PerformanceMetrics } from '../../types/performance'
 import { Logger } from '../../utils/logger'
 import { BuilderError } from '../../utils/error-handler'
 import { ErrorCode } from '../../constants/errors'
+import { RollupConfigBuilder } from './RollupConfigBuilder'
+import { RollupPluginManager } from './RollupPluginManager'
+import { RollupOutputHandler } from './RollupOutputHandler'
+import { RollupCacheManager } from './RollupCacheManager'
 
 /**
  * 插件验证结果
@@ -62,9 +66,13 @@ export class EnhancedRollupAdapter implements IBundlerAdapter {
   private logger: Logger
   private performanceMonitor: any
   private multiConfigs?: any[]
-  private pluginCache: Map<string, any> = new Map()
-  private outputCache: Map<string, any> = new Map()
   private rollupInstance: any = null
+
+  // 模块化组件
+  private configBuilder: RollupConfigBuilder
+  private pluginManager: RollupPluginManager
+  private outputHandler: RollupOutputHandler
+  private cacheManager: RollupCacheManager
 
   constructor(options: Partial<AdapterOptions> = {}) {
     this.logger = options.logger || new Logger()
@@ -73,7 +81,13 @@ export class EnhancedRollupAdapter implements IBundlerAdapter {
     this.version = 'unknown'
     this.available = true
 
-    this.logger.debug('增强版 Rollup 适配器初始化')
+    // 初始化模块化组件
+    this.configBuilder = new RollupConfigBuilder(this.logger)
+    this.pluginManager = new RollupPluginManager(this.logger)
+    this.outputHandler = new RollupOutputHandler(this.logger)
+    this.cacheManager = new RollupCacheManager(this.logger)
+
+    this.logger.debug('增强版 Rollup 适配器初始化（模块化架构）')
   }
 
   /**

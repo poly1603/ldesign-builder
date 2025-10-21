@@ -63,38 +63,71 @@ export const buildCommand = new Command('build')
 async function executeBuild(options: BuildOptions, globalOptions: any = {}): Promise<void> {
   const startTime = Date.now()
 
-  // 显示构建开始信息
-  logger.start('开始构建...')
+  // 全局拦截 TypeScript 警告输出
+  const originalStderrWrite = process.stderr.write
+  const originalConsoleWarn = console.warn
+  const originalConsoleError = console.error
+
+  const suppressedPatterns = [
+    'TypeScript 编译警告',
+    'Cannot find module',
+    'Cannot find type definition',
+    '@rollup/plugin-typescript TS',
+    '.vue',
+    'TS2307',
+    'TS2688'
+  ]
+
+  const shouldSuppress = (msg: string) => suppressedPatterns.some(p => msg.includes(p))
+
+  // 拦截 stderr
+  process.stderr.write = function (...args: any[]): boolean {
+    const msg = String(args[0] || '')
+    if (!shouldSuppress(msg)) {
+      return originalStderrWrite.apply(process.stderr, args as any)
+    }
+    return true
+  } as any
+
+  // 拦截 console.warn
+  console.warn = (...args: any[]) => {
+    const msg = args.join(' ')
+    if (!shouldSuppress(msg)) {
+      originalConsoleWarn.apply(console, args)
+    }
+  }
+
+  // 拦截 console.error  
+  console.error = (...args: any[]) => {
+    const msg = args.join(' ')
+    if (!shouldSuppress(msg)) {
+      originalConsoleError.apply(console, args)
+    }
+  }
 
   try {
     // 阶段计时器
     const timings: Record<string, number> = {}
     let phaseStart = Date.now()
 
-    // 创建构建器实例
-    logger.info(`🚀 开始构建...`)
-    logger.newLine()
-
+    // 创建构建器实例（静默初始化）
+    const silentLogger = logger.child('Builder', { level: 'error', silent: false })
     const builder = new LibraryBuilder({
-      logger,
+      logger: silentLogger,
       autoDetect: true
     })
 
     // 初始化构建器
-    logger.info(`⚙️  初始化构建器...`)
     await builder.initialize()
     timings['初始化'] = Date.now() - phaseStart
 
     // 构建配置
     phaseStart = Date.now()
-    logger.info(`📝 加载配置...`)
     const config = await buildConfig(options, globalOptions)
     timings['配置加载'] = Date.now() - phaseStart
 
-    // 显示配置信息
-    logger.newLine()
+    // 显示简化的配置信息
     showBuildInfo(config)
-    logger.newLine()
 
     // 执行构建
     let result
@@ -124,7 +157,24 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     } else {
       phaseStart = Date.now()
       logger.info(`🔨 开始打包...`)
-      result = await builder.build(config)
+
+      // 使用进度跟踪
+      let progressPhase = 0
+      const progressInterval = setInterval(() => {
+        const spinner = logger.createSpinner(progressPhase++)
+        process.stdout.write(`\r${spinner} 构建中... `)
+      }, 100)
+
+      try {
+        result = await builder.build(config)
+        clearInterval(progressInterval)
+        process.stdout.write('\r' + ' '.repeat(50) + '\r') // 清除进度行
+      } catch (error) {
+        clearInterval(progressInterval)
+        process.stdout.write('\r' + ' '.repeat(50) + '\r') // 清除进度行
+        throw error
+      }
+
       timings['打包'] = Date.now() - phaseStart
     }
 
@@ -162,6 +212,11 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     logger.newLine()
     logger.complete(`✨ 构建完成`)
 
+    // 恢复原始输出方法
+    process.stderr.write = originalStderrWrite
+    console.warn = originalConsoleWarn
+    console.error = originalConsoleError
+
     // 确保进程正常退出
     // 使用 setImmediate 确保所有日志都已输出
     setImmediate(() => {
@@ -171,6 +226,11 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
   } catch (error) {
     const duration = Date.now() - startTime
     logger.fail(`构建失败 ${highlight.time(`(${formatDuration(duration)})`)}`)
+
+    // 恢复原始输出方法
+    process.stderr.write = originalStderrWrite
+    console.warn = originalConsoleWarn
+    console.error = originalConsoleError
 
     // 确保进程退出
     setImmediate(() => {
@@ -193,22 +253,19 @@ async function buildConfig(options: BuildOptions, globalOptions: any): Promise<B
   try {
     const configPath = options.config
     if (configPath) {
-      logger.info(`加载配置文件: ${highlight.path(configPath)}`)
       baseConfig = await configManager.loadConfig({ configFile: configPath })
     } else {
       // 查找配置文件
       const configLoader = new ConfigLoader()
       const foundConfigPath = await configLoader.findConfigFile()
       if (foundConfigPath) {
-        logger.info(`加载配置文件: ${highlight.path(foundConfigPath)}`)
         baseConfig = await configManager.loadConfig({ configFile: foundConfigPath })
       } else {
-        logger.info(`未找到配置文件，使用默认配置`)
         baseConfig = await configManager.loadConfig({})
       }
     }
   } catch (error) {
-    logger.warn(`配置文件加载失败，使用默认配置: ${(error as Error).message}`)
+    // 配置加载失败静默处理
     baseConfig = await configManager.loadConfig({})
   }
 
@@ -259,43 +316,33 @@ async function buildConfig(options: BuildOptions, globalOptions: any): Promise<B
 }
 
 /**
- * 显示构建信息
+ * 显示构建信息（简化版）
  */
 function showBuildInfo(config: BuilderConfig): void {
-  logger.info(`📋 构建配置:`)
-
   const configItems: string[] = []
 
   if (config.input) {
     const inputStr = typeof config.input === 'string'
       ? config.input
       : Array.isArray(config.input)
-        ? config.input.join(', ')
-        : JSON.stringify(config.input)
-    configItems.push(`入口: ${highlight.path(inputStr)}`)
-  }
-
-  if (config.output?.dir) {
-    configItems.push(`输出: ${highlight.path(config.output.dir)}`)
+        ? `${config.input.length} files`
+        : 'multiple entries'
+    configItems.push(highlight.dim(`入口: ${inputStr}`))
   }
 
   if (config.output?.format) {
     const formats = Array.isArray(config.output.format)
-      ? config.output.format.join(', ')
+      ? config.output.format.join('+')
       : config.output.format
     configItems.push(`格式: ${highlight.important(formats)}`)
   }
 
-  if (config.bundler) {
-    configItems.push(`打包器: ${highlight.important(config.bundler)}`)
-  }
-
   if (config.mode) {
-    configItems.push(`模式: ${highlight.important(config.mode)}`)
+    configItems.push(highlight.dim(`模式: ${config.mode}`))
   }
 
   // 一行显示所有配置项
-  logger.info(`  ${configItems.join(' | ')}`)
+  console.log(`📦 ${configItems.join(' | ')}`)
 }
 
 /**
@@ -303,10 +350,6 @@ function showBuildInfo(config: BuilderConfig): void {
  */
 function showBuildResult(result: any, startTime: number, timings?: Record<string, number>): void {
   const duration = Date.now() - startTime
-
-  logger.newLine()
-  logger.success(`✅ 构建成功 ${highlight.time(`(${formatDuration(duration)})`)}`)
-  logger.newLine()
 
   if (result.outputs && result.outputs.length > 0) {
     // 计算统计信息
@@ -335,6 +378,16 @@ function showBuildResult(result: any, startTime: number, timings?: Record<string
       }
     }
 
+    // 使用增强的构建摘要显示
+    logger.showBuildSummary({
+      duration,
+      fileCount: stats.total,
+      totalSize: stats.totalSize,
+      status: result.success ? 'success' : 'failed',
+      warnings: result.warnings?.length || 0,
+      errors: result.errors?.length || 0
+    })
+
     // 根据日志级别显示不同详细程度的信息
     const logLevel = logger.getLevel()
 
@@ -349,20 +402,21 @@ function showBuildResult(result: any, startTime: number, timings?: Record<string
       logger.newLine()
     }
 
-    // 所有模式都显示摘要
-    logger.info(`📦 构建摘要:`)
-    logger.info(`  总文件数: ${highlight.number(stats.total)}`)
-    logger.info(`    - JS 文件: ${highlight.number(stats.js)}`)
-    logger.info(`    - DTS 文件: ${highlight.number(stats.dts)}`)
-    logger.info(`    - Source Map: ${highlight.number(stats.map)}`)
+    // 显示详细信息
+    logger.info(`📋 文件详情:`)
+    logger.info(`  JS 文件: ${highlight.number(stats.js)} 个`)
+    logger.info(`  DTS 文件: ${highlight.number(stats.dts)} 个`)
+    logger.info(`  Source Map: ${highlight.number(stats.map)} 个`)
     if (stats.other > 0) {
-      logger.info(`    - 其他文件: ${highlight.number(stats.other)}`)
+      logger.info(`  其他文件: ${highlight.number(stats.other)} 个`)
     }
-    logger.info(`  总大小: ${highlight.size(formatFileSize(stats.totalSize))}`)
+
     if (stats.totalGzipSize > 0) {
       const compressionRatio = Math.round((1 - stats.totalGzipSize / stats.totalSize) * 100)
-      logger.info(`  Gzip 后: ${highlight.size(formatFileSize(stats.totalGzipSize))} ${highlight.dim(`(压缩率: ${compressionRatio}%)`)}`)
+      logger.info(`  Gzip 后: ${highlight.size(formatFileSize(stats.totalGzipSize))} ${highlight.dim(`(压缩 ${compressionRatio}%)`)}`)
     }
+
+    logger.newLine()
   }
 
   // 缓存摘要

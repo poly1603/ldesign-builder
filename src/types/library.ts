@@ -26,6 +26,8 @@ export enum LibraryType {
   LIT = 'lit',
   /** Angular 组件库（基础支持） */
   ANGULAR = 'angular',
+  /** Qwik 组件库 */
+  QWIK = 'qwik',
   /** 混合库 */
   MIXED = 'mixed'
 }
@@ -367,6 +369,35 @@ export interface LibraryBuildOptions {
     strategy?: 'default' | 'vendor' | 'component'
   }
 }
+
+/**
+ * Qwik 库配置
+ */
+export interface QwikLibraryConfig {
+  /** 目标环境 */
+  target?: 'lib' | 'client' | 'test'
+  /** 构建模式 */
+  buildMode?: 'development' | 'production'
+  /** 是否启用调试 */
+  debug?: boolean
+  /** 入口策略 */
+  entryStrategy?: {
+    type: 'single' | 'component' | 'smart' | 'hook'
+  }
+  /** 优化级别 */
+  optimizationLevel?: 1 | 2 | 3
+  /** 是否转译 */
+  transpile?: boolean
+}
+
+/**
+ * 框架特定配置联合类型
+ */
+export type FrameworkConfig =
+  | TypeScriptLibraryConfig
+  | VueLibraryConfig
+  | StyleLibraryConfig
+  | QwikLibraryConfig
 
 /**
  * 库发布配置

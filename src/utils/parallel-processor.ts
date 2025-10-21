@@ -62,6 +62,12 @@ export interface ParallelProcessorOptions {
   enablePriority?: boolean
   /** 是否自动调整并发数 */
   autoAdjustConcurrency?: boolean
+  /** 是否启用智能调度 */
+  enableSmartScheduling?: boolean
+  /** 内存使用阈值(百分比) */
+  memoryThreshold?: number
+  /** CPU 使用阈值(百分比) */
+  cpuThreshold?: number
 }
 
 /**
@@ -73,24 +79,49 @@ export class ParallelProcessor extends EventEmitter {
   private defaultRetries: number
   private enablePriority: boolean
   private autoAdjustConcurrency: boolean
+  private enableSmartScheduling: boolean
+  private memoryThreshold: number
+  private cpuThreshold: number
   private logger: Logger
 
-  private runningTasks = new Map<string, { task: Task; startTime: number }>()
+  private runningTasks = new Map<string, { task: Task; startTime: number; estimatedDuration?: number }>()
   private pendingTasks: Task[] = []
   private completedTasks: TaskResult[] = []
   private currentConcurrency = 0
 
+  // 智能调度相关
+  private taskHistory: Map<string, { avgDuration: number; successRate: number; count: number }> = new Map()
+  private lastAdjustTime = Date.now()
+  private adjustInterval = 5000 // 5秒调整一次
+
+  // 性能指标
+  private performanceMetrics = {
+    totalTasks: 0,
+    successfulTasks: 0,
+    failedTasks: 0,
+    avgDuration: 0,
+    throughput: 0 // 任务/秒
+  }
+
   constructor(options: ParallelProcessorOptions = {}) {
     super()
-    
+
     this.maxConcurrency = options.maxConcurrency || Math.max(1, os.cpus().length - 1)
     this.defaultTimeout = options.defaultTimeout || 30000
     this.defaultRetries = options.defaultRetries || 0
     this.enablePriority = options.enablePriority !== false
     this.autoAdjustConcurrency = options.autoAdjustConcurrency || false
+    this.enableSmartScheduling = options.enableSmartScheduling !== false
+    this.memoryThreshold = options.memoryThreshold || 85 // 85%
+    this.cpuThreshold = options.cpuThreshold || 90 // 90%
     this.logger = new Logger({ prefix: 'ParallelProcessor' })
 
     this.logger.debug(`初始化并行处理器，最大并发数: ${this.maxConcurrency}`)
+
+    // 启动性能监控
+    if (this.autoAdjustConcurrency) {
+      this.startPerformanceMonitoring()
+    }
   }
 
   /**
@@ -123,9 +154,20 @@ export class ParallelProcessor extends EventEmitter {
   }
 
   /**
-   * 处理任务队列
+   * 处理任务队列（优化版）
    */
   private async processQueue(): Promise<void> {
+    // 智能调度：根据系统资源动态调整并发数
+    if (this.autoAdjustConcurrency && Date.now() - this.lastAdjustTime > this.adjustInterval) {
+      await this.smartAdjustConcurrency()
+      this.lastAdjustTime = Date.now()
+    }
+
+    // 智能任务选择：优先处理预计耗时短的高优先级任务
+    if (this.enableSmartScheduling && this.pendingTasks.length > 1) {
+      this.smartSortTasks()
+    }
+
     while (
       this.pendingTasks.length > 0 &&
       this.currentConcurrency < this.maxConcurrency
@@ -139,67 +181,158 @@ export class ParallelProcessor extends EventEmitter {
   }
 
   /**
-   * 运行单个任务
+   * 智能任务排序
+   * 结合优先级、预估耗时和成功率进行综合排序
+   */
+  private smartSortTasks(): void {
+    this.pendingTasks.sort((a, b) => {
+      const priorityA = a.priority || 0
+      const priorityB = b.priority || 0
+
+      // 获取任务历史信息
+      const historyA = this.getTaskHistory(a.id)
+      const historyB = this.getTaskHistory(b.id)
+
+      // 计算任务得分 = 优先级 * 成功率 / 预估耗时
+      const scoreA = (priorityA + 1) * historyA.successRate / (historyA.avgDuration || 1)
+      const scoreB = (priorityB + 1) * historyB.successRate / (historyB.avgDuration || 1)
+
+      return scoreB - scoreA // 降序
+    })
+  }
+
+  /**
+   * 获取任务历史信息
+   */
+  private getTaskHistory(taskId: string): { avgDuration: number; successRate: number; count: number } {
+    // 提取任务类型（去除时间戳等）
+    const taskType = taskId.split('-')[0] || taskId
+    return this.taskHistory.get(taskType) || {
+      avgDuration: this.defaultTimeout / 2,
+      successRate: 0.8,
+      count: 0
+    }
+  }
+
+  /**
+   * 更新任务历史
+   */
+  private updateTaskHistory(taskId: string, duration: number, success: boolean): void {
+    const taskType = taskId.split('-')[0] || taskId
+    const history = this.taskHistory.get(taskType) || {
+      avgDuration: 0,
+      successRate: 0,
+      count: 0
+    }
+
+    // 指数移动平均
+    const alpha = 0.3 // 权重因子
+    history.avgDuration = history.count === 0
+      ? duration
+      : history.avgDuration * (1 - alpha) + duration * alpha
+
+    history.successRate = history.count === 0
+      ? (success ? 1 : 0)
+      : history.successRate * (1 - alpha) + (success ? 1 : 0) * alpha
+
+    history.count++
+
+    this.taskHistory.set(taskType, history)
+  }
+
+  /**
+   * 运行单个任务（优化版）
    */
   private async runTask<T, R>(task: Task<T, R>): Promise<void> {
     const startTime = Date.now()
-    this.runningTasks.set(task.id, { task, startTime })
+    const history = this.getTaskHistory(task.id)
+    this.runningTasks.set(task.id, { task, startTime, estimatedDuration: history.avgDuration })
     this.emit('task:start', task.id)
 
     let retryCount = 0
     let lastError: Error | undefined
+    let success = false
 
     while (retryCount <= (task.retries || 0)) {
       try {
         const result = await this.executeWithTimeout(task)
-        
+
+        const duration = Date.now() - startTime
         const taskResult: TaskResult<R> = {
           id: task.id,
           status: TaskStatus.COMPLETED,
           result,
-          duration: Date.now() - startTime,
+          duration,
           retryCount
         }
 
         this.completedTasks.push(taskResult)
         this.emit('task:complete', taskResult)
+
+        // 更新性能指标
+        this.updatePerformanceMetrics(duration, true)
+        success = true
         break
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
-        
+
         if (retryCount < (task.retries || 0)) {
           retryCount++
           this.logger.debug(`任务 ${task.id} 失败，重试 ${retryCount}/${task.retries}`)
           this.emit('task:retry', { id: task.id, retryCount, error: lastError })
-          
+
           // 指数退避
           await new Promise(resolve => setTimeout(resolve, Math.min(1000 * Math.pow(2, retryCount), 10000)))
         } else {
+          const duration = Date.now() - startTime
           const taskResult: TaskResult = {
             id: task.id,
             status: TaskStatus.FAILED,
             error: lastError,
-            duration: Date.now() - startTime,
+            duration,
             retryCount
           }
 
           this.completedTasks.push(taskResult)
           this.emit('task:failed', taskResult)
+
+          // 更新性能指标
+          this.updatePerformanceMetrics(duration, false)
           break
         }
       }
     }
 
+    // 更新任务历史
+    const duration = Date.now() - startTime
+    this.updateTaskHistory(task.id, duration, success)
+
     this.runningTasks.delete(task.id)
     this.currentConcurrency--
 
-    // 自动调整并发数
-    if (this.autoAdjustConcurrency) {
-      this.adjustConcurrency()
-    }
-
     // 继续处理队列
     this.processQueue()
+  }
+
+  /**
+   * 更新性能指标
+   */
+  private updatePerformanceMetrics(duration: number, success: boolean): void {
+    this.performanceMetrics.totalTasks++
+    if (success) {
+      this.performanceMetrics.successfulTasks++
+    } else {
+      this.performanceMetrics.failedTasks++
+    }
+
+    // 指数移动平均
+    const alpha = 0.2
+    this.performanceMetrics.avgDuration = this.performanceMetrics.totalTasks === 1
+      ? duration
+      : this.performanceMetrics.avgDuration * (1 - alpha) + duration * alpha
+
+    // 计算吞吐量（任务/秒）
+    this.performanceMetrics.throughput = 1000 / this.performanceMetrics.avgDuration
   }
 
   /**
@@ -224,22 +357,96 @@ export class ParallelProcessor extends EventEmitter {
   }
 
   /**
-   * 自动调整并发数
+   * 智能调整并发数
+   * 综合考虑内存、CPU、任务成功率等因素
    */
-  private adjustConcurrency(): void {
+  private async smartAdjustConcurrency(): Promise<void> {
     const memUsage = process.memoryUsage()
-    const heapUsedRatio = memUsage.heapUsed / memUsage.heapTotal
+    const heapUsedRatio = (memUsage.heapUsed / memUsage.heapTotal) * 100
 
-    // 如果内存使用率过高，降低并发数
-    if (heapUsedRatio > 0.85 && this.maxConcurrency > 1) {
-      this.maxConcurrency = Math.max(1, this.maxConcurrency - 1)
-      this.logger.debug(`降低并发数至 ${this.maxConcurrency}`)
+    // 获取系统资源使用情况
+    const cpuCount = os.cpus().length
+    const loadAvg = os.loadavg()[0] / cpuCount * 100 // 转换为百分比
+
+    // 计算成功率
+    const successRate = this.performanceMetrics.totalTasks > 0
+      ? (this.performanceMetrics.successfulTasks / this.performanceMetrics.totalTasks) * 100
+      : 100
+
+    // 决策逻辑
+    let adjustment = 0
+
+    // 内存压力大 - 降低并发
+    if (heapUsedRatio > this.memoryThreshold) {
+      adjustment = -1
+      this.logger.debug(`内存使用率 ${heapUsedRatio.toFixed(1)}% 过高，降低并发`)
     }
-    // 如果内存使用率较低，可以增加并发数
-    else if (heapUsedRatio < 0.5 && this.maxConcurrency < os.cpus().length) {
-      this.maxConcurrency = Math.min(os.cpus().length, this.maxConcurrency + 1)
-      this.logger.debug(`提升并发数至 ${this.maxConcurrency}`)
+    // CPU 压力大 - 降低并发
+    else if (loadAvg > this.cpuThreshold) {
+      adjustment = -1
+      this.logger.debug(`CPU 使用率 ${loadAvg.toFixed(1)}% 过高，降低并发`)
     }
+    // 成功率低 - 可能并发过高，降低并发
+    else if (successRate < 70 && this.performanceMetrics.totalTasks > 10) {
+      adjustment = -1
+      this.logger.debug(`任务成功率 ${successRate.toFixed(1)}% 过低，降低并发`)
+    }
+    // 资源充足且成功率高 - 提高并发
+    else if (
+      heapUsedRatio < this.memoryThreshold * 0.7 &&
+      loadAvg < this.cpuThreshold * 0.7 &&
+      successRate > 90 &&
+      this.maxConcurrency < cpuCount * 2
+    ) {
+      adjustment = 1
+      this.logger.debug(`系统资源充足，提升并发`)
+    }
+
+    // 应用调整
+    if (adjustment !== 0) {
+      const oldConcurrency = this.maxConcurrency
+      this.maxConcurrency = Math.max(1, Math.min(cpuCount * 2, this.maxConcurrency + adjustment))
+
+      if (this.maxConcurrency !== oldConcurrency) {
+        this.logger.info(`并发数调整: ${oldConcurrency} -> ${this.maxConcurrency}`)
+        this.emit('concurrency:adjusted', {
+          old: oldConcurrency,
+          new: this.maxConcurrency,
+          reason: adjustment > 0 ? 'increase' : 'decrease'
+        })
+      }
+    }
+  }
+
+  /**
+   * 启动性能监控
+   */
+  private startPerformanceMonitoring(): void {
+    // 每5秒记录一次性能指标
+    const interval = setInterval(() => {
+      if (this.runningTasks.size === 0 && this.pendingTasks.length === 0) {
+        return
+      }
+
+      const metrics = {
+        pending: this.pendingTasks.length,
+        running: this.runningTasks.size,
+        completed: this.performanceMetrics.totalTasks,
+        successRate: this.performanceMetrics.totalTasks > 0
+          ? (this.performanceMetrics.successfulTasks / this.performanceMetrics.totalTasks) * 100
+          : 0,
+        avgDuration: this.performanceMetrics.avgDuration,
+        throughput: this.performanceMetrics.throughput,
+        concurrency: this.maxConcurrency
+      }
+
+      this.emit('performance:metrics', metrics)
+    }, 5000)
+
+    // 清理监控（在 dispose 时）
+    this.once('dispose', () => {
+      clearInterval(interval)
+    })
   }
 
   /**
@@ -304,6 +511,33 @@ export class ParallelProcessor extends EventEmitter {
     this.pendingTasks = []
     this.completedTasks = []
     this.emit('cleared')
+  }
+
+  /**
+   * 获取性能指标
+   */
+  getPerformanceMetrics() {
+    return {
+      ...this.performanceMetrics,
+      pending: this.pendingTasks.length,
+      running: this.runningTasks.size,
+      maxConcurrency: this.maxConcurrency,
+      taskHistory: Array.from(this.taskHistory.entries()).map(([type, history]) => ({
+        type,
+        ...history
+      }))
+    }
+  }
+
+  /**
+   * 清理资源
+   */
+  dispose(): void {
+    this.emit('dispose')
+    this.clear()
+    this.removeAllListeners()
+    this.taskHistory.clear()
+    this.runningTasks.clear()
   }
 }
 

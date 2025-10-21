@@ -45,29 +45,83 @@ export class SolidStrategy implements ILibraryStrategy {
   private async buildPlugins(config: BuilderConfig): Promise<any[]> {
     const plugins: any[] = []
 
-    // Node resolve
+    // Node resolve（优化 Solid 解析）
     const nodeResolve = await import('@rollup/plugin-node-resolve')
-    plugins.push(nodeResolve.default({ browser: true, extensions: ['.mjs', '.js', '.json', '.ts', '.tsx'] }))
+    plugins.push(nodeResolve.default({
+      browser: true,
+      extensions: ['.mjs', '.js', '.json', '.ts', '.tsx', '.jsx'],
+      dedupe: ['solid-js', 'solid-js/web', 'solid-js/store']
+    }))
 
     // CommonJS
     const commonjs = await import('@rollup/plugin-commonjs')
-    plugins.push(commonjs.default())
-
-    // 使用 esbuild 处理 TS/TSX，启用自动 JSX，指向 solid-js 的 jsx-runtime
-    const esbuild = await import('rollup-plugin-esbuild')
-    plugins.push(esbuild.default({
-      include: /\.(tsx?|jsx?)$/, exclude: [/node_modules/], target: 'es2020',
-      jsx: 'automatic', jsxImportSource: 'solid-js', tsconfig: 'tsconfig.json',
-sourceMap: config.output?.sourcemap !== false, minify: shouldMinify(config)
+    plugins.push(commonjs.default({
+      include: /node_modules/
     }))
 
-    // PostCSS (optional)
+    // Babel 插件用于 Solid JSX 转换（更好的优化）
+    try {
+      const babel = await import('@rollup/plugin-babel')
+      plugins.push(babel.getBabelOutputPlugin({
+        presets: [
+          ['babel-preset-solid', {
+            generate: config.mode === 'development' ? 'dom' : 'universal',
+            hydratable: true
+          }]
+        ],
+        extensions: ['.tsx', '.ts', '.jsx', '.js'],
+        babelHelpers: 'bundled',
+        exclude: /node_modules/
+      }))
+    } catch (error) {
+      // 回退到 esbuild
+      this.warn('Babel 插件不可用，使用 esbuild 处理 JSX')
+      const esbuild = await import('rollup-plugin-esbuild')
+      plugins.push(esbuild.default({
+        include: /\.(tsx?|jsx?)$/,
+        exclude: [/node_modules/],
+        target: 'es2020',
+        jsx: 'preserve', // 保留 JSX 让 Solid 插件处理
+        jsxImportSource: 'solid-js',
+        tsconfig: 'tsconfig.json',
+        sourceMap: config.output?.sourcemap !== false,
+        minify: shouldMinify(config)
+      }))
+    }
+
+    // PostCSS 处理（支持多种预处理器）
     if (config.style?.extract !== false) {
       const postcss = await import('rollup-plugin-postcss')
-plugins.push(postcss.default({ extract: true, minimize: config.style?.minimize !== false }))
+      plugins.push(postcss.default({
+        extract: true,
+        minimize: config.style?.minimize !== false,
+        modules: (config as any).style?.modules || false,
+        use: ['less', 'sass'],
+        extensions: ['.css', '.scss', '.sass', '.less']
+      }))
+    }
+
+    // 体积优化：移除未使用的代码
+    if (config.mode === 'production') {
+      const terser = await import('@rollup/plugin-terser')
+      plugins.push(terser.default({
+        compress: {
+          pure_funcs: ['console.log'],
+          passes: 2 // 多次压缩以获得更好的效果
+        },
+        mangle: {
+          properties: {
+            regex: /^_/ // 只混淆下划线开头的私有属性
+          }
+        }
+      }))
     }
 
     return plugins
+  }
+
+  private warn(message: string): void {
+    console.warn(`[SolidStrategy] ${message}`)
   }
 
   private buildOutputConfig(config: BuilderConfig): any {

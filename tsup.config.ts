@@ -88,7 +88,7 @@ export default defineConfig({
   entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**', '!src/tests/**'],
   format: ['esm', 'cjs'],
   outDir: 'dist',
-  dts: true,
+  dts: false, // 暂时禁用 DTS 生成以加快构建
   splitting: false,
   sourcemap: true,
   clean: true,

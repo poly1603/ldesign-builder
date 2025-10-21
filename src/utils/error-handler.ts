@@ -187,25 +187,25 @@ export class ErrorHandler {
     maxRetries = 3
   ): Promise<T> {
     let lastError: Error | null = null
-    
+
     for (let i = 0; i <= maxRetries; i++) {
       try {
         return await Promise.resolve(fn())
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))
-        
+
         this.logger?.warn(`Attempt ${i + 1} failed:`, lastError.message)
-        
+
         if (i === maxRetries) {
           break
         }
-        
+
         // 指数退避
         const delay = Math.min(1000 * Math.pow(2, i), 10000)
         await new Promise(resolve => setTimeout(resolve, delay))
       }
     }
-    
+
     // 尝试使用降级方案
     if (fallback !== undefined) {
       try {
@@ -214,7 +214,7 @@ export class ErrorHandler {
         this.logger?.error('Fallback also failed:', fallbackError)
       }
     }
-    
+
     throw lastError
   }
 
@@ -318,29 +318,168 @@ export class ErrorHandler {
   }
 
   /**
-   * 获取错误建议
+   * 获取错误建议（增强版，上下文感知）
    */
-  getSuggestions(error: Error): string[] {
-    if (isBuilderError(error) && error.suggestion) {
-      return [error.suggestion]
-    }
-
-    // 根据错误类型提供通用建议
+  getSuggestions(error: Error, context?: { phase?: string; file?: string; config?: any }): string[] {
     const suggestions: string[] = []
 
+    if (isBuilderError(error) && error.suggestion) {
+      suggestions.push(error.suggestion)
+    }
+
+    // 文件系统错误
     if (error.message.includes('ENOENT')) {
       suggestions.push('检查文件或目录是否存在')
+      if (context?.file) {
+        suggestions.push(`确认文件路径正确: ${context.file}`)
+      }
+      if (error.message.includes('package.json')) {
+        suggestions.push('确保在项目根目录执行命令')
+      }
     }
 
-    if (error.message.includes('EACCES')) {
+    if (error.message.includes('EACCES') || error.message.includes('EPERM')) {
       suggestions.push('检查文件权限')
+      suggestions.push('尝试以管理员身份运行')
     }
 
-    if (error.message.includes('MODULE_NOT_FOUND')) {
+    // 模块相关错误
+    if (error.message.includes('MODULE_NOT_FOUND') || error.message.includes('Cannot find module')) {
+      const moduleMatch = error.message.match(/Cannot find module '([^']+)'/)
+      const moduleName = moduleMatch ? moduleMatch[1] : null
+
       suggestions.push('运行 npm install 安装依赖')
+
+      if (moduleName) {
+        suggestions.push(`安装缺失的模块: npm install ${moduleName} --save-dev`)
+
+        // 针对常见模块提供特定建议
+        if (moduleName.includes('rollup')) {
+          suggestions.push('确保已安装 Rollup: npm install rollup --save-dev')
+        } else if (moduleName.includes('typescript')) {
+          suggestions.push('确保已安装 TypeScript: npm install typescript --save-dev')
+        } else if (moduleName.includes('@vue')) {
+          suggestions.push('确保已安装 Vue 相关依赖: npm install vue --save-dev')
+        } else if (moduleName.includes('react')) {
+          suggestions.push('确保已安装 React: npm install react react-dom --save-dev')
+        }
+      }
+    }
+
+    // TypeScript 相关错误
+    if (error.message.includes('TS') || error.message.includes('TypeScript')) {
+      suggestions.push('检查 tsconfig.json 配置是否正确')
+      suggestions.push('确保 TypeScript 版本兼容（建议 >= 5.0）')
+
+      if (error.message.includes('TS5096')) {
+        suggestions.push('将 tsconfig.json 中的 allowImportingTsExtensions 设置为 false')
+      }
+
+      if (error.message.includes('TS2307')) {
+        suggestions.push('检查模块路径配置（paths、baseUrl）')
+      }
+    }
+
+    // 配置相关错误
+    if (error.message.includes('配置') || error.message.includes('config')) {
+      suggestions.push('检查配置文件语法是否正确')
+      suggestions.push('参考文档查看配置示例')
+
+      if (context?.phase === 'config') {
+        suggestions.push('尝试删除配置文件，使用默认配置')
+      }
+    }
+
+    // 构建相关错误
+    if (context?.phase === 'build') {
+      suggestions.push('尝试清理输出目录后重新构建')
+      suggestions.push('检查入口文件是否存在语法错误')
+
+      if (error.message.includes('circular')) {
+        suggestions.push('检查代码中的循环依赖')
+      }
+
+      if (error.message.includes('memory') || error.message.includes('heap')) {
+        suggestions.push('尝试增加 Node.js 内存限制: NODE_OPTIONS=--max-old-space-size=4096')
+        suggestions.push('考虑启用增量构建以减少内存占用')
+      }
+    }
+
+    // 插件相关错误
+    if (error.message.includes('plugin') || error.message.includes('Plugin')) {
+      suggestions.push('检查插件配置是否正确')
+      suggestions.push('确保插件已正确安装')
+      suggestions.push('尝试更新插件到最新版本')
+    }
+
+    // 外部依赖错误
+    if (error.message.includes('external')) {
+      suggestions.push('检查 external 配置是否正确')
+      suggestions.push('确保外部依赖在 package.json 中声明')
+    }
+
+    // 如果没有找到任何建议，提供通用建议
+    if (suggestions.length === 0) {
+      suggestions.push('查看完整的错误堆栈以获取更多信息')
+      suggestions.push('访问文档或提交 Issue 寻求帮助')
     }
 
     return suggestions
+  }
+
+  /**
+   * 分析错误上下文
+   */
+  analyzeErrorContext(error: Error): {
+    type: string
+    severity: 'critical' | 'error' | 'warning'
+    recoverable: boolean
+    needsUserAction: boolean
+  } {
+    let type = 'unknown'
+    let severity: 'critical' | 'error' | 'warning' = 'error'
+    let recoverable = false
+    let needsUserAction = true
+
+    // 分析错误类型
+    if (error.message.includes('ENOENT') || error.message.includes('Cannot find')) {
+      type = 'file-not-found'
+      severity = 'error'
+      recoverable = false
+      needsUserAction = true
+    } else if (error.message.includes('EACCES') || error.message.includes('EPERM')) {
+      type = 'permission'
+      severity = 'critical'
+      recoverable = false
+      needsUserAction = true
+    } else if (error.message.includes('MODULE_NOT_FOUND')) {
+      type = 'dependency-missing'
+      severity = 'error'
+      recoverable = false
+      needsUserAction = true
+    } else if (error.message.includes('memory') || error.message.includes('heap')) {
+      type = 'out-of-memory'
+      severity = 'critical'
+      recoverable = true
+      needsUserAction = true
+    } else if (error.message.includes('timeout') || error.message.includes('ETIMEDOUT')) {
+      type = 'timeout'
+      severity = 'warning'
+      recoverable = true
+      needsUserAction = false
+    } else if (error.message.includes('parse') || error.message.includes('SyntaxError')) {
+      type = 'syntax'
+      severity = 'error'
+      recoverable = false
+      needsUserAction = true
+    } else if (error.message.includes('circular')) {
+      type = 'circular-dependency'
+      severity = 'warning'
+      recoverable = false
+      needsUserAction = true
+    }
+
+    return { type, severity, recoverable, needsUserAction }
   }
 
   /**

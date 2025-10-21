@@ -47,37 +47,93 @@ export class SvelteStrategy implements ILibraryStrategy {
 
     // Node resolve
     const nodeResolve = await import('@rollup/plugin-node-resolve')
-    plugins.push(nodeResolve.default({ browser: true, extensions: ['.mjs', '.js', '.json', '.ts', '.svelte'] }))
+    plugins.push(nodeResolve.default({
+      browser: true,
+      extensions: ['.mjs', '.js', '.json', '.ts', '.svelte'],
+      dedupe: ['svelte']
+    }))
 
     // CommonJS
     const commonjs = await import('@rollup/plugin-commonjs')
     plugins.push(commonjs.default())
 
-    // Svelte 4 官方插件（已作为构建器依赖提供）
+    // Svelte 插件（增强版，支持预处理器）
     const sveltePlugin = await import('rollup-plugin-svelte')
     plugins.push(sveltePlugin.default({
       emitCss: true,
       compilerOptions: {
-        dev: (config.mode || 'production') === 'development'
-      }
+        dev: (config.mode || 'production') === 'development',
+        css: 'external' // 提取 CSS
+      },
+      preprocess: await this.getSveltePreprocessors(config)
     }))
 
-    // 注：为避免 .svelte 类型声明解析问题，此处不启用 @rollup/plugin-typescript
-
-    // PostCSS (optional)
+    // PostCSS 处理（支持 SCSS、Less 等）
     if (config.style?.extract !== false) {
       const postcss = await import('rollup-plugin-postcss')
-plugins.push(postcss.default({ extract: true, minimize: config.style?.minimize !== false }))
+      plugins.push(postcss.default({
+        extract: true,
+        minimize: config.style?.minimize !== false,
+        use: this.getStyleProcessors(config),
+        extensions: ['.css', '.scss', '.sass', '.less']
+      }))
     }
 
     // esbuild for TS/JS
     const esbuild = await import('rollup-plugin-esbuild')
     plugins.push(esbuild.default({
-      include: /\.(ts|js)$/, exclude: [/node_modules/], target: 'es2020',
-sourceMap: config.output?.sourcemap !== false, minify: shouldMinify(config)
+      include: /\.(ts|js)$/,
+      exclude: [/node_modules/],
+      target: 'es2020',
+      sourceMap: config.output?.sourcemap !== false,
+      minify: shouldMinify(config)
     }))
 
     return plugins
+  }
+
+  /**
+   * 获取 Svelte 预处理器
+   */
+  private async getSveltePreprocessors(config: BuilderConfig): Promise<any> {
+    try {
+      const { preprocess } = await import('svelte-preprocess')
+      return preprocess({
+        typescript: {
+          tsconfigFile: config.typescript?.tsconfig || 'tsconfig.json'
+        },
+        scss: {
+          renderSync: true
+        },
+        sass: true,
+        less: true,
+        postcss: {
+          plugins: [
+            require('autoprefixer')()
+          ]
+        }
+      })
+    } catch (error) {
+      // svelte-preprocess 不是必需的，如果未安装则跳过
+      return undefined
+    }
+  }
+
+  /**
+   * 获取样式处理器
+   */
+  private getStyleProcessors(config: BuilderConfig): string[] {
+    const processors: string[] = []
+
+    if ((config as any).style?.less !== false) {
+      processors.push('less')
+    }
+
+    if ((config as any).style?.sass !== false) {
+      processors.push('sass')
+    }
+
+    return processors
   }
 
   private buildOutputConfig(config: BuilderConfig): any {

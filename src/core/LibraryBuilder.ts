@@ -48,52 +48,52 @@ import { PackageUpdater } from '../utils/package-updater'
  */
 export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /** 当前状态 */
-  private status: BuilderStatus = BuilderStatus.IDLE
+  protected status: BuilderStatus = BuilderStatus.IDLE
 
   /** 当前配置 */
-  private config: BuilderConfig
+  protected config: BuilderConfig
 
   /** 打包核心适配器 */
-  private bundlerAdapter!: IBundlerAdapter
+  protected bundlerAdapter!: IBundlerAdapter
 
   /** 策略管理器 */
-  private strategyManager!: StrategyManager
+  protected strategyManager!: StrategyManager
 
   /** 配置管理器 */
-  private configManager!: ConfigManager
+  protected configManager!: ConfigManager
 
   /** 插件管理器 */
-  private pluginManager!: PluginManager
+  protected pluginManager!: PluginManager
 
   /** 日志记录器 */
-  private logger!: Logger
+  protected logger!: Logger
 
   /** 错误处理器 */
-  private errorHandler!: ErrorHandler
+  protected errorHandler!: ErrorHandler
 
   /** 性能监控器 */
-  private performanceMonitor!: PerformanceMonitor
+  protected performanceMonitor!: PerformanceMonitor
 
   /** 库类型检测器 */
-  private libraryDetector!: LibraryDetector
+  protected libraryDetector!: LibraryDetector
 
   /** 打包后验证器 */
-  private postBuildValidator!: PostBuildValidator
+  protected postBuildValidator!: PostBuildValidator
 
   /** 当前构建统计 */
-  private currentStats: any = null
+  protected currentStats: any = null
 
   /** 当前性能指标 */
-  private currentMetrics: any = null
+  protected currentMetrics: any = null
 
   /** 内存管理器 */
-  private memoryManager = getGlobalMemoryManager()
+  protected memoryManager = getGlobalMemoryManager()
 
   /** 文件监听器 */
-  private fileWatchers: Set<any> = new Set()
+  protected fileWatchers: Set<any> = new Set()
 
   /** 清理函数列表 */
-  private cleanupFunctions: Array<() => void | Promise<void>> = []
+  protected cleanupFunctions: Array<() => void | Promise<void>> = []
 
   constructor(options: BuilderOptions = {}) {
     super()
@@ -481,7 +481,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       this.setBundler(this.config?.bundler || 'rollup')
 
       this.setStatus(BuilderStatus.IDLE)
-      this.logger.success('LibraryBuilder 初始化完成')
+      this.logger.debug('LibraryBuilder 初始化完成') // 改为 debug 级别
     } catch (error) {
       this.setStatus(BuilderStatus.ERROR)
       throw this.errorHandler.createError(
@@ -617,7 +617,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 设置状态
    */
-  private setStatus(status: BuilderStatus): void {
+  protected setStatus(status: BuilderStatus): void {
     const oldStatus = this.status
     this.status = status
 
@@ -631,7 +631,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 生成构建 ID
    */
-  private generateBuildId(): string {
+  protected generateBuildId(): string {
     return `build-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
   }
 
@@ -640,7 +640,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
    * 
    * @param config - 构建配置
    */
-  private async cleanOutputDirs(config: BuilderConfig): Promise<void> {
+  protected async cleanOutputDirs(config: BuilderConfig): Promise<void> {
     const dirs = getOutputDirs(config)
     const rootDir = (config as any).root || (config as any).cwd || process.cwd()
 
@@ -664,7 +664,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 处理构建错误
    */
-  private handleBuildError(error: Error, buildId: string): Error {
+  protected handleBuildError(error: Error, buildId: string): Error {
     this.performanceMonitor.recordError(buildId, error)
 
     if (error instanceof Error) {
@@ -684,7 +684,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 运行打包后验证
    */
-  private async runPostBuildValidation(
+  protected async runPostBuildValidation(
     config: BuilderConfig,
     buildResult: any,
     buildId: string
@@ -767,7 +767,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
         return
       }
 
-      this.logger.info('开始自动更新 package.json...')
+      // 静默更新
 
       // 获取输出目录配置
       const outputDirs = this.getOutputDirsFromConfig(config)

@@ -240,7 +240,7 @@ export class AutoConfigEnhancer {
       }
     }
 
-    this.logger.info(`自动生成 external: ${external.join(', ')}`)
+    // 静默处理，不输出日志
     return [...new Set(external)] // 去重
   }
 
@@ -263,7 +263,7 @@ export class AutoConfigEnhancer {
       }
     }
 
-    this.logger.info(`自动生成 globals: ${JSON.stringify(globals)}`)
+    // 静默处理，不输出日志
     return globals
   }
 
@@ -295,7 +295,7 @@ export class AutoConfigEnhancer {
     )
 
     if (hasVuePlugin) {
-      this.logger.info('已存在 Vue 插件，跳过自动添加')
+      // 静默处理
       return plugins
     }
 
@@ -309,7 +309,7 @@ export class AutoConfigEnhancer {
         ...(libraryType === LibraryType.VUE2 ? { version: 2 } : {})
       } as any)
 
-      this.logger.info(`自动添加 Vue ${libraryType === LibraryType.VUE2 ? '2' : '3'} 插件`)
+      // 静默处理
       return [vuePlugin, ...plugins]
     } catch (error) {
       this.logger.warn('无法加载 Vue 插件，请手动安装 rollup-plugin-vue')
