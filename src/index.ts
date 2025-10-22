@@ -26,6 +26,9 @@ export { TemporaryEnvironment } from './core/TemporaryEnvironment'
 export { BundlerAdapterFactory } from './adapters/base/AdapterFactory'
 export { RollupAdapter } from './adapters/rollup/RollupAdapter'
 export { RolldownAdapter } from './adapters/rolldown/RolldownAdapter'
+// Esbuild and Swc adapters are incomplete - will be added in future releases
+// export { EsbuildAdapter } from './adapters/esbuild/EsbuildAdapter'
+// export { SwcAdapter } from './adapters/swc/SwcAdapter'
 export { UnifiedBundlerAdapter } from './adapters/UnifiedBundlerAdapter'
 export type { UnifiedAdapterOptions, BundlerType } from './adapters/UnifiedBundlerAdapter'
 
@@ -62,6 +65,10 @@ export { createStreamFileProcessor, StreamFileProcessor } from './utils/stream-f
 export { createBuildReportGenerator, BuildReportGenerator } from './utils/build-report-generator'
 export { createBundleAnalyzer, BundleAnalyzer } from './utils/bundle-analyzer'
 export { createSmartWatcher, SmartWatcher } from './utils/smart-watcher'
+export { createAutoConfigEnhancer, AutoConfigEnhancer } from './utils/auto-config-enhancer'
+export { createOutputNormalizer, OutputNormalizer } from './utils/output-normalizer'
+export { createParallelBuildExecutor, ParallelBuildExecutor, buildParallel } from './utils/parallel-build-executor'
+export { createFriendlyErrorHandler, FriendlyErrorHandler, handleError } from './utils/friendly-error-handler'
 export { tailwindPlugin } from './plugins/tailwind'
 export { cssInJSPlugin } from './plugins/css-in-js'
 export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules-advanced'
@@ -77,6 +84,9 @@ export { createBuilder } from './utils/factory'
 
 // 增强配置导出
 export * from './config/enhanced-config'
+
+// 配置预设导出
+export { presets, monorepoPackage, libraryPackage, vueLibrary, reactLibrary, multiFrameworkLibrary } from './config/presets'
 
 /**
  * 默认导出 - LibraryBuilder 类

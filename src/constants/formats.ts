@@ -7,7 +7,7 @@ import type { OutputFormat } from '../types/output'
 /**
  * 支持的输出格式
  */
-export const OUTPUT_FORMATS: OutputFormat[] = ['esm', 'cjs', 'umd', 'iife']
+export const OUTPUT_FORMATS: OutputFormat[] = ['esm', 'cjs', 'umd', 'iife', 'dts']
 
 /**
  * 格式别名映射
@@ -20,7 +20,9 @@ export const FORMAT_ALIASES: Record<string, OutputFormat> = {
   'common': 'cjs',
   'universal': 'umd',
   'browser': 'iife',
-  'global': 'iife'
+  'global': 'iife',
+  'declaration': 'dts',
+  'types': 'dts'
 }
 
 /**
@@ -31,7 +33,8 @@ export const FORMAT_DESCRIPTIONS: Record<OutputFormat, string> = {
   cjs: 'CommonJS - Node.js 默认模块格式',
   umd: 'Universal Module Definition - 通用模块格式，支持多种环境',
   iife: 'Immediately Invoked Function Expression - 立即执行函数，适用于浏览器',
-  css: 'Cascading Style Sheets - 样式表格式'
+  css: 'Cascading Style Sheets - 样式表格式',
+  dts: 'TypeScript Declaration - TypeScript 类型声明文件'
 }
 
 /**
@@ -42,7 +45,8 @@ export const FORMAT_EXTENSIONS: Record<OutputFormat, string> = {
   cjs: '.cjs',
   umd: '.umd.js',
   iife: '.iife.js',
-  css: '.css'
+  css: '.css',
+  dts: '.d.ts'
 }
 
 /**
@@ -53,7 +57,8 @@ export const FORMAT_FILE_PATTERNS: Record<OutputFormat, string> = {
   cjs: '[name].cjs',
   umd: '[name].umd.js',
   iife: '[name].iife.js',
-  css: '[name].css'
+  css: '[name].css',
+  dts: '[name].d.ts'
 }
 
 /**
@@ -100,6 +105,13 @@ export const FORMAT_COMPATIBILITY: Record<OutputFormat, {
     requiresGlobals: false,
     supportsTreeShaking: false,
     supportsCodeSplitting: false
+  },
+  dts: {
+    browser: true,
+    node: true,
+    requiresGlobals: false,
+    supportsTreeShaking: false,
+    supportsCodeSplitting: false
   }
 }
 
@@ -136,6 +148,12 @@ export const FORMAT_USE_CASES: Record<OutputFormat, string[]> = {
     '主题包',
     '组件样式',
     'CSS 框架'
+  ],
+  dts: [
+    'TypeScript 库',
+    '需要类型提示的库',
+    'IDE 智能提示',
+    '类型安全的 API'
   ]
 }
 
@@ -143,11 +161,12 @@ export const FORMAT_USE_CASES: Record<OutputFormat, string[]> = {
  * 格式优先级（用于自动选择）
  */
 export const FORMAT_PRIORITY: Record<OutputFormat, number> = {
-  esm: 4, // 最高优先级
+  esm: 4,
   cjs: 3,
   umd: 2,
   iife: 1,
-  css: 5 // CSS 样式库的最高优先级
+  css: 5, // CSS 样式库的最高优先级
+  dts: 6 // DTS 类型声明的最高优先级
 }
 
 /**

@@ -67,6 +67,8 @@ export class EnhancedRollupAdapter implements IBundlerAdapter {
   private performanceMonitor: any
   private multiConfigs?: any[]
   private rollupInstance: any = null
+  private pluginCache: Map<string, any> = new Map()
+  private outputCache: Map<string, any> = new Map()
 
   // 模块化组件
   private configBuilder: RollupConfigBuilder
@@ -543,13 +545,27 @@ export class EnhancedRollupAdapter implements IBundlerAdapter {
       // TypeScript 处理
       if (await this.hasTypeScriptFiles(config)) {
         const typescript = await import('@rollup/plugin-typescript')
+        // 不传递 tsconfig 路径，避免读取不兼容的 TS 5.x 配置
+        // 通过 compilerOptions 显式传递所有必要的配置
         plugins.push(typescript.default({
-          tsconfig: await this.findTsConfig(),
           declaration: true,
           declarationMap: true,
           sourceMap: true,
           inlineSources: true,
-          exclude: ['**/*.test.ts', '**/*.spec.ts', '**/*.test.tsx', '**/*.spec.tsx']
+          exclude: ['**/*.test.ts', '**/*.spec.ts', '**/*.test.tsx', '**/*.spec.tsx'],
+          compilerOptions: {
+            target: 'ES2020',
+            module: 'ESNext',
+            moduleResolution: 'node',  // 使用 node 而不是 bundler
+            allowImportingTsExtensions: false,
+            skipLibCheck: true,
+            esModuleInterop: true,
+            allowSyntheticDefaultImports: true,
+            resolveJsonModule: true,
+            strict: true,
+            forceConsistentCasingInFileNames: true,
+            isolatedModules: true
+          }
         }))
       }
 

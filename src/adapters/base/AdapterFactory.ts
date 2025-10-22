@@ -250,12 +250,115 @@ export class BundlerAdapterFactory {
       }
     }
   }
+
+  /**
+   * 智能选择最佳适配器
+   * 
+   * 根据项目特征自动选择最合适的打包引擎：
+   * 1. 用户明确指定 → 使用指定引擎
+   * 2. 开发模式 + 简单项目 → esbuild（极速）
+   * 3. 生产模式 + TypeScript → SWC（速度+质量）
+   * 4. 复杂插件需求 → Rollup（生态最完善）
+   * 5. Rolldown（默认备选，未来主力）
+   */
+  static selectBestAdapter(config: any): BundlerType {
+    // 1. 用户明确指定
+    if (config.bundler) {
+      return config.bundler as BundlerType
+    }
+
+    // 2. 开发模式 + 简单项目 → esbuild
+    if (config.mode === 'development') {
+      // 检查是否有装饰器（esbuild 不支持）
+      const hasDecorators = config.typescript?.experimentalDecorators
+
+      if (!hasDecorators && this.isAvailable('esbuild')) {
+        return 'esbuild'
+      }
+    }
+
+    // 3. 生产模式 + TypeScript → SWC
+    if (config.mode === 'production' && config.libraryType === 'typescript') {
+      if (this.isAvailable('swc')) {
+        return 'swc'
+      }
+    }
+
+    // 4. 有复杂插件需求 → Rollup
+    if (config.plugins && config.plugins.length > 3) {
+      if (this.isAvailable('rollup')) {
+        return 'rollup'
+      }
+    }
+
+    // 5. Vue/React 组件库 → Rollup（生态最好）
+    if (['vue2', 'vue3', 'react', 'svelte'].includes(config.libraryType)) {
+      if (this.isAvailable('rollup')) {
+        return 'rollup'
+      }
+    }
+
+    // 6. Rolldown 作为现代化备选
+    if (this.isAvailable('rolldown')) {
+      return 'rolldown'
+    }
+
+    // 7. 最终回退到 Rollup
+    return 'rollup'
+  }
+
+  /**
+   * 获取推荐的适配器及原因
+   */
+  static getRecommendation(config: any): {
+    bundler: BundlerType
+    reason: string
+    alternatives: Array<{ bundler: BundlerType; reason: string }>
+  } {
+    const selected = this.selectBestAdapter(config)
+    const reasons: Record<BundlerType, string> = {
+      'esbuild': '极速构建，适合开发模式',
+      'swc': '速度和功能平衡，适合生产构建',
+      'rollup': '生态完善，插件丰富，适合复杂项目',
+      'rolldown': '现代化打包器，Rust 实现，性能优秀'
+    }
+
+    const alternatives: Array<{ bundler: BundlerType; reason: string }> = []
+
+    // 提供备选方案
+    for (const bundler of ['esbuild', 'swc', 'rollup', 'rolldown'] as BundlerType[]) {
+      if (bundler !== selected && this.isAvailable(bundler)) {
+        alternatives.push({
+          bundler,
+          reason: reasons[bundler] || '通用打包器'
+        })
+      }
+    }
+
+    return {
+      bundler: selected,
+      reason: reasons[selected] || '默认选择',
+      alternatives
+    }
+  }
+
+  /**
+   * 获取所有已注册的适配器
+   */
+  static getAllAdapters(): BundlerType[] {
+    return Array.from(this.adapters.keys())
+  }
 }
 
 // 导入真实的适配器
 import { RollupAdapter } from '../rollup/RollupAdapter'
 import { RolldownAdapter } from '../rolldown/RolldownAdapter'
+// import { EsbuildAdapter } from '../esbuild/EsbuildAdapter'
+// import { SwcAdapter } from '../swc/SwcAdapter'
 
 // 注册真实的适配器
 BundlerAdapterFactory.register('rollup', RollupAdapter)
 BundlerAdapterFactory.register('rolldown', RolldownAdapter)
+// Esbuild and Swc adapters are incomplete - will be added in future releases
+// BundlerAdapterFactory.register('esbuild', EsbuildAdapter)
+// BundlerAdapterFactory.register('swc', SwcAdapter)

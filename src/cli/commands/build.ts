@@ -178,6 +178,57 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
       timings['打包'] = Date.now() - phaseStart
     }
 
+    // 生成 TypeScript 声明文件（如果需要）
+    // 直接从命令行选项读取 formats
+    const originalFormats = options.format ? options.format.split(',').map(f => f.trim()) : []
+    const hasDts = originalFormats.includes('dts') || originalFormats.includes('declaration') || originalFormats.includes('types')
+    const formats = Array.isArray(config.output?.format) ? config.output.format : [config.output?.format].filter(Boolean)
+
+    if (hasDts) {
+      phaseStart = Date.now()
+      logger.info(`📝 生成类型声明文件...`)
+
+      const { generateDts } = await import('../../generators/DtsGenerator')
+      const srcDir = config.input && typeof config.input === 'string' && config.input.startsWith('src/')
+        ? 'src'
+        : 'src'
+
+      // 为 es 和 lib 目录都生成 d.ts
+      const outputDirs = []
+      if (formats.includes('esm')) outputDirs.push('es')
+      if (formats.includes('cjs')) outputDirs.push('lib')
+
+      // 如果没有指定其他格式，默认生成到 es 目录
+      if (outputDirs.length === 0) {
+        outputDirs.push('es')
+      }
+
+      for (const outDir of outputDirs) {
+        try {
+          const dtsResult = await generateDts({
+            srcDir,
+            outDir,
+            preserveStructure: true,
+            declarationMap: config.sourcemap === true || config.sourcemap === 'inline',
+            rootDir: process.cwd()
+          })
+
+          if (dtsResult.success) {
+            logger.success(`✅ 已生成 ${dtsResult.files.length} 个声明文件到 ${outDir}/`)
+          } else {
+            logger.warn(`⚠️  生成声明文件到 ${outDir}/ 时出现错误`)
+            if (dtsResult.errors && dtsResult.errors.length > 0) {
+              dtsResult.errors.forEach(err => logger.error(err))
+            }
+          }
+        } catch (error) {
+          logger.warn(`⚠️  生成声明文件失败: ${error instanceof Error ? error.message : String(error)}`)
+        }
+      }
+
+      timings['类型声明'] = Date.now() - phaseStart
+    }
+
     // 显示构建结果
     showBuildResult(result, startTime, timings)
 
@@ -283,7 +334,18 @@ async function buildConfig(options: BuildOptions, globalOptions: any): Promise<B
 
   if (options.format) {
     const formats = options.format.split(',').map(f => f.trim())
-    config.output = { ...config.output, format: formats as any }
+    // 将 dts 从 Rollup 的 formats 中分离出来
+    const rollupFormats = formats.filter(f => f !== 'dts' && f !== 'declaration' && f !== 'types')
+    const hasDts = formats.some(f => f === 'dts' || f === 'declaration' || f === 'types')
+
+    // 只将 Rollup 支持的格式传递给 output.format
+    config.output = {
+      ...config.output,
+      format: rollupFormats.length > 0 ? rollupFormats as any : ['esm', 'cjs']
+    }
+
+      // 将完整的 formats（包括 dts）存储到配置中供后续使用
+      ; (config as any)._formats = formats
   }
 
   // 构建选项

@@ -319,6 +319,7 @@ export class IncrementalBuildManager {
   async clear(): Promise<void> {
     this.state = {
       files: new Map(),
+      dependencyGraph: new Map(),
       lastBuildTime: 0,
       buildCount: 0
     }

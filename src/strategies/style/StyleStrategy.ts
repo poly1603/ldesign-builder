@@ -95,6 +95,23 @@ export class StyleStrategy implements ILibraryStrategy {
   getRecommendedPlugins(config: BuilderConfig): any[] {
     const plugins = []
 
+    // TypeScript 插件 - 如果项目包含 TypeScript 文件，也要生成类型声明
+    // 即使是样式库，也可能有 TypeScript 工具函数
+    if (config.typescript?.declaration !== false) {
+      plugins.push({
+        name: '@rollup/plugin-typescript',
+        options: {
+          tsconfig: config.typescript?.tsconfig,
+          compilerOptions: {
+            declaration: true,
+            declarationMap: config.sourcemap === true,
+            skipLibCheck: true,
+            ...config.typescript?.compilerOptions
+          }
+        }
+      })
+    }
+
     // PostCSS 插件
     plugins.push({
       name: 'postcss',
@@ -179,6 +196,28 @@ export class StyleStrategy implements ILibraryStrategy {
    */
   private buildPlugins(config: BuilderConfig): any[] {
     const plugins: any[] = []
+
+    // TypeScript 插件（样式库也可能包含 TS 文件）
+    // 添加对 TypeScript 的支持，避免解析错误
+    plugins.push({
+      name: 'esbuild',
+      plugin: async () => {
+        const { default: esbuild } = await import('rollup-plugin-esbuild')
+        return esbuild({
+          include: /\.[jt]sx?$/,
+          exclude: /node_modules/,
+          sourceMap: config.output?.sourcemap !== false,
+          target: 'es2020',
+          tsconfig: 'tsconfig.json',
+          loaders: {
+            '.ts': 'ts',
+            '.tsx': 'tsx',
+            '.js': 'js',
+            '.jsx': 'jsx'
+          }
+        })
+      }
+    })
 
     // PostCSS 插件（用于处理 CSS）
     plugins.push({

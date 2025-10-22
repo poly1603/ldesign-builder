@@ -7,8 +7,10 @@
  */
 
 import type { Logger } from '../../utils/logger'
+import type { BuildResult } from '../../types/builder'
 import { RollupCache } from '../../utils/cache'
 import path from 'path'
+import * as fs from 'fs-extra'
 
 /**
  * Rollup 缓存管理器

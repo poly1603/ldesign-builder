@@ -144,16 +144,18 @@ function containsGlobPattern(pattern: string): boolean {
  * @param input - 原始输入配置
  * @param rootDir - 根目录
  * @param exclude - 排除模式数组
+ * @param format - 目标格式（用于选择格式特定入口）
  * @returns 规范化后的输入配置
  */
 export async function normalizeInput(
   input: string | string[] | Record<string, string> | undefined,
   rootDir: string = process.cwd(),
-  exclude?: string[]
+  exclude?: string[],
+  format?: string
 ): Promise<string | string[] | Record<string, string>> {
   if (!input) {
-    // 默认入口
-    return path.resolve(rootDir, 'src/index.ts')
+    // 默认入口 - 根据格式选择不同的入口文件
+    return await resolveDefaultInput(rootDir, format)
   }
 
   let resolved = await resolveInputPatterns(input, rootDir)
@@ -169,6 +171,60 @@ export async function normalizeInput(
   }
 
   return resolved
+}
+
+/**
+ * 解析默认入口文件
+ * 
+ * 根据格式和存在的文件选择合适的入口
+ * UMD 格式优先使用 index-lib.ts（精简版），其他格式使用 index.ts（完整版）
+ * 
+ * @param rootDir - 根目录
+ * @param format - 目标格式
+ * @returns 入口文件路径
+ */
+async function resolveDefaultInput(
+  rootDir: string,
+  format?: string
+): Promise<string> {
+  const { access } = await import('fs/promises')
+  const { constants } = await import('fs')
+
+  // UMD 格式的候选入口（优先使用精简版）
+  const umdCandidates = [
+    'src/index-lib.ts',
+    'src/index-lib.js',
+    'src/index-umd.ts',
+    'src/index-umd.js',
+    'src/index.ts',
+    'src/index.js'
+  ]
+
+  // ESM/CJS 格式的候选入口（使用完整版）
+  const standardCandidates = [
+    'src/index.ts',
+    'src/index.js',
+    'src/index.tsx',
+    'src/index.jsx'
+  ]
+
+  const candidates = format === 'umd' || format === 'iife'
+    ? umdCandidates
+    : standardCandidates
+
+  // 尝试找到第一个存在的文件
+  for (const candidate of candidates) {
+    const fullPath = path.resolve(rootDir, candidate)
+    try {
+      await access(fullPath, constants.R_OK)
+      return fullPath
+    } catch {
+      // 文件不存在，继续尝试下一个
+    }
+  }
+
+  // 如果都不存在，返回默认的 index.ts
+  return path.resolve(rootDir, 'src/index.ts')
 }
 
 /**

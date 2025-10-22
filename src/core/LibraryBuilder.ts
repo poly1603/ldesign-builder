@@ -18,6 +18,7 @@ import {
 import type { BuilderConfig } from '../types/config'
 import type { ValidationResult } from '../types/common'
 import type { LibraryType } from '../types/library'
+import type { BundlerType } from '../types/bundler'
 import type {
   ValidationResult as PostBuildValidationResult,
   ValidationContext
@@ -365,7 +366,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 切换打包核心
    */
-  setBundler(bundler: 'rollup' | 'rolldown'): void {
+  setBundler(bundler: BundlerType): void {
     try {
       // 清理旧的适配器
       if (this.bundlerAdapter && typeof (this.bundlerAdapter as any).cleanup === 'function') {
@@ -390,7 +391,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 获取当前打包核心
    */
-  getBundler(): 'rollup' | 'rolldown' {
+  getBundler(): BundlerType {
     return this.bundlerAdapter.name
   }
 

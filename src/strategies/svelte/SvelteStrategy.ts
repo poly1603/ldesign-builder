@@ -97,6 +97,7 @@ export class SvelteStrategy implements ILibraryStrategy {
    */
   private async getSveltePreprocessors(config: BuilderConfig): Promise<any> {
     try {
+      // @ts-ignore - svelte-preprocess is optional
       const { preprocess } = await import('svelte-preprocess')
       return preprocess({
         typescript: {

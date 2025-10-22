@@ -306,7 +306,7 @@ export class Vue3Strategy implements ILibraryStrategy {
       // CommonJS 插件
       const commonjs = await import('@rollup/plugin-commonjs')
       plugins.push(commonjs.default())
-      
+
       // TypeScript 插件（用于生成声明文件）
       const tsOptions = this.getTypeScriptOptions(config)
       if (tsOptions.declaration) {
@@ -320,7 +320,7 @@ export class Vue3Strategy implements ILibraryStrategy {
           options: tsOptions
         })
       }
-      
+
       // esbuild 插件处理 TypeScript 和 JSX（保留 JSX 语法）
       const { default: esbuild } = await import('rollup-plugin-esbuild')
       plugins.push(esbuild({
@@ -459,8 +459,8 @@ export class Vue3Strategy implements ILibraryStrategy {
 
     // 检查多个位置的 declaration 配置
     const declarationEnabled = tsConfig.declaration === true ||
-                              compilerOptions.declaration === true ||
-                              (config as any).dts === true
+      compilerOptions.declaration === true ||
+      (config as any).dts === true
 
     return {
       target: tsConfig.target || compilerOptions.target || 'ES2020',
@@ -538,20 +538,20 @@ export class Vue3Strategy implements ILibraryStrategy {
         const isSilent = config?.logLevel === 'silent'
 
         if (!isSilent) {
-          
+
         }
 
         try {
           const outputDir = options.dir
           if (!outputDir) {
             if (!isSilent) {
-              
+
             }
             return
           }
 
           if (!isSilent) {
-            
+
           }
           await this.generateDtsFiles(outputDir, config)
 
@@ -592,7 +592,7 @@ export class Vue3Strategy implements ILibraryStrategy {
       // 检查 src 目录和 tsconfig.json 是否存在
       if (!fs.existsSync(srcDir)) {
         if (!isSilent) {
-          
+
         }
         return
       }
@@ -617,7 +617,7 @@ export class Vue3Strategy implements ILibraryStrategy {
         }
       } else {
         if (!isSilent) {
-          
+
         }
         parsedConfig = {
           options: {},
@@ -636,13 +636,13 @@ export class Vue3Strategy implements ILibraryStrategy {
 
       if (tsFiles.length === 0) {
         if (!isSilent) {
-          
+
         }
         return
       }
 
       if (!isSilent) {
-        
+
       }
 
       // 创建编译选项
@@ -699,7 +699,7 @@ export class Vue3Strategy implements ILibraryStrategy {
           absolute: false
         })
         if (!isSilent) {
-          
+
         }
       }
 
@@ -737,12 +737,12 @@ export class Vue3Strategy implements ILibraryStrategy {
   private async resolveInputEntries(config: BuilderConfig): Promise<string | string[] | Record<string, string>> {
     // 如果没有提供input，自动扫描src目录
     if (!config.input) {
-      return this.autoDiscoverEntries()
+      return this.autoDiscoverEntries(config)
     }
 
     // 如果是字符串数组且包含glob模式，解析为多入口
     if (Array.isArray(config.input)) {
-      return this.resolveGlobEntries(config.input)
+      return this.resolveGlobEntries(config.input, config)
     }
 
     // 其他情况直接返回用户配置
@@ -752,15 +752,38 @@ export class Vue3Strategy implements ILibraryStrategy {
   /**
    * 自动发现入口文件
    */
-  private async autoDiscoverEntries(): Promise<string | Record<string, string>> {
+  private async autoDiscoverEntries(config?: BuilderConfig): Promise<string | Record<string, string>> {
     const { findFiles } = await import('../../utils/file-system')
     const { relative, extname } = await import('path')
+
+    // 构建排除模式 - 合并默认排除和配置排除
+    const defaultIgnore = [
+      '**/*.d.ts',
+      '**/*.test.*',
+      '**/*.spec.*',
+      '**/__tests__/**',
+      '**/examples/**',
+      '**/example/**',
+      '**/demo/**',
+      '**/demos/**',
+      '**/docs/**',
+      '**/dev/**',
+      '**/.vitepress/**',
+      '**/scripts/**',
+      '**/e2e/**',
+      '**/benchmark/**'
+    ]
+
+    const ignorePatterns = [
+      ...defaultIgnore,
+      ...(config?.exclude || [])
+    ]
 
     const files = await findFiles([
       'src/**/*.{ts,tsx,js,jsx,vue,json}'
     ], {
       cwd: process.cwd(),
-      ignore: ['**/*.d.ts', '**/*.test.*', '**/*.spec.*', '**/__tests__/**']
+      ignore: ignorePatterns
     })
 
     if (files.length === 0) return 'src/index.ts'
@@ -779,13 +802,36 @@ export class Vue3Strategy implements ILibraryStrategy {
   /**
    * 解析glob模式的入口配置
    */
-  private async resolveGlobEntries(patterns: string[]): Promise<Record<string, string>> {
+  private async resolveGlobEntries(patterns: string[], config?: BuilderConfig): Promise<Record<string, string>> {
     const { findFiles } = await import('../../utils/file-system')
     const { relative, extname } = await import('path')
 
+    // 构建排除模式 - 合并默认排除和配置排除
+    const defaultIgnore = [
+      '**/*.d.ts',
+      '**/*.test.*',
+      '**/*.spec.*',
+      '**/__tests__/**',
+      '**/examples/**',
+      '**/example/**',
+      '**/demo/**',
+      '**/demos/**',
+      '**/docs/**',
+      '**/dev/**',
+      '**/.vitepress/**',
+      '**/scripts/**',
+      '**/e2e/**',
+      '**/benchmark/**'
+    ]
+
+    const ignorePatterns = [
+      ...defaultIgnore,
+      ...(config?.exclude || [])
+    ]
+
     const files = await findFiles(patterns, {
       cwd: process.cwd(),
-      ignore: ['**/*.d.ts', '**/*.test.*', '**/*.spec.*', '**/__tests__/**']
+      ignore: ignorePatterns
     })
 
     if (files.length === 0) {

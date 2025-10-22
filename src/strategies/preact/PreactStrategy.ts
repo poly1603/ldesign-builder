@@ -50,11 +50,7 @@ export class PreactStrategy implements ILibraryStrategy {
     plugins.push(nodeResolve.default({
       browser: true,
       extensions: ['.mjs', '.js', '.json', '.ts', '.tsx', '.jsx'],
-      // Preact 别名优化，减小体积
-      alias: {
-        'react': 'preact/compat',
-        'react-dom': 'preact/compat'
-      },
+      // 该策略通过 resolveId 钩子处理 React 到 Preact 的别名
       dedupe: ['preact', 'preact/hooks']
     }))
 

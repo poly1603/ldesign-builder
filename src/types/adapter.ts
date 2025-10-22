@@ -6,6 +6,7 @@ import type { BuildResult, BuildWatcher } from './builder'
 import type { PerformanceMetrics } from './performance'
 import type { UnifiedPlugin, PluginBuild } from './plugin'
 import type { WatchOptions } from './common'
+import type { BundlerType } from './bundler'
 
 /**
  * 打包器功能枚举
@@ -91,7 +92,7 @@ export interface UnifiedOutputConfig {
 /**
  * 输出格式
  */
-export type OutputFormat = 'esm' | 'cjs' | 'umd' | 'iife' | 'css'
+export type OutputFormat = 'esm' | 'cjs' | 'umd' | 'iife' | 'css' | 'dts'
 
 /**
  * Chunk 信息
@@ -151,7 +152,7 @@ export type { RolldownPluginConfig } from './plugin'
  */
 export interface IBundlerAdapter {
   /** 适配器名称 */
-  readonly name: 'rollup' | 'rolldown'
+  readonly name: BundlerType
 
   /** 适配器版本 */
   readonly version: string

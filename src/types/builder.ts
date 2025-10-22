@@ -8,6 +8,7 @@ import type { OutputFile, BuildStats } from './output'
 import type { PerformanceMetrics } from './performance'
 import type { ValidationResult } from './common'
 import type { ValidationResult as PostBuildValidationResult } from '../types/validation'
+import type { BundlerType } from './bundler'
 
 /**
  * 构建器状态枚举
@@ -313,8 +314,8 @@ export interface ILibraryBuilder extends EventEmitter {
   loadConfig(configPath?: string): Promise<BuilderConfig>
 
   // 核心切换
-  setBundler(bundler: 'rollup' | 'rolldown'): void
-  getBundler(): 'rollup' | 'rolldown'
+  setBundler(bundler: BundlerType): void
+  getBundler(): BundlerType
 
   // 库类型管理
   setLibraryType(type: string): void

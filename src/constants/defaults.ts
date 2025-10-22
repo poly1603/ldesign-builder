@@ -110,7 +110,7 @@ export const DEFAULT_BUILDER_CONFIG: Omit<
   minify: false, // 默认不压缩
   clean: true,
 
-  // 排除文件配置
+  // 排除文件配置 - 默认排除测试、示例、文档等非生产代码
   exclude: [
     '**/__tests__/**',
     '**/*.test.*',
@@ -120,7 +120,19 @@ export const DEFAULT_BUILDER_CONFIG: Omit<
     '**/*.stories.*',
     '**/stories/**',
     '**/docs/**',
-    '**/examples/**'
+    '**/examples/**',
+    '**/example/**',
+    '**/demo/**',
+    '**/demos/**',
+    '**/__mocks__/**',
+    '**/__fixtures__/**',
+    '**/e2e/**',
+    '**/benchmark/**',
+    '**/benchmarks/**',
+    '**/.vitepress/**',
+    '**/.vuepress/**',
+    '**/scripts/**',
+    '**/dev/**'
   ],
 
   // UMD 构建配置

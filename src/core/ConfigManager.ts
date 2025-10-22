@@ -207,7 +207,12 @@ export class ConfigManager extends EventEmitter {
   }
 
   /**
-   * 合并配置
+   * 合并配置（优化版）
+   * 
+   * 实现智能合并策略：
+   * 1. 用户配置优先级最高
+   * 2. 支持深度合并和浅层合并
+   * 3. 特殊字段（如 output）使用智能合并
    */
   mergeConfigs(base: BuilderConfig, override: BuilderConfig, options: ConfigMergeOptions = {}): BuilderConfig {
     const { deep = true, arrayMergeStrategy = 'replace' } = options
@@ -219,10 +224,18 @@ export class ConfigManager extends EventEmitter {
     const result = { ...base }
 
     for (const [key, value] of Object.entries(override)) {
+      // undefined 表示用户未设置，跳过
       if (value === undefined) {
         continue
       }
 
+      // null 表示用户显式清空，直接设置
+      if (value === null) {
+        (result as any)[key] = null
+        continue
+      }
+
+      // 如果 base 中没有这个键，直接添加
       if (!(key in result)) {
         (result as any)[key] = value
         continue
@@ -230,6 +243,7 @@ export class ConfigManager extends EventEmitter {
 
       const baseValue = (result as any)[key]
 
+      // 数组合并策略
       if (Array.isArray(value) && Array.isArray(baseValue)) {
         switch (arrayMergeStrategy) {
           case 'concat':
@@ -240,19 +254,71 @@ export class ConfigManager extends EventEmitter {
             break
           case 'replace':
           default:
+            // 用户配置完全替换默认配置
             (result as any)[key] = value
             break
         }
-      } else if (
+      }
+      // 特殊处理：external 可以是数组或函数
+      else if (key === 'external' && typeof value === 'function') {
+        (result as any)[key] = value
+      }
+      // 特殊处理：output 配置智能合并
+      else if (key === 'output' && typeof value === 'object' && typeof baseValue === 'object') {
+        (result as any)[key] = this.mergeOutputConfig(baseValue, value)
+      }
+      // 对象深度合并
+      else if (
         typeof value === 'object' &&
         value !== null &&
         typeof baseValue === 'object' &&
-        baseValue !== null
+        baseValue !== null &&
+        !Array.isArray(value) &&
+        !Array.isArray(baseValue)
       ) {
         (result as any)[key] = this.mergeConfigs(baseValue, value, options)
-      } else {
+      }
+      // 基本类型：用户配置优先
+      else {
         (result as any)[key] = value
       }
+    }
+
+    return result
+  }
+
+  /**
+   * 智能合并 output 配置
+   */
+  private mergeOutputConfig(base: any, override: any): any {
+    const result = { ...base }
+
+    // 合并顶层配置
+    for (const [key, value] of Object.entries(override)) {
+      if (value === undefined) continue
+
+      // format 特殊处理：可以是数组或字符串
+      if (key === 'format') {
+        result.format = value
+        continue
+      }
+
+      // esm/cjs/umd 子配置需要深度合并
+      if (['esm', 'cjs', 'umd', 'iife'].includes(key)) {
+        if (typeof value === 'object' && value !== null) {
+          result[key] = {
+            ...result[key],
+            ...value
+          }
+        } else {
+          // 如果是 boolean，表示启用/禁用
+          result[key] = value
+        }
+        continue
+      }
+
+      // 其他字段直接覆盖
+      result[key] = value
     }
 
     return result

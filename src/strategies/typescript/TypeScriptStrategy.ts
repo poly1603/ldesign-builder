@@ -331,19 +331,8 @@ export class TypeScriptStrategy implements ILibraryStrategy {
   private buildPlugins(config: BuilderConfig): any[] {
     const plugins: any[] = []
 
-    // TypeScript 插件 - 始终添加，由 getTypeScriptOptions 决定声明相关行为
-    const tsOptions = this.getTypeScriptOptions(config)
-    // 调试选项已移除，避免日志污染
-
-    plugins.push({
-      name: 'typescript',
-      plugin: async () => {
-        const typescript = await import('@rollup/plugin-typescript')
-        return typescript.default(tsOptions)
-      },
-      // 将选项附加到插件对象以便 RollupAdapter 读取
-      options: tsOptions
-    })
+    // 不再使用 @rollup/plugin-typescript，它在某些配置下会出问题
+    // 依赖 esbuild 插件来处理 TypeScript
 
     // Node 解析插件（优先浏览器分支）
     plugins.push({
@@ -397,16 +386,16 @@ export class TypeScriptStrategy implements ILibraryStrategy {
       name: 'esbuild',
       plugin: async () => {
         const esbuild = await import('rollup-plugin-esbuild')
-        return esbuild.default({
+        const options: any = {
           include: /\.(ts|tsx|js|jsx)(\?|$)/,
           exclude: [/node_modules/],
           target: 'es2020',
           jsx: 'preserve',
-          tsconfig: 'tsconfig.json',
           loaders: { '.ts': 'ts', '.tsx': 'tsx' },
           minify: shouldMinify(config),
           sourceMap: config.output?.sourcemap !== false
-        })
+        }
+        return esbuild.default(options)
       }
     })
 
@@ -432,75 +421,87 @@ export class TypeScriptStrategy implements ILibraryStrategy {
   }
 
   /**
-   * 获取 TypeScript 选项（静默模式）
+   * 获取 TypeScript 选项（修复版）
    */
   private getTypeScriptOptions(config: BuilderConfig): any {
     const tsConfig = config.typescript || {}
     const compilerOptions = tsConfig.compilerOptions || {}
-    const options: any = {
-      target: tsConfig.target || compilerOptions.target || 'ES2020',
-      module: tsConfig.module || compilerOptions.module || 'ESNext',
-      strict: tsConfig.strict !== false && compilerOptions.strict !== false,
-      skipLibCheck: tsConfig.skipLibCheck !== false && compilerOptions.skipLibCheck !== false,
-      esModuleInterop: true,
-      allowSyntheticDefaultImports: true,
-      moduleResolution: 'node',
-      resolveJsonModule: true,
-      isolatedModules: true,
-      noEmitOnError: false,
-      // 显式覆盖，避免上游 tsconfig 开启导致 TS5096
-      allowImportingTsExtensions: false,
-      exclude: ['**/*.test.ts', '**/*.spec.ts', 'node_modules/**'],
-      // 抑制未使用的警告
-      noUnusedLocals: false,
-      noUnusedParameters: false
-    }
 
-    // 检查多个位置的 declaration 配置
+    // 检查是否需要生成类型声明
     const declarationEnabled = tsConfig.declaration === true ||
       compilerOptions.declaration === true ||
       (config as any).dts === true
 
-    if (declarationEnabled) {
-      options.declaration = true
-      if (tsConfig.declarationDir || compilerOptions.declarationDir) {
-        options.declarationDir = tsConfig.declarationDir || compilerOptions.declarationDir
+    // 构建正确的选项结构（@rollup/plugin-typescript 需要特定格式）
+    const options: any = {
+      // tsconfig 文件路径（如果指定）
+      tsconfig: tsConfig.tsconfig,
+
+      // compilerOptions 应该是嵌套对象
+      compilerOptions: {
+        target: tsConfig.target || compilerOptions.target || 'ES2020',
+        module: tsConfig.module || compilerOptions.module || 'ESNext',
+        strict: tsConfig.strict !== false && compilerOptions.strict !== false,
+        skipLibCheck: tsConfig.skipLibCheck !== false && compilerOptions.skipLibCheck !== false,
+        esModuleInterop: true,
+        allowSyntheticDefaultImports: true,
+        // 使用 bundler 模块解析策略以支持 TypeScript 5.x
+        moduleResolution: compilerOptions.moduleResolution || 'bundler',
+        resolveJsonModule: true,
+        isolatedModules: !declarationEnabled,  // 生成 DTS 时不能使用 isolatedModules
+        noEmitOnError: false,
+        // 强制覆盖 noEmit，确保能够生成输出
+        noEmit: false,
+        // 不要硬编码 allowImportingTsExtensions，让用户配置生效
+        // 但如果生成声明文件，必须禁用它
+        allowImportingTsExtensions: declarationEnabled ? false : (compilerOptions.allowImportingTsExtensions ?? false),
+        // 抑制未使用的警告
+        noUnusedLocals: false,
+        noUnusedParameters: false,
+        // 声明文件配置
+        declaration: declarationEnabled,
+        declarationMap: declarationEnabled && (tsConfig.declarationMap === true || compilerOptions.declarationMap === true)
+      },
+
+      // exclude 应该在顶层，不在 compilerOptions 中
+      exclude: ['**/*.test.ts', '**/*.spec.ts', 'node_modules/**'],
+
+      // 诊断过滤器
+      filterDiagnostics: (diagnostic: any) => {
+        const code = diagnostic.code
+        const file = diagnostic.file?.fileName || ''
+
+        // 过滤 .vue 文件相关的诊断
+        if (file.endsWith('.vue') || file.includes('.vue') || file.includes('/vue/')) {
+          return false
+        }
+
+        // 过滤特定的诊断代码
+        const suppressedCodes = [
+          2688,  // TS2688: Cannot find type definition file
+          2307,  // TS2307: Cannot find module  
+          5096,  // TS5096: Option conflicts
+          6133,  // TS6133: Unused variable
+          7016   // TS7016: Could not find declaration file
+        ]
+
+        if (suppressedCodes.includes(code)) {
+          return false
+        }
+
+        // 保留其他诊断
+        return true
       }
-      if (tsConfig.declarationMap === true || compilerOptions.declarationMap === true) {
-        options.declarationMap = true
-      }
+    }
+
+    // 如果指定了 declarationDir，添加到 compilerOptions 中
+    if (declarationEnabled && (tsConfig.declarationDir || compilerOptions.declarationDir)) {
+      options.compilerOptions.declarationDir = tsConfig.declarationDir || compilerOptions.declarationDir
     }
 
     // 合并其他 compilerOptions
     if (compilerOptions.removeComments !== undefined) {
-      options.removeComments = compilerOptions.removeComments
-    }
-
-    // 添加诊断过滤器
-    options.filterDiagnostics = (diagnostic: any) => {
-      const code = diagnostic.code
-      const file = diagnostic.file?.fileName || ''
-
-      // 过滤 .vue 文件相关的诊断
-      if (file.endsWith('.vue') || file.includes('.vue') || file.includes('/vue/')) {
-        return false
-      }
-
-      // 过滤特定的诊断代码
-      const suppressedCodes = [
-        2688,  // TS2688: Cannot find type definition file
-        2307,  // TS2307: Cannot find module  
-        5096,  // TS5096: Option conflicts
-        6133,  // TS6133: Unused variable
-        7016   // TS7016: Could not find declaration file
-      ]
-
-      if (suppressedCodes.includes(code)) {
-        return false
-      }
-
-      // 保留其他诊断
-      return true
+      options.compilerOptions.removeComments = compilerOptions.removeComments
     }
 
     return options

@@ -69,10 +69,8 @@ export class SolidStrategy implements ILibraryStrategy {
             hydratable: true
           }]
         ],
-        extensions: ['.tsx', '.ts', '.jsx', '.js'],
-        babelHelpers: 'bundled',
-        exclude: /node_modules/
-      }))
+        allowAllFormats: true
+      } as any))
     } catch (error) {
       // 回退到 esbuild
       this.warn('Babel 插件不可用，使用 esbuild 处理 JSX')

@@ -165,17 +165,73 @@ export class LibraryDetector {
       this.logger.error(`项目类型检测失败: ${errorMessage}`)
       this.errorHandler.handle(error instanceof Error ? error : new Error(errorMessage), 'detect')
 
-      // 返回默认结果，但记录错误信息
+      // 返回默认结果，使用 Mixed 作为最安全的 fallback
       return {
-        type: LibraryType.TYPESCRIPT,
+        type: LibraryType.MIXED,  // 改为 Mixed，更兼容
         confidence: 0.1, // 降低置信度以反映检测失败
         evidence: [{
           type: 'error',
-          description: `检测过程中发生错误: ${errorMessage}`,
+          description: `检测过程中发生错误: ${errorMessage}，使用 Mixed 策略作为安全后备`,
           weight: 0.1
         }]
       }
     }
+  }
+
+  /**
+   * 分析源文件统计信息
+   */
+  private async analyzeSourceFiles(projectPath: string): Promise<{
+    typescript: number
+    tsx: number
+    vue: number
+    jsx: number
+    css: number
+    less: number
+    scss: number
+    sass: number
+    total: number
+  }> {
+    const stats = {
+      typescript: 0,
+      tsx: 0,
+      vue: 0,
+      jsx: 0,
+      css: 0,
+      less: 0,
+      scss: 0,
+      sass: 0,
+      total: 0
+    }
+
+    try {
+      const allFiles = await findFiles(['src/**/*'], {
+        cwd: projectPath,
+        ignore: ['node_modules/**', 'dist/**', '**/*.test.*', '**/*.spec.*', '**/__tests__/**', '**/*.d.ts']
+      })
+
+      for (const file of allFiles) {
+        const ext = path.extname(file).toLowerCase()
+        stats.total++
+
+        switch (ext) {
+          case '.ts': stats.typescript++; break
+          case '.tsx': stats.tsx++; break
+          case '.vue': stats.vue++; break
+          case '.jsx': stats.jsx++; break
+          case '.css': stats.css++; break
+          case '.less': stats.less++; break
+          case '.scss': stats.scss++; break
+          case '.sass': stats.sass++; break
+        }
+      }
+
+      this.logger.debug('源文件统计:', stats)
+    } catch (error) {
+      this.logger.debug('源文件分析失败:', error)
+    }
+
+    return stats
   }
 
   /**
@@ -186,25 +242,56 @@ export class LibraryDetector {
     scores: Record<LibraryType, number>,
     evidence: Record<LibraryType, DetectionEvidence[]>
   ): Promise<void> {
+    // 首先统计所有源文件类型
+    const fileStats = await this.analyzeSourceFiles(projectPath)
+
     for (const [type, pattern] of Object.entries(LIBRARY_TYPE_PATTERNS)) {
       const libraryType = type as LibraryType
 
       try {
         const files = await findFiles([...pattern.files], {
           cwd: projectPath,
-          ignore: ['node_modules/**', 'dist/**', '**/*.test.*', '**/*.spec.*']
+          ignore: ['node_modules/**', 'dist/**', 'build/**', 'es/**', 'lib/**', 'cjs/**', '**/*.test.*', '**/*.spec.*']
         })
 
         if (files.length > 0) {
-          const score = Math.min(files.length * 0.1, 1) * pattern.weight
+          // 特殊处理样式库：只有当样式文件是主要文件时才判定为样式库
+          if (libraryType === LibraryType.STYLE) {
+            const tsFileCount = fileStats.typescript + fileStats.tsx
+            const styleFileCount = fileStats.css + fileStats.less + fileStats.scss + fileStats.sass
+
+            // 如果 TypeScript 文件数量 >= 样式文件数量，不判定为样式库
+            if (tsFileCount >= styleFileCount) {
+              this.logger.debug(`跳过样式库判定：TS文件(${tsFileCount}) >= 样式文件(${styleFileCount})`)
+              continue
+            }
+
+            // 如果样式文件数量不足10个，也不判定为样式库（避免误判）
+            if (styleFileCount < 10) {
+              this.logger.debug(`跳过样式库判定：样式文件太少(${styleFileCount})`)
+              continue
+            }
+          }
+
+          // 智能评分：文件数量越多，置信度越高，但有上限
+          const fileCountScore = Math.min(files.length * 0.08, 1)
+          const score = fileCountScore * pattern.weight
           scores[libraryType] += score
 
           evidence[libraryType].push({
             type: 'file',
-            description: `找到 ${files.length} 个 ${libraryType} 文件 (模式: ${pattern.files.join(', ')})`,
+            description: `找到 ${files.length} 个 ${libraryType} 相关文件`,
             weight: score,
-            source: files.slice(0, 3).join(', ')
+            source: files.slice(0, 3).join(', ') + (files.length > 3 ? ` ... (共 ${files.length} 个)` : '')
           })
+
+          // 额外加分：如果检测到关键入口文件
+          const hasMainEntry = files.some(f =>
+            f.includes('src/index.') || f.includes('index.') || f.includes('main.')
+          )
+          if (hasMainEntry) {
+            scores[libraryType] += 0.1
+          }
         }
       } catch (error) {
         this.logger.debug(`检测 ${libraryType} 文件模式失败:`, error)
@@ -237,19 +324,30 @@ export class LibraryDetector {
           const libraryType = type as LibraryType
           const matchedDeps: string[] = []
 
-          for (const dep of pattern.dependencies) {
+          // 检测依赖时，同时检查 dependencies 和 devDependencies
+          const patternWithDevDeps = pattern as any
+          const depsToCheck = [...pattern.dependencies, ...(patternWithDevDeps.devDependencies || [])]
+
+          for (const dep of depsToCheck) {
             if (this.matchDependency(dep, allDeps)) {
               matchedDeps.push(dep)
             }
           }
 
           if (matchedDeps.length > 0) {
-            const score = (matchedDeps.length / pattern.dependencies.length) * pattern.weight * 0.8
+            // 如果匹配到核心依赖，给予更高的权重
+            const coreDepMatched = pattern.dependencies.some(dep =>
+              this.matchDependency(dep, allDeps)
+            )
+            const weightMultiplier = coreDepMatched ? 1.0 : 0.7
+
+            const baseScore = Math.min(matchedDeps.length / Math.max(depsToCheck.length, 1), 1)
+            const score = baseScore * pattern.weight * 0.8 * weightMultiplier
             scores[libraryType] += score
 
             evidence[libraryType].push({
               type: 'dependency',
-              description: `找到相关依赖: ${matchedDeps.join(', ')}`,
+              description: `找到相关依赖: ${matchedDeps.slice(0, 5).join(', ')}${matchedDeps.length > 5 ? '...' : ''}`,
               weight: score,
               source: 'package.json'
             })
@@ -394,5 +492,141 @@ export class LibraryDetector {
     }
 
     return !!dependencies[pattern]
+  }
+
+  /**
+   * 检测 Monorepo 结构
+   */
+  async detectMonorepo(projectPath: string): Promise<{
+    isMonorepo: boolean
+    type?: 'pnpm' | 'lerna' | 'nx' | 'yarn' | 'rush'
+    workspaces?: string[]
+  }> {
+    try {
+      // 检测 pnpm workspace
+      const pnpmWorkspace = path.join(projectPath, 'pnpm-workspace.yaml')
+      if (await exists(pnpmWorkspace)) {
+        return { isMonorepo: true, type: 'pnpm' }
+      }
+
+      // 检测 lerna
+      const lernaJson = path.join(projectPath, 'lerna.json')
+      if (await exists(lernaJson)) {
+        return { isMonorepo: true, type: 'lerna' }
+      }
+
+      // 检测 nx
+      const nxJson = path.join(projectPath, 'nx.json')
+      if (await exists(nxJson)) {
+        return { isMonorepo: true, type: 'nx' }
+      }
+
+      // 检测 rush
+      const rushJson = path.join(projectPath, 'rush.json')
+      if (await exists(rushJson)) {
+        return { isMonorepo: true, type: 'rush' }
+      }
+
+      // 检测 yarn workspaces
+      const packageJsonPath = path.join(projectPath, 'package.json')
+      if (await exists(packageJsonPath)) {
+        const content = await readFile(packageJsonPath, 'utf-8')
+        const packageJson = JSON.parse(content)
+        if (packageJson.workspaces) {
+          return {
+            isMonorepo: true,
+            type: 'yarn',
+            workspaces: Array.isArray(packageJson.workspaces)
+              ? packageJson.workspaces
+              : packageJson.workspaces.packages || []
+          }
+        }
+      }
+
+      return { isMonorepo: false }
+    } catch (error) {
+      this.logger.debug('Monorepo 检测失败:', error)
+      return { isMonorepo: false }
+    }
+  }
+
+  /**
+   * 推断项目类型（组件库、工具库、CLI等）
+   */
+  async inferProjectCategory(projectPath: string): Promise<
+    'component-library' | 'utility-library' | 'cli-tool' | 'node-library' | 'style-library' | 'mixed'
+  > {
+    try {
+      const packageJsonPath = path.join(projectPath, 'package.json')
+      if (await exists(packageJsonPath)) {
+        const content = await readFile(packageJsonPath, 'utf-8')
+        const packageJson = JSON.parse(content)
+
+        // CLI 工具检测
+        if (packageJson.bin) {
+          return 'cli-tool'
+        }
+
+        // Node 库检测（有 engines.node 声明）
+        if (packageJson.engines?.node) {
+          return 'node-library'
+        }
+
+        // 组件库检测（有 peerDependencies 中包含框架）
+        // 优先检测组件库，避免误判为样式库
+        const peerDeps = packageJson.peerDependencies || {}
+        if (peerDeps.vue || peerDeps.react || peerDeps['solid-js'] || peerDeps.svelte) {
+          return 'component-library'
+        }
+
+        // TypeScript/工具库检测 - 在样式库之前检测
+        // 如果有 types/typings 字段或主要是 .ts 文件，优先判定为工具库
+        if (packageJson.types || packageJson.typings || packageJson.main?.endsWith('.ts')) {
+          // 检查是否有TypeScript源文件
+          try {
+            const tsFiles = await findFiles(['src/**/*.ts', 'src/**/*.tsx'], {
+              cwd: projectPath,
+              ignore: ['node_modules/**', 'dist/**', '**/*.test.*', '**/*.spec.*', '**/*.d.ts']
+            })
+
+            if (tsFiles.length > 0) {
+              return 'utility-library'
+            }
+          } catch { }
+        }
+
+        // 样式库检测 - 放到最后，避免误判
+        // 只有在 package.json 中明确声明 style/sass/less 字段，且没有其他明显特征时才判定为样式库
+        if (packageJson.style || packageJson.sass) {
+          // 再检查是否真的主要是样式文件
+          try {
+            const styleFiles = await findFiles(['src/**/*.css', 'src/**/*.less', 'src/**/*.scss'], {
+              cwd: projectPath,
+              ignore: ['node_modules/**', 'dist/**']
+            })
+            const tsFiles = await findFiles(['src/**/*.ts', 'src/**/*.tsx'], {
+              cwd: projectPath,
+              ignore: ['node_modules/**', 'dist/**', '**/*.d.ts']
+            })
+
+            // 只有当样式文件数量远多于TS文件时才判定为样式库
+            if (styleFiles.length > tsFiles.length * 2) {
+              return 'style-library'
+            }
+          } catch { }
+        }
+      }
+
+      // 基于文件结构判断
+      const componentsDir = path.join(projectPath, 'src/components')
+      if (await exists(componentsDir)) {
+        return 'component-library'
+      }
+
+      return 'utility-library'
+    } catch (error) {
+      this.logger.debug('项目类型推断失败:', error)
+      return 'mixed'
+    }
   }
 }

@@ -237,16 +237,17 @@ export class RollupAdapter implements IBundlerAdapter {
             gzip: outputs.reduce((s, o) => s + (o.gzipSize || 0), 0),
             brotli: 0,
             byType: {},
-            byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 },
+            byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 },
             largest,
             fileCount: outputs.length
           },
           byFormat: {
-            esm: { fileCount: outputs.filter(o => o.format === 'es' || o.format === 'esm').length, size: { raw: outputs.filter(o => o.format === 'es' || o.format === 'esm').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'es' || o.format === 'esm').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
-            cjs: { fileCount: outputs.filter(o => o.format === 'cjs').length, size: { raw: outputs.filter(o => o.format === 'cjs').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'cjs').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
-            umd: { fileCount: outputs.filter(o => o.format === 'umd').length, size: { raw: outputs.filter(o => o.format === 'umd').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'umd').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
-            iife: { fileCount: outputs.filter(o => o.format === 'iife').length, size: { raw: outputs.filter(o => o.format === 'iife').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'iife').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
-            css: { fileCount: outputs.filter(o => o.format === 'css').length, size: { raw: outputs.filter(o => o.format === 'css').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'css').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } }
+            esm: { fileCount: outputs.filter(o => o.format === 'es' || o.format === 'esm').length, size: { raw: outputs.filter(o => o.format === 'es' || o.format === 'esm').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'es' || o.format === 'esm').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
+            cjs: { fileCount: outputs.filter(o => o.format === 'cjs').length, size: { raw: outputs.filter(o => o.format === 'cjs').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'cjs').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
+            umd: { fileCount: outputs.filter(o => o.format === 'umd').length, size: { raw: outputs.filter(o => o.format === 'umd').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'umd').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
+            iife: { fileCount: outputs.filter(o => o.format === 'iife').length, size: { raw: outputs.filter(o => o.format === 'iife').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'iife').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
+            css: { fileCount: outputs.filter(o => o.format === 'css').length, size: { raw: outputs.filter(o => o.format === 'css').reduce((s, o) => s + o.size, 0), gzip: outputs.filter(o => o.format === 'css').reduce((s, o) => s + (o.gzipSize || 0), 0), brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } },
+            dts: { fileCount: 0, size: { raw: 0, gzip: 0, brotli: 0, byType: {}, byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 }, largest: { file: '', size: 0 }, fileCount: 0 } }
           },
           modules: {
             total: 0,

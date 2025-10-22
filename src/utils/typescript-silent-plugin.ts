@@ -74,7 +74,11 @@ export function wrapTypeScriptPlugin(originalPlugin: Plugin): Plugin {
       } as any
 
       if (originalPlugin.buildStart) {
-        return originalPlugin.buildStart.apply(this, args)
+        if (typeof originalPlugin.buildStart === 'function') {
+          return originalPlugin.buildStart.apply(this, args)
+        } else if (typeof originalPlugin.buildStart === 'object' && 'handler' in originalPlugin.buildStart) {
+          return originalPlugin.buildStart.handler.apply(this, args)
+        }
       }
     },
 
@@ -90,7 +94,11 @@ export function wrapTypeScriptPlugin(originalPlugin: Plugin): Plugin {
       isBuilding = false
 
       if (originalPlugin.buildEnd) {
-        return originalPlugin.buildEnd.apply(this, args)
+        if (typeof originalPlugin.buildEnd === 'function') {
+          return originalPlugin.buildEnd.apply(this, args)
+        } else if (typeof originalPlugin.buildEnd === 'object' && 'handler' in originalPlugin.buildEnd) {
+          return originalPlugin.buildEnd.handler.apply(this, args)
+        }
       }
     }
   }

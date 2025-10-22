@@ -30,11 +30,12 @@ export const LIBRARY_TYPE_PATTERNS = {
       'types',
       'typings'
     ],
-    weight: 0.8
+    weight: 1.0  // 提高权重，优先检测TypeScript项目
   },
 
   [LibraryType.STYLE]: {
-    // 样式库检测模式
+    // 样式库检测模式 - 只有纯样式库才会匹配
+    // 注意：如果项目主要是 TypeScript，即使有样式文件也不会被判定为样式库
     files: [
       'src/**/*.css',
       'src/**/*.less',
@@ -45,9 +46,7 @@ export const LIBRARY_TYPE_PATTERNS = {
       'styles/**/*'
     ],
     dependencies: [
-      'less',
-      'sass',
-      'stylus',
+      // 移除 less/sass/stylus，只保留纯样式库才有的依赖
       'postcss'
     ],
     configs: [
@@ -56,10 +55,10 @@ export const LIBRARY_TYPE_PATTERNS = {
     ],
     packageJsonFields: [
       'style',
-      'sass',
-      'less'
+      'sass'
+      // 不包含 'less'，因为很多TS库也使用less
     ],
-    weight: 0.9
+    weight: 0.3  // 大幅降低权重，避免误判为样式库
   },
 
   [LibraryType.VUE2]: {
@@ -238,13 +237,31 @@ export const LIBRARY_TYPE_PATTERNS = {
 
   [LibraryType.MIXED]: {
     // 混合库检测模式（多种类型混合）
+    // 提高权重，作为通用兼容策略
     files: [
-      'src/**/*.{ts,tsx,vue,css,less,scss}'
+      'src/**/*.{ts,tsx,vue,css,less,scss,jsx,js}'
     ],
     dependencies: [],
     configs: [],
     packageJsonFields: [],
-    weight: 0.6 // 较低权重，作为兜底选项
+    weight: 0.85 // ↑ 提高权重！作为通用兼容选项
+  },
+
+  [LibraryType.QWIK]: {
+    // Qwik 组件库检测模式
+    files: [
+      'src/**/*.tsx',
+      'src/**/*.ts'
+    ],
+    dependencies: [
+      '@builder.io/qwik'
+    ],
+    devDependencies: [],
+    configs: [
+      'vite.config.ts'
+    ],
+    packageJsonFields: [],
+    weight: 0.95
   }
 } as const
 
@@ -400,6 +417,11 @@ export const LIBRARY_TYPE_RECOMMENDED_CONFIG = {
 
 /**
  * 库类型优先级
+ * 
+ * 优化说明：
+ * - Mixed 提高到 7，作为通用后备（比 TypeScript 更稳定）
+ * - TypeScript 降低到 5（配置复杂，容易出错）
+ * - 框架特定的保持高优先级（10-9）
  */
 export const LIBRARY_TYPE_PRIORITY = {
   [LibraryType.VUE2]: 10,
@@ -409,10 +431,11 @@ export const LIBRARY_TYPE_PRIORITY = {
   [LibraryType.SOLID]: 9,
   [LibraryType.PREACT]: 9,
   [LibraryType.LIT]: 8,
-  [LibraryType.ANGULAR]: 7,
   [LibraryType.STYLE]: 8,
-  [LibraryType.TYPESCRIPT]: 6,
-  [LibraryType.MIXED]: 2
+  [LibraryType.ANGULAR]: 7,
+  [LibraryType.MIXED]: 7,        // ↑ 提高！作为通用后备
+  [LibraryType.TYPESCRIPT]: 5,   // ↓ 降低！配置复杂度高
+  [LibraryType.QWIK]: 9
 } as const
 
 /**

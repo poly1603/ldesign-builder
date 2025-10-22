@@ -18,6 +18,8 @@ import { Logger } from './logger'
  */
 interface PackageInfo {
   name?: string
+  type?: string
+  bin?: string | Record<string, string>
   dependencies?: Record<string, string>
   devDependencies?: Record<string, string>
   peerDependencies?: Record<string, string>
@@ -51,6 +53,7 @@ export class AutoConfigEnhancer {
   private logger: Logger
   private projectPath: string
   private packageInfo?: PackageInfo
+  private tsconfigInfo?: any
 
   constructor(projectPath: string, logger?: Logger) {
     this.projectPath = projectPath
@@ -64,9 +67,10 @@ export class AutoConfigEnhancer {
     this.logger.debug('开始配置自动增强...')
     const enhanced = { ...config }
 
-    // 读取 package.json
-    this.logger.debug('读取 package.json...')
+    // 读取 package.json 和 tsconfig.json
+    this.logger.debug('读取项目配置文件...')
     await this.loadPackageInfo()
+    await this.loadTsconfig()
 
     // 自动检测库类型
     this.logger.debug(`当前 libraryType: ${enhanced.libraryType}`)
@@ -76,6 +80,18 @@ export class AutoConfigEnhancer {
       this.logger.debug(`自动检测库类型: ${enhanced.libraryType}`)
     } else {
       this.logger.debug('libraryType 已明确设置，跳过自动检测')
+    }
+
+    // 智能推断入口文件
+    if (!enhanced.input || enhanced.input === 'src/index.ts') {
+      enhanced.input = await this.detectEntryFile()
+      this.logger.debug(`自动检测入口文件: ${enhanced.input}`)
+    }
+
+    // 智能推断输出格式
+    if (!enhanced.output || typeof enhanced.output !== 'object') {
+      enhanced.output = await this.inferOutputFormats(enhanced.libraryType)
+      this.logger.debug(`自动推断输出格式:`, enhanced.output)
     }
 
     // 自动生成 external
@@ -88,9 +104,23 @@ export class AutoConfigEnhancer {
       enhanced.globals = this.generateGlobals(enhanced.external)
     }
 
+    // 根据 package.json 推断 UMD 名称
+    if (enhanced.output && typeof enhanced.output === 'object' && enhanced.output.umd) {
+      const umdConfig = enhanced.output.umd
+      if (typeof umdConfig === 'object' && (!umdConfig.name || umdConfig.name === 'MyLibrary')) {
+        umdConfig.name = this.generateUmdName()
+        this.logger.debug(`自动生成 UMD 名称: ${umdConfig.name}`)
+      }
+    }
+
     // 自动添加默认的 exclude 配置
     if (!enhanced.exclude || (Array.isArray(enhanced.exclude) && enhanced.exclude.length === 0)) {
       enhanced.exclude = this.generateDefaultExcludes()
+    }
+
+    // 根据 tsconfig.json 调整 TypeScript 配置
+    if (this.tsconfigInfo) {
+      enhanced.typescript = this.enhanceTypescriptConfig(enhanced.typescript || {})
     }
 
     // 自动添加 Vue 插件
@@ -335,6 +365,179 @@ export class AutoConfigEnhancer {
       '**/*.stories.ts',
       '**/*.stories.tsx'
     ]
+  }
+
+  /**
+   * 加载 tsconfig.json
+   */
+  private async loadTsconfig(): Promise<void> {
+    try {
+      const tsconfigPath = path.join(this.projectPath, 'tsconfig.json')
+      const content = await fs.readFile(tsconfigPath, 'utf-8')
+      // 移除 JSON 注释
+      const cleanedContent = content.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
+      this.tsconfigInfo = JSON.parse(cleanedContent)
+    } catch (error) {
+      this.logger.debug('无法读取 tsconfig.json')
+      this.tsconfigInfo = undefined
+    }
+  }
+
+  /**
+   * 自动检测入口文件
+   */
+  private async detectEntryFile(): Promise<string> {
+    const possibleEntries = [
+      'src/index.ts',
+      'src/index.tsx',
+      'src/index.js',
+      'src/index.jsx',
+      'src/index.vue',
+      'src/main.ts',
+      'src/main.js',
+      'index.ts',
+      'index.js',
+      'lib/index.ts',
+      'lib/index.js'
+    ]
+
+    for (const entry of possibleEntries) {
+      const fullPath = path.join(this.projectPath, entry)
+      try {
+        await fs.access(fullPath)
+        this.logger.info(`自动检测到入口文件: ${entry}`)
+        return entry
+      } catch {
+        // 继续查找
+      }
+    }
+
+    // 默认返回
+    return 'src/index.ts'
+  }
+
+  /**
+   * 推断输出格式
+   */
+  private async inferOutputFormats(libraryType?: LibraryType): Promise<any> {
+    const packageJson = this.packageInfo
+
+    // 根据 package.json 的 type 字段判断
+    const isEsModule = packageJson?.type === 'module'
+
+    // 判断是否是组件库
+    const isComponentLib = libraryType && [
+      LibraryType.VUE2,
+      LibraryType.VUE3,
+      LibraryType.REACT,
+      LibraryType.SVELTE,
+      LibraryType.SOLID,
+      LibraryType.PREACT,
+      LibraryType.LIT
+    ].includes(libraryType as LibraryType)
+
+    // 判断是否有 bin 字段（CLI 工具）
+    const isCli = !!packageJson?.bin
+
+    // CLI 工具通常只需要 CJS 格式
+    if (isCli) {
+      return {
+        format: ['cjs'],
+        cjs: {
+          dir: 'lib',
+          format: 'cjs',
+          preserveStructure: false,
+          dts: true
+        }
+      }
+    }
+
+    // 组件库通常需要 ESM + CJS + UMD
+    if (isComponentLib) {
+      return {
+        format: ['esm', 'cjs', 'umd'],
+        esm: {
+          dir: 'es',
+          format: 'esm',
+          preserveStructure: true,
+          dts: true
+        },
+        cjs: {
+          dir: 'lib',
+          format: 'cjs',
+          preserveStructure: true,
+          dts: true
+        },
+        umd: {
+          dir: 'dist',
+          format: 'umd',
+          minify: true,
+          sourcemap: true
+        }
+      }
+    }
+
+    // 普通库：ESM + CJS
+    return {
+      format: ['esm', 'cjs'],
+      esm: {
+        dir: 'es',
+        format: 'esm',
+        preserveStructure: true,
+        dts: true
+      },
+      cjs: {
+        dir: 'lib',
+        format: 'cjs',
+        preserveStructure: true,
+        dts: true
+      }
+    }
+  }
+
+  /**
+   * 生成 UMD 名称
+   */
+  private generateUmdName(): string {
+    if (!this.packageInfo?.name) {
+      return 'MyLibrary'
+    }
+
+    let name = this.packageInfo.name
+
+    // 移除 scope
+    name = name.replace(/^@[^/]+\//, '')
+
+    // 转换为 PascalCase
+    return this.toPascalCase(name)
+  }
+
+  /**
+   * 增强 TypeScript 配置
+   */
+  private enhanceTypescriptConfig(tsConfig: any): any {
+    const enhanced = { ...tsConfig }
+
+    if (this.tsconfigInfo?.compilerOptions) {
+      const compilerOptions = this.tsconfigInfo.compilerOptions
+
+      // 如果 tsconfig 指定了 target，使用它
+      if (compilerOptions.target && !enhanced.target) {
+        enhanced.target = compilerOptions.target
+      }
+
+      // 如果 tsconfig 指定了 module，使用它
+      if (compilerOptions.module && !enhanced.module) {
+        enhanced.module = compilerOptions.module
+      }
+
+      // 如果 tsconfig 启用了 strict，确保我们的配置也使用 strict
+      if (compilerOptions.strict !== undefined && enhanced.strict === undefined) {
+        enhanced.strict = compilerOptions.strict
+      }
+    }
+
+    return enhanced
   }
 }
 

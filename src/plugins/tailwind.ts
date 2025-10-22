@@ -10,6 +10,12 @@ import type { Plugin } from 'rollup'
 import path from 'path'
 import fs from 'fs-extra'
 
+// 为了解决类型错误，扩展 Plugin 类型
+interface TailwindPlugin extends Plugin {
+  loadTailwindConfig?: (configPath: string) => Promise<any>
+  getDefaultTailwindConfig?: (contentPaths: string[], jitMode: boolean) => any
+}
+
 /**
  * Tailwind 插件选项
  */
@@ -29,7 +35,7 @@ export interface TailwindPluginOptions {
 /**
  * 创建 Tailwind CSS 插件
  */
-export function tailwindPlugin(options: TailwindPluginOptions = {}): Plugin {
+export function tailwindPlugin(options: TailwindPluginOptions = {}): TailwindPlugin {
   const {
     config: configPath,
     jit = true,
@@ -50,6 +56,7 @@ export function tailwindPlugin(options: TailwindPluginOptions = {}): Plugin {
       // 动态加载依赖（可选依赖）
       try {
         postcss = (await import('postcss')).default
+        // @ts-ignore - tailwindcss 可能没有类型定义
         tailwindcss = (await import('tailwindcss')).default
         autoprefixer = (await import('autoprefixer')).default
 
@@ -76,8 +83,8 @@ export function tailwindPlugin(options: TailwindPluginOptions = {}): Plugin {
       try {
         // 构建 Tailwind 配置
         const tailwindConfig = configPath
-          ? await this.loadTailwindConfig(configPath)
-          : this.getDefaultTailwindConfig(content, jit)
+          ? await loadTailwindConfigHelper(configPath, content, jit)
+          : getDefaultTailwindConfigHelper(content, jit)
 
         // 处理 CSS
         const plugins = [
@@ -112,30 +119,61 @@ export function tailwindPlugin(options: TailwindPluginOptions = {}): Plugin {
 
       if (await fs.pathExists(fullPath)) {
         // 使用 jiti 动态加载配置
-        const { jiti } = await import('jiti')
-        const loader = jiti(process.cwd(), {
+        const jitiModule = await import('jiti')
+        const createJiti = typeof jitiModule === 'function' ? jitiModule : (jitiModule as any).default
+        const loader = createJiti(process.cwd(), {
           esmResolve: true,
           interopDefault: true
-        })
+        } as any)
         return loader(fullPath)
       }
 
-      return this.getDefaultTailwindConfig(content, jit)
-    },
-
-    /**
-     * 获取默认 Tailwind 配置
-     */
-    getDefaultTailwindConfig(contentPaths: string[], jitMode: boolean) {
-      return {
-        mode: jitMode ? 'jit' : undefined,
-        content: contentPaths,
-        theme: {
-          extend: {}
-        },
-        plugins: []
-      }
+      return getDefaultTailwindConfigHelper(content, jit)
     }
+  }
+}
+
+/**
+ * 加载 Tailwind 配置助手函数
+ */
+async function loadTailwindConfigHelper(
+  configPath: string,
+  defaultContent: string[],
+  defaultJit: boolean
+): Promise<any> {
+  const fullPath = path.resolve(process.cwd(), configPath)
+
+  if (await fs.pathExists(fullPath)) {
+    try {
+      const jitiModule = await import('jiti')
+      const createJiti = typeof jitiModule === 'function' ? jitiModule : (jitiModule as any).default
+      const loader = createJiti(process.cwd(), {
+        esmResolve: true,
+        interopDefault: true
+      } as any)
+      return loader(fullPath)
+    } catch (error) {
+      console.warn(`加载 Tailwind 配置失败: ${error}`)
+    }
+  }
+
+  return getDefaultTailwindConfigHelper(defaultContent, defaultJit)
+}
+
+/**
+ * 获取默认 Tailwind 配置助手函数
+ */
+function getDefaultTailwindConfigHelper(
+  contentPaths: string[],
+  jitMode: boolean
+): any {
+  return {
+    mode: jitMode ? 'jit' : undefined,
+    content: contentPaths,
+    theme: {
+      extend: {}
+    },
+    plugins: []
   }
 }
 

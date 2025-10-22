@@ -84,11 +84,19 @@ const sharedOutExtension = ({ format }: { format: string }) => ({
 })
 
 export default defineConfig({
-  // 打包所有 TypeScript 文件，但排除测试文件
-  entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**', '!src/tests/**'],
+  // 打包所有 TypeScript 文件，但排除测试文件和未完成的适配器
+  entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**', '!src/tests/**', '!src/adapters/esbuild/**', '!src/adapters/swc/**'],
   format: ['esm', 'cjs'],
   outDir: 'dist',
-  dts: false, // 暂时禁用 DTS 生成以加快构建
+  // 启用 DTS 生成，使用专门的 TypeScript 配置
+  dts: {
+    resolve: true,
+    tsconfig: './tsconfig.dts.json',
+    compilerOptions: {
+      skipLibCheck: true,
+      skipDefaultLibCheck: true
+    }
+  },
   splitting: false,
   sourcemap: true,
   clean: true,

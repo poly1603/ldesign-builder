@@ -127,7 +127,8 @@ export class RollupOutputHandler {
       cjs: outputs.filter(o => o.format === 'cjs').reduce((s, o) => s + o.size, 0),
       umd: outputs.filter(o => o.format === 'umd').reduce((s, o) => s + o.size, 0),
       iife: outputs.filter(o => o.format === 'iife').reduce((s, o) => s + o.size, 0),
-      css: outputs.filter(o => o.format === 'css').reduce((s, o) => s + o.size, 0)
+      css: outputs.filter(o => o.format === 'css').reduce((s, o) => s + o.size, 0),
+      dts: outputs.filter(o => o.format === 'dts').reduce((s, o) => s + o.size, 0)
     }
   }
 
@@ -144,7 +145,7 @@ export class RollupOutputHandler {
           gzip: filtered.reduce((s, o) => s + (o.gzipSize || 0), 0),
           brotli: 0,
           byType: {},
-          byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0 },
+          byFormat: { esm: 0, cjs: 0, umd: 0, iife: 0, css: 0, dts: 0 },
           largest: { file: '', size: 0 },
           fileCount: filtered.length
         }
@@ -156,7 +157,8 @@ export class RollupOutputHandler {
       cjs: createFormatStat('cjs'),
       umd: createFormatStat('umd'),
       iife: createFormatStat('iife'),
-      css: createFormatStat('css')
+      css: createFormatStat('css'),
+      dts: createFormatStat('dts')
     }
   }
 

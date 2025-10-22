@@ -254,7 +254,7 @@ export class CodeQualityAnalyzer {
 
     // 检查函数长度
     const functionMatches = content.match(/function\s+\w+[^{]*\{[^}]*\}/g) || []
-    functionMatches.forEach(func => {
+    functionMatches.forEach((func: string) => {
       const funcLines = func.split('\n').length
       if (funcLines > 50) {
         issues.push({
