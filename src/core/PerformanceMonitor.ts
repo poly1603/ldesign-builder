@@ -8,6 +8,7 @@
  */
 
 import { EventEmitter } from 'events'
+import os from 'os'
 import type {
   PerformanceMetrics,
   PerformanceReport,
@@ -38,6 +39,8 @@ interface BuildSession {
   memorySnapshots: MemoryUsage[]
   fileStats: FileProcessingStats
   errors: Error[]
+  config?: any
+  phases: Array<{ name: string; duration: number }>
 }
 
 /**
@@ -51,8 +54,12 @@ export class PerformanceMonitor extends EventEmitter {
     totalBuilds: number
     totalTime: number
     averageTime: number
+    buildCount: number
     cacheStats: CacheStats
   }
+
+  private activeSessions: Map<string, BuildSession> = new Map()
+  private completedSessions: BuildSession[] = []
 
   constructor(options: PerformanceMonitorOptions = {}) {
     super()
@@ -70,6 +77,7 @@ export class PerformanceMonitor extends EventEmitter {
       totalBuilds: 0,
       totalTime: 0,
       averageTime: 0,
+      buildCount: 0,
       cacheStats: {
         hits: 0,
         misses: 0,
@@ -125,10 +133,12 @@ export class PerformanceMonitor extends EventEmitter {
         slowestFiles: [],
         processingRate: 0
       },
-      errors: []
+      errors: [],
+      phases: []
     }
 
     this.sessions.set(buildId, session)
+    this.activeSessions.set(buildId, session)
 
     // 开始内存监控
     this.startMemoryMonitoring(buildId)
@@ -199,7 +209,7 @@ export class PerformanceMonitor extends EventEmitter {
       session.fileStats.slowestFiles.push({
         path: filePath,
         processingTime,
-        size: 0, // TODO: 获取文件大小
+        size: this.getFileSize(filePath),
         phases: []
       })
     } else {
@@ -210,7 +220,7 @@ export class PerformanceMonitor extends EventEmitter {
         slowest[minIndex] = {
           path: filePath,
           processingTime,
-          size: 0,
+          size: this.getFileSize(filePath),
           phases: []
         }
       }
@@ -237,21 +247,22 @@ export class PerformanceMonitor extends EventEmitter {
    */
   getPerformanceReport(): PerformanceReport {
     const timestamp = Date.now()
+    const lastSession = this.activeSessions.values().next().value || this.completedSessions[this.completedSessions.length - 1]
 
     return {
       timestamp,
       buildSummary: {
-        bundler: 'rollup', // TODO: 从配置获取
-        mode: 'production',
+        bundler: lastSession?.config?.bundler || 'rollup',
+        mode: lastSession?.config?.mode || 'production',
         entryCount: 1,
         outputCount: 1,
         totalSize: 0,
         buildTime: this.globalStats.averageTime
       },
-      metrics: this.createEmptyMetrics(), // TODO: 实现
-      recommendations: [],
+      metrics: lastSession ? this.generateMetrics(lastSession, lastSession.endTime! - lastSession.startTime) : this.createEmptyMetrics(),
+      recommendations: this.generateRecommendations(),
       analysis: {
-        bottlenecks: [],
+        bottlenecks: this.identifyBottlenecks(),
         resourceAnalysis: {
           cpuEfficiency: 0.8,
           memoryEfficiency: 0.7,
@@ -260,7 +271,7 @@ export class PerformanceMonitor extends EventEmitter {
         },
         cacheAnalysis: {
           overallEfficiency: this.globalStats.cacheStats.hitRate,
-          strategyRecommendations: [],
+          strategyRecommendations: this.generateCacheRecommendations(),
           configOptimizations: {}
         },
         parallelizationOpportunities: []
@@ -318,7 +329,7 @@ export class PerformanceMonitor extends EventEmitter {
       memoryUsage,
       cacheStats: this.globalStats.cacheStats,
       fileStats: session.fileStats,
-      pluginPerformance: [], // TODO: 实现插件性能统计
+      pluginPerformance: this.collectPluginPerformance(session),
       systemResources: this.getSystemResources()
     }
   }
@@ -349,14 +360,17 @@ export class PerformanceMonitor extends EventEmitter {
    * 获取系统资源使用情况
    */
   private getSystemResources(): SystemResourceUsage {
-    // TODO: 实现系统资源监控
+    // os is already imported at the top
+    const totalMemory = os.totalmem()
+    const freeMemory = os.freemem()
+
     return {
-      cpuUsage: 0,
-      availableMemory: 0,
+      cpuUsage: this.getCPUUsage(),
+      availableMemory: freeMemory,
       diskUsage: {
-        total: 0,
-        used: 0,
-        available: 0,
+        total: totalMemory,
+        used: totalMemory - freeMemory,
+        available: freeMemory,
         usagePercent: 0
       }
     }
@@ -388,5 +402,126 @@ export class PerformanceMonitor extends EventEmitter {
       pluginPerformance: [],
       systemResources: this.getSystemResources()
     }
+  }
+
+  /**
+   * 获取文件大小
+   */
+  private getFileSize(filePath: string): number {
+    try {
+      const fs = require('fs')
+      const stats = fs.statSync(filePath)
+      return stats.size
+    } catch {
+      return 0
+    }
+  }
+
+  /**
+   * 收集插件性能数据
+   */
+  private collectPluginPerformance(session: BuildSession): any[] {
+    // 从会话中提取插件性能数据
+    // 这需要在构建过程中收集，目前返回空数组
+    return []
+  }
+
+  /**
+   * 生成优化建议
+   */
+  private generateRecommendations(): any[] {
+    const recommendations: any[] = []
+
+    // 基于缓存命中率的建议
+    if (this.globalStats.cacheStats.hitRate < 0.5 && this.globalStats.buildCount > 3) {
+      recommendations.push({
+        type: 'cache',
+        severity: 'medium',
+        title: '缓存命中率较低',
+        description: `当前缓存命中率为 ${(this.globalStats.cacheStats.hitRate * 100).toFixed(1)}%`,
+        solution: '考虑启用更激进的缓存策略或检查缓存配置'
+      })
+    }
+
+    // 基于构建时间的建议
+    if (this.globalStats.averageTime > 30000) {
+      recommendations.push({
+        type: 'performance',
+        severity: 'high',
+        title: '构建时间较长',
+        description: `平均构建时间为 ${(this.globalStats.averageTime / 1000).toFixed(1)} 秒`,
+        solution: '考虑启用增量构建、并行构建或使用更快的打包器（如 esbuild）'
+      })
+    }
+
+    return recommendations
+  }
+
+  /**
+   * 识别性能瓶颈
+   */
+  private identifyBottlenecks(): any[] {
+    const bottlenecks: any[] = []
+
+    // 找出最慢的阶段
+    this.completedSessions.forEach((session: BuildSession) => {
+      if (session.phases && session.phases.length > 0) {
+        const slowestPhase = session.phases.reduce((prev: any, curr: any) =>
+          curr.duration > prev.duration ? curr : prev
+        )
+
+        if (slowestPhase.duration > 5000) {
+          bottlenecks.push({
+            type: 'phase',
+            name: slowestPhase.name,
+            duration: slowestPhase.duration,
+            impact: 'high'
+          })
+        }
+      }
+    })
+
+    return bottlenecks
+  }
+
+  /**
+   * 生成缓存建议
+   */
+  private generateCacheRecommendations(): string[] {
+    const recommendations: string[] = []
+
+    if (this.globalStats.cacheStats.hitRate < 0.3) {
+      recommendations.push('启用持久化缓存以提升重复构建速度')
+    }
+
+    if (this.globalStats.cacheStats.size > 500 * 1024 * 1024) {
+      recommendations.push('缓存大小超过 500MB，考虑清理过期缓存')
+    }
+
+    return recommendations
+  }
+
+  /**
+   * 获取 CPU 使用率
+   */
+  private getCPUUsage(): number {
+    // os is already imported at the top
+    const cpus = os.cpus()
+
+    let totalIdle = 0
+    let totalTick = 0
+
+    cpus.forEach((cpu: any) => {
+      for (const type in cpu.times) {
+        totalTick += cpu.times[type]
+      }
+      totalIdle += cpu.times.idle
+    })
+
+    const idle = totalIdle / cpus.length
+    const total = totalTick / cpus.length
+    const usage = 100 - ~~(100 * idle / total)
+
+    return usage
   }
 }

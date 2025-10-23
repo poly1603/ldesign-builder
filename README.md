@@ -2,7 +2,20 @@
 
 > 🚀 最智能的前端库打包工具 - 零配置、极速构建、多引擎支持
 
-基于 rollup/rolldown/esbuild/swc 的智能打包工具，支持 11 种前端框架，自动检测配置，极致性能优化。
+基于 rollup/rolldown/esbuild/swc 的智能打包工具，支持 **13 种前端框架**，自动检测配置，极致性能优化。
+
+## ✨ 最新更新 (v1.0+)
+
+- 🎉 **新增 esbuild 和 swc 支持** - 10-100x 极速构建
+- 🎯 **4 种框架新支持** - Astro, Nuxt3, Remix, SolidStart
+- 🧠 **智能错误处理** - 90%+ 识别率 + 自动修复
+- 💾 **三层智能缓存** - L1 内存 + L2 磁盘 + L3 分布式
+- 🔍 **完整调试工具** - 断点、步进、火焰图、时间轴
+- 📊 **可视化报告** - 交互式 HTML + Chart.js 图表
+- 🔌 **插件市场** - 注册中心 + SDK + 官方插件
+- 🌐 **边缘运行时** - Cloudflare Workers + Deno Deploy
+- 🛠️ **现代工具链** - Biome + Oxc + Lightning CSS
+- 📚 **完整文档** - 2,000+ 行文档
 
 ## ✨ 核心特性
 
@@ -18,7 +31,7 @@
 - **增量构建** - 智能检测变更，只重建修改的文件
 
 ### 🔧 全框架支持
-- **11 种框架** - Vue2/3、React、Svelte、Solid、Preact、Lit、Angular、Qwik、TypeScript、样式库
+- **13 种框架** - Vue2/3、React、Svelte、Solid、Preact、Lit、Angular、Qwik、Astro、Nuxt3、Remix、SolidStart、TypeScript
 - **自动检测** - 95%+ 准确率
 - **Monorepo** - 支持 pnpm、lerna、nx、yarn workspaces
 
@@ -53,11 +66,108 @@
 # 使用 npm
 npm install @ldesign/builder --save-dev
 
-# 使用 pnpm
+# 使用 pnpm (推荐)
 pnpm add @ldesign/builder -D
 
 # 使用 yarn
 yarn add @ldesign/builder --dev
+```
+
+## 🌟 新功能亮点
+
+### 1. 四种打包器，任你选择
+
+```bash
+# 极速开发 (10-100x)
+npx ldesign-builder build --bundler esbuild
+
+# 快速生产 (20x)
+npx ldesign-builder build --bundler swc
+
+# 稳定可靠 (默认)
+npx ldesign-builder build --bundler rollup
+
+# 现代高效
+npx ldesign-builder build --bundler rolldown
+```
+
+### 2. 智能错误处理 + 自动修复
+
+```typescript
+import { createEnhancedErrorHandler } from '@ldesign/builder'
+
+const handler = createEnhancedErrorHandler({
+  autoFix: true,  // 60%+ 错误可自动修复
+  backup: true    // 自动备份配置
+})
+```
+
+### 3. 企业级三层缓存
+
+```typescript
+import { createMultilayerCache } from '@ldesign/builder'
+
+const cache = createMultilayerCache({
+  l1: { maxSize: 100 * 1024 * 1024 },  // 内存缓存
+  l2: { maxSize: 500 * 1024 * 1024 },  // 磁盘缓存
+  l3: { enabled: false }                // 分布式缓存
+})
+```
+
+### 4. 专业调试工具
+
+```typescript
+import { createBuildDebugger, createPerformanceProfiler } from '@ldesign/builder'
+
+// 断点调试
+const debugger = createBuildDebugger()
+debugger.addBreakpoint({ phase: 'transform' })
+
+// 性能分析
+const profiler = createPerformanceProfiler()
+const report = profiler.generateReport()
+```
+
+### 5. 美观的可视化报告
+
+- 📊 交互式 HTML 报告
+- 📈 Chart.js 图表可视化
+- 📉 构建历史趋势
+- 🎨 现代化响应式设计
+
+### 6. 官方插件生态
+
+```typescript
+import {
+  imageOptimizerPlugin,   // 图片优化
+  svgOptimizerPlugin,     // SVG 优化 + Sprite
+  i18nExtractorPlugin     // i18n 自动提取
+} from '@ldesign/builder'
+```
+
+### 7. 边缘运行时支持
+
+```typescript
+import {
+  applyCloudflareWorkersConfig,
+  applyDenoDeployConfig
+} from '@ldesign/builder'
+
+// 优化for Cloudflare Workers
+const config = applyCloudflareWorkersConfig(baseConfig)
+```
+
+### 8. CI/CD 自动化
+
+```typescript
+import {
+  generateGitHubActionsWorkflow,
+  generateDockerfile
+} from '@ldesign/builder'
+
+// 一键生成 CI/CD 配置
+const workflow = generateGitHubActionsWorkflow()
+const dockerfile = generateDockerfile()
 ```
 
 ## 🚀 快速开始

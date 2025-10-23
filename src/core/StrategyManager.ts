@@ -79,14 +79,129 @@ export class StrategyManager {
   /**
    * 检测最佳策略
    */
-  async detectStrategy(_projectPath: string): Promise<StrategyDetectionResult> {
-    // TODO: 实现策略检测逻辑
-    // 这里先返回一个默认结果
+  async detectStrategy(projectPath: string): Promise<StrategyDetectionResult> {
+    const fs = require('fs-extra')
+    const path = require('path')
+    const evidence: string[] = []
+    const alternatives: LibraryType[] = []
+    let detectedStrategy: LibraryType = LibraryType.TYPESCRIPT
+    let confidence = 0.5
+
+    try {
+      // 读取 package.json
+      const packageJsonPath = path.join(projectPath, 'package.json')
+      if (await fs.pathExists(packageJsonPath)) {
+        const packageJson = await fs.readJSON(packageJsonPath)
+
+        // 检测 Vue
+        if (packageJson.dependencies?.vue || packageJson.devDependencies?.vue) {
+          const vueVersion = packageJson.dependencies?.vue || packageJson.devDependencies?.vue
+          if (vueVersion.startsWith('^3') || vueVersion.startsWith('3')) {
+            detectedStrategy = LibraryType.VUE3
+            confidence = 0.9
+            evidence.push('检测到 Vue 3 依赖')
+          } else if (vueVersion.startsWith('^2') || vueVersion.startsWith('2')) {
+            detectedStrategy = LibraryType.VUE2
+            confidence = 0.9
+            evidence.push('检测到 Vue 2 依赖')
+          }
+        }
+
+        // 检测 React
+        if (packageJson.dependencies?.react || packageJson.devDependencies?.react) {
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.REACT
+            confidence = 0.9
+            evidence.push('检测到 React 依赖')
+          } else {
+            alternatives.push(LibraryType.REACT)
+          }
+        }
+
+        // 检测 Svelte
+        if (packageJson.dependencies?.svelte || packageJson.devDependencies?.svelte) {
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.SVELTE
+            confidence = 0.9
+            evidence.push('检测到 Svelte 依赖')
+          } else {
+            alternatives.push(LibraryType.SVELTE)
+          }
+        }
+
+        // 检测 Solid
+        if (packageJson.dependencies?.['solid-js'] || packageJson.devDependencies?.['solid-js']) {
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.SOLID
+            confidence = 0.9
+            evidence.push('检测到 Solid.js 依赖')
+          } else {
+            alternatives.push(LibraryType.SOLID)
+          }
+        }
+
+        // 检测 Angular
+        if (packageJson.dependencies?.['@angular/core'] || packageJson.devDependencies?.['@angular/core']) {
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.ANGULAR
+            confidence = 0.9
+            evidence.push('检测到 Angular 依赖')
+          } else {
+            alternatives.push(LibraryType.ANGULAR)
+          }
+        }
+      }
+
+      // 检查文件扩展名
+      const srcPath = path.join(projectPath, 'src')
+      if (await fs.pathExists(srcPath)) {
+        const glob = require('fast-glob')
+        const files = await glob('**/*.{vue,jsx,tsx,svelte}', {
+          cwd: srcPath,
+          absolute: false
+        })
+
+        if (files.some((f: string) => f.endsWith('.vue'))) {
+          evidence.push('发现 .vue 文件')
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.VUE3
+            confidence = 0.7
+          }
+        }
+
+        if (files.some((f: string) => f.endsWith('.jsx') || f.endsWith('.tsx'))) {
+          evidence.push('发现 JSX/TSX 文件')
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.REACT
+            confidence = 0.7
+          }
+        }
+
+        if (files.some((f: string) => f.endsWith('.svelte'))) {
+          evidence.push('发现 .svelte 文件')
+          if (detectedStrategy === LibraryType.TYPESCRIPT) {
+            detectedStrategy = LibraryType.SVELTE
+            confidence = 0.7
+          }
+        }
+      }
+
+      // 如果没有检测到任何框架，默认为 TypeScript
+      if (detectedStrategy === LibraryType.TYPESCRIPT && evidence.length === 0) {
+        evidence.push('未检测到特定框架，使用 TypeScript 策略')
+        confidence = 0.6
+      }
+
+    } catch (error) {
+      // 检测失败，使用默认策略
+      evidence.push('检测过程中出错，使用默认策略')
+    }
+
     return {
-      strategy: LibraryType.TYPESCRIPT,
-      confidence: 0.8,
-      evidence: [],
-      alternatives: []
+      strategy: detectedStrategy,
+      confidence,
+      evidence: evidence.map(e => ({ type: 'file' as const, description: e, weight: 1 })),
+      alternatives: alternatives.map(alt => ({ strategy: alt, confidence: 0.5 }))
     }
   }
 

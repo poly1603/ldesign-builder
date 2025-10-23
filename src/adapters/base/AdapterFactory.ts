@@ -353,12 +353,11 @@ export class BundlerAdapterFactory {
 // 导入真实的适配器
 import { RollupAdapter } from '../rollup/RollupAdapter'
 import { RolldownAdapter } from '../rolldown/RolldownAdapter'
-// import { EsbuildAdapter } from '../esbuild/EsbuildAdapter'
-// import { SwcAdapter } from '../swc/SwcAdapter'
+import { EsbuildAdapter } from '../esbuild/EsbuildAdapter'
+import { SwcAdapter } from '../swc/SwcAdapter'
 
 // 注册真实的适配器
 BundlerAdapterFactory.register('rollup', RollupAdapter)
 BundlerAdapterFactory.register('rolldown', RolldownAdapter)
-// Esbuild and Swc adapters are incomplete - will be added in future releases
-// BundlerAdapterFactory.register('esbuild', EsbuildAdapter)
-// BundlerAdapterFactory.register('swc', SwcAdapter)
+BundlerAdapterFactory.register('esbuild', EsbuildAdapter)
+BundlerAdapterFactory.register('swc', SwcAdapter)

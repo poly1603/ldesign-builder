@@ -5,6 +5,7 @@
  */
 
 import path from 'path'
+import os from 'os'
 import fs from 'fs-extra'
 import fastGlob from 'fast-glob'
 import type { FileInfo } from '../types/common'
@@ -299,7 +300,7 @@ export class FileSystem {
    * 创建临时文件
    */
   static async createTempFile(prefix: string = 'temp', suffix: string = '.tmp'): Promise<string> {
-    const tempDir = require('os').tmpdir()
+    const tempDir = os.tmpdir()
     const fileName = `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}${suffix}`
     return path.join(tempDir, fileName)
   }
@@ -308,7 +309,7 @@ export class FileSystem {
    * 创建临时目录
    */
   static async createTempDir(prefix: string = 'temp'): Promise<string> {
-    const tempDir = require('os').tmpdir()
+    const tempDir = os.tmpdir()
     const dirName = `${prefix}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     const tempDirPath = path.join(tempDir, dirName)
     await this.ensureDir(tempDirPath)

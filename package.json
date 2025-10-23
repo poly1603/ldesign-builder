@@ -155,6 +155,7 @@
   },
   "dependencies": {
     "@ldesign/kit": "workspace:*",
+    "zod": "^3.22.4",
     "@rollup/plugin-babel": "^6.0.4",
     "babel-preset-solid": "^1.8.0",
     "rollup-plugin-svelte": "^7.2.0",

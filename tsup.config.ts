@@ -67,11 +67,6 @@ const sharedBuildOptions = {
     // 减少警告
     options.logLevel = 'warning'
     options.logLimit = 0
-    // 处理 import.meta 兼容性
-    options.define = {
-      'import.meta.url': 'undefined',
-      'import.meta': 'undefined'
-    }
     // 优化性能
     options.legalComments = 'none' // 移除法律注释以减小体积
     options.charset = 'utf8'
@@ -84,8 +79,8 @@ const sharedOutExtension = ({ format }: { format: string }) => ({
 })
 
 export default defineConfig({
-  // 打包所有 TypeScript 文件，但排除测试文件和未完成的适配器
-  entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**', '!src/tests/**', '!src/adapters/esbuild/**', '!src/adapters/swc/**'],
+  // 打包所有 TypeScript 文件，但排除测试文件
+  entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**', '!src/tests/**'],
   format: ['esm', 'cjs'],
   outDir: 'dist',
   // 启用 DTS 生成，使用专门的 TypeScript 配置

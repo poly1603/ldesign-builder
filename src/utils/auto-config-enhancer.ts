@@ -285,6 +285,11 @@ export class AutoConfigEnhancer {
     const globals: Record<string, string> = {}
 
     for (const dep of external) {
+      // 只处理字符串
+      if (typeof dep !== 'string') {
+        continue
+      }
+
       if (KNOWN_GLOBALS[dep]) {
         globals[dep] = KNOWN_GLOBALS[dep]
       } else {

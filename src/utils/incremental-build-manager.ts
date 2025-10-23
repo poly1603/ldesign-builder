@@ -611,6 +611,144 @@ export class IncrementalBuildManager {
       avgDependencies
     }
   }
+
+  /**
+   * 优化建议：检测循环依赖并提供修复建议
+   */
+  getCircularDependencyAdvice(): Array<{
+    cycle: string[]
+    severity: 'low' | 'medium' | 'high'
+    suggestion: string
+  }> {
+    return this.circularDependencies.map(cycle => {
+      const severity = cycle.length > 5 ? 'high' : cycle.length > 3 ? 'medium' : 'low'
+
+      let suggestion = '考虑以下重构方案：\n'
+      if (cycle.length === 2) {
+        suggestion += '- 将共享逻辑提取到第三个独立模块\n'
+        suggestion += '- 使用依赖注入模式打破循环'
+      } else {
+        suggestion += '- 识别并提取循环中的核心功能\n'
+        suggestion += '- 重新设计模块层次结构\n'
+        suggestion += '- 考虑使用事件总线模式'
+      }
+
+      return { cycle, severity, suggestion }
+    })
+  }
+
+  /**
+   * 获取构建优先级队列（基于依赖深度）
+   */
+  getBuildOrder(): string[] {
+    const sorted: string[] = []
+    const visited = new Set<string>()
+
+    // 拓扑排序
+    const visit = (filePath: string) => {
+      if (visited.has(filePath)) {
+        return
+      }
+
+      visited.add(filePath)
+      const node = this.state.dependencyGraph.get(filePath)
+
+      if (node) {
+        // 先访问依赖
+        for (const dep of node.dependencies) {
+          visit(dep)
+        }
+      }
+
+      sorted.push(filePath)
+    }
+
+    // 从根节点开始
+    for (const [filePath, node] of this.state.dependencyGraph.entries()) {
+      if (node.dependents.size === 0) {
+        visit(filePath)
+      }
+    }
+
+    // 处理剩余节点（可能在循环中）
+    for (const filePath of this.state.dependencyGraph.keys()) {
+      if (!visited.has(filePath)) {
+        visit(filePath)
+      }
+    }
+
+    return sorted
+  }
+
+  /**
+   * 获取关键路径（影响构建时间最大的依赖链）
+   */
+  getCriticalPath(): string[] {
+    const buildTimes = new Map<string, number>()
+
+    // 假设每个文件的构建时间与其大小成正比
+    for (const [filePath, info] of this.state.files.entries()) {
+      buildTimes.set(filePath, info.size / 1000) // 简化：1KB = 1ms
+    }
+
+    // 找到最长路径
+    const longestPath: string[] = []
+    let maxTime = 0
+
+    const calculatePath = (filePath: string, currentPath: string[], currentTime: number) => {
+      const node = this.state.dependencyGraph.get(filePath)
+      if (!node) {
+        return
+      }
+
+      const fileTime = buildTimes.get(filePath) || 0
+      const totalTime = currentTime + fileTime
+
+      if (totalTime > maxTime) {
+        maxTime = totalTime
+        longestPath.length = 0
+        longestPath.push(...currentPath, filePath)
+      }
+
+      for (const dep of node.dependencies) {
+        if (!currentPath.includes(dep)) {
+          calculatePath(dep, [...currentPath, filePath], totalTime)
+        }
+      }
+    }
+
+    // 从根节点开始
+    for (const [filePath, node] of this.state.dependencyGraph.entries()) {
+      if (node.dependents.size === 0) {
+        calculatePath(filePath, [], 0)
+      }
+    }
+
+    return longestPath
+  }
+
+  /**
+   * 预测构建时间
+   */
+  estimateBuildTime(files: string[]): {
+    estimated: number
+    breakdown: Array<{ file: string; time: number }>
+  } {
+    const breakdown: Array<{ file: string; time: number }> = []
+    let total = 0
+
+    for (const file of files) {
+      const info = this.state.files.get(file)
+      if (info) {
+        // 基于文件大小的简单估算
+        const time = info.size / 10000 // 10KB = 1ms
+        breakdown.push({ file, time })
+        total += time
+      }
+    }
+
+    return { estimated: total, breakdown }
+  }
 }
 
 /**

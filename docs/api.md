@@ -1,627 +1,846 @@
-# API 文档
+# @ldesign/builder API 文档
 
-@ldesign/builder 提供了丰富的 API 接口，支持编程式使用和配置文件两种方式。
+## 核心 API
 
-## 主要 API
+### LibraryBuilder
 
-> 💡 **新功能**: @ldesign/builder 现在提供了强大的高级功能模块，包括智能依赖分析、构建性能监控、代码分割优化和构建缓存管理。详见 [高级功能 API](./api/advanced-features.md)。
-
-### build(options)
-
-执行一次性构建任务。
+主构建器类，负责协调整个构建过程。
 
 ```typescript
-import { build } from '@ldesign/builder'
+import { LibraryBuilder } from '@ldesign/builder'
 
-const result = await build({
-  input: 'src/index.ts',
-  outDir: 'dist',
-  formats: ['esm', 'cjs'],
-  mode: 'production',
-  dts: true,
-  sourcemap: true,
-  minify: true,
-  clean: true
+const builder = new LibraryBuilder({
+  logger: customLogger,
+  autoDetect: true
 })
 
-// 构建结果
+await builder.initialize()
+const result = await builder.build(config)
+```
+
+#### 方法
+
+##### `build(config?: BuilderConfig): Promise<BuildResult>`
+
+执行构建任务。
+
+**参数**:
+- `config` - 可选的配置覆盖
+
+**返回**: 构建结果对象
+
+**示例**:
+```typescript
+const result = await builder.build({
+  bundler: 'esbuild',
+  mode: 'development'
+})
+
+console.log(result.duration)  // 构建耗时
+console.log(result.outputs)   // 输出文件
+```
+
+##### `buildWatch(config?: BuilderConfig): Promise<BuildWatcher>`
+
+启动监听模式。
+
+**参数**:
+- `config` - 可选的配置覆盖
+
+**返回**: 文件监听器
+
+**示例**:
+```typescript
+const watcher = await builder.buildWatch()
+
+watcher.on('change', (file) => {
+  console.log('文件变化:', file)
+})
+
+await watcher.close()
+```
+
+##### `setBundler(bundler: BundlerType): void`
+
+切换打包引擎。
+
+**参数**:
+- `bundler` - 打包器类型 ('rollup' | 'rolldown' | 'esbuild' | 'swc')
+
+**示例**:
+```typescript
+builder.setBundler('esbuild')
+```
+
+---
+
+## 适配器
+
+### EsbuildAdapter
+
+极速构建适配器（10-100x 提速）。
+
+```typescript
+import { EsbuildAdapter } from '@ldesign/builder'
+
+const adapter = new EsbuildAdapter({
+  logger: customLogger
+})
+
+const result = await adapter.build(config)
+```
+
+**特性**:
+- ✅ 极速构建
+- ✅ TypeScript/JSX 内置支持
+- ✅ 代码分割
+- ❌ 不支持装饰器
+- ❌ 不支持 Vue SFC
+
+### SwcAdapter
+
+快速生产构建适配器（20x 提速）。
+
+```typescript
+import { SwcAdapter } from '@ldesign/builder'
+
+const adapter = new SwcAdapter()
+const result = await adapter.build(config)
+```
+
+**特性**:
+- ✅ 快速构建
+- ✅ 完整 TypeScript 支持
+- ✅ 装饰器支持
+- ✅ React 自动运行时
+- ❌ 不支持 bundling（仅转译）
+
+---
+
+## 工具函数
+
+### createEnhancedErrorHandler
+
+创建增强的错误处理器。
+
+```typescript
+import { createEnhancedErrorHandler } from '@ldesign/builder'
+
+const handler = createEnhancedErrorHandler({
+  enabled: true,
+  autoFix: true,
+  backup: true
+})
+
+try {
+  await build()
+} catch (error) {
+  handler.handle(error)
+}
+```
+
+**选项**:
+- `enabled` - 是否启用（默认: true）
+- `autoFix` - 是否自动修复（默认: false）
+- `backup` - 修复前是否备份（默认: true）
+- `confirmBeforeFix` - 修复前是否确认（默认: true）
+
+### createMultilayerCache
+
+创建多层缓存系统。
+
+```typescript
+import { createMultilayerCache } from '@ldesign/builder'
+
+const cache = createMultilayerCache({
+  l1: { maxSize: 100 * 1024 * 1024 },  // 100MB 内存
+  l2: { maxSize: 500 * 1024 * 1024 },  // 500MB 磁盘
+  l3: { enabled: false }                // 可选分布式
+})
+
+await cache.set('key', data)
+const result = await cache.get('key')
+const stats = cache.getStats()
+```
+
+**配置**:
+- `l1` - L1 内存缓存配置
+- `l2` - L2 磁盘缓存配置
+- `l3` - L3 分布式缓存配置
+
+### validateConfig
+
+使用 Zod 验证配置。
+
+```typescript
+import { validateConfig, formatZodErrors } from '@ldesign/builder'
+
+const result = validateConfig(userConfig)
+
+if (result.success) {
+  const config = result.data
+  // 使用配置...
+} else {
+  const errors = formatZodErrors(result.errors)
+  console.error(errors)
+}
+```
+
+---
+
+## 调试工具
+
+### BuildDebugger
+
+构建调试器，支持断点、步进、变量查看。
+
+```typescript
+import { createBuildDebugger } from '@ldesign/builder'
+
+const debugger = createBuildDebugger({
+  enabled: true,
+  pauseOnStart: false
+})
+
+// 添加断点
+debugger.addBreakpoint({
+  phase: 'transform',
+  condition: (ctx) => ctx.file?.includes('index.ts')
+})
+
+// 监听断点
+debugger.on('breakpoint:hit', ({ id, context }) => {
+  console.log('命中断点:', id)
+  console.log('变量:', context.variables)
+  
+  // 继续执行
+  debugger.continue()
+})
+```
+
+### PerformanceProfiler
+
+性能分析器，生成火焰图和时间轴。
+
+```typescript
+import { createPerformanceProfiler } from '@ldesign/builder'
+
+const profiler = createPerformanceProfiler({
+  enabled: true,
+  generateFlameGraph: true,
+  generateTimeline: true
+})
+
+profiler.start()
+
+// 标记事件
+const id = profiler.markStart('transform-files')
+// ... 执行操作 ...
+profiler.markEnd(id)
+
+profiler.stop()
+
+// 生成报告
+const report = profiler.generateReport()
+console.log(report.flameGraph)
+console.log(report.timeline)
+
+// 导出为 Chrome DevTools 格式
+const trace = profiler.exportToChromeTrace()
+```
+
+---
+
+## 策略系统
+
+### 新框架支持
+
+#### AstroStrategy
+
+```typescript
+import { AstroStrategy } from '@ldesign/builder'
+
+const strategy = new AstroStrategy()
+const config = await strategy.applyStrategy(baseConfig, context)
+```
+
+#### Nuxt3Strategy
+
+```typescript
+import { Nuxt3Strategy } from '@ldesign/builder'
+
+const strategy = new Nuxt3Strategy()
+const config = await strategy.applyStrategy(baseConfig, context)
+```
+
+#### RemixStrategy
+
+```typescript
+import { RemixStrategy } from '@ldesign/builder'
+
+const strategy = new RemixStrategy()
+const config = await strategy.applyStrategy(baseConfig, context)
+```
+
+#### SolidStartStrategy
+
+```typescript
+import { SolidStartStrategy } from '@ldesign/builder'
+
+const strategy = new SolidStartStrategy()
+const config = await strategy.applyStrategy(baseConfig, context)
+```
+
+---
+
+## 插件
+
+### 官方插件
+
+#### imageOptimizerPlugin
+
+图片自动优化插件。
+
+```typescript
+import { imageOptimizerPlugin } from '@ldesign/builder'
+
+export default {
+  plugins: [
+    imageOptimizerPlugin({
+      quality: 80,
+      formats: ['webp', 'avif'],
+      responsive: true,
+      inlineLimit: 8192
+    })
+  ]
+}
+```
+
+#### svgOptimizerPlugin
+
+SVG 优化和组件生成插件。
+
+```typescript
+import { svgOptimizerPlugin } from '@ldesign/builder'
+
+export default {
+  plugins: [
+    svgOptimizerPlugin({
+      svgo: true,
+      sprite: true,
+      reactComponent: true,
+      vueComponent: false
+    })
+  ]
+}
+```
+
+#### i18nExtractorPlugin
+
+国际化资源提取插件。
+
+```typescript
+import { i18nExtractorPlugin } from '@ldesign/builder'
+
+export default {
+  plugins: [
+    i18nExtractorPlugin({
+      functionNames: ['t', '$t'],
+      locales: ['en', 'zh', 'ja'],
+      defaultLocale: 'en',
+      generateTypes: true
+    })
+  ]
+}
+```
+
+---
+
+## 集成
+
+### Biome 集成
+
+```typescript
+import { biomeIntegrationPlugin } from '@ldesign/builder'
+
+export default {
+  plugins: [
+    biomeIntegrationPlugin({
+      formatOnBuild: true,
+      lintOnBuild: true,
+      autoFix: true
+    })
+  ]
+}
+```
+
+### Oxc 集成
+
+```typescript
+import { oxcIntegrationPlugin } from '@ldesign/builder'
+
+export default {
+  plugins: [
+    oxcIntegrationPlugin({
+      target: 'es2020',
+      jsx: true,
+      jsxRuntime: 'automatic'
+    })
+  ]
+}
+```
+
+### Lightning CSS
+
+```typescript
+import { lightningCSSPlugin } from '@ldesign/builder'
+
+export default {
+  plugins: [
+    lightningCSSPlugin({
+      targets: '>= 0.25%',
+      minify: true,
+      cssModules: true
+    })
+  ]
+}
+```
+
+---
+
+## 运行时支持
+
+### Cloudflare Workers
+
+```typescript
+import { applyCloudflareWorkersConfig } from '@ldesign/builder'
+
+const config = applyCloudflareWorkersConfig(baseConfig, {
+  compatibilityDate: '2024-01-01',
+  moduleWorker: true
+})
+```
+
+### Deno Deploy
+
+```typescript
+import { applyDenoDeployConfig } from '@ldesign/builder'
+
+const config = applyDenoDeployConfig(baseConfig, {
+  generateImportMap: true
+})
+```
+
+---
+
+## CI/CD
+
+### GitHub Actions
+
+```typescript
+import { generateGitHubActionsWorkflow } from '@ldesign/builder'
+
+const workflow = generateGitHubActionsWorkflow({
+  name: 'Build and Test',
+  nodeVersions: ['18.x', '20.x'],
+  enableCache: true,
+  runTests: true,
+  publishNPM: true
+})
+
+// 保存到 .github/workflows/build.yml
+```
+
+### Docker
+
+```typescript
+import { generateDockerfile, generateDockerCompose } from '@ldesign/builder'
+
+const dockerfile = generateDockerfile({
+  nodeVersion: '20-alpine',
+  packageManager: 'pnpm'
+})
+
+const compose = generateDockerCompose({
+  serviceName: 'my-lib',
+  port: 3000
+})
+```
+
+---
+
+## 插件市场
+
+### PluginRegistry
+
+```typescript
+import { createPluginRegistry } from '@ldesign/builder'
+
+const registry = createPluginRegistry()
+
+// 搜索插件
+const plugins = registry.search('image', {
+  tags: ['optimization'],
+  frameworks: ['vue', 'react']
+})
+
+// 安装插件
+await registry.installPlugin('image-optimizer')
+
+// 获取推荐
+const recommended = registry.getRecommendedPlugins(config)
+```
+
+### PluginSDK
+
+```typescript
+import { createPluginSDK } from '@ldesign/builder'
+
+const sdk = createPluginSDK()
+
+// 创建新插件
+const pluginDir = await sdk.createPlugin({
+  name: 'my-awesome-plugin',
+  type: 'transform',
+  framework: 'universal'
+})
+```
+
+---
+
+## 监控工具
+
+### RealTimeMonitor
+
+```typescript
+import { createRealTimeMonitor } from '@ldesign/builder'
+
+const monitor = createRealTimeMonitor({
+  port: 3031,
+  enableDashboard: true
+})
+
+await monitor.start(buildId)
+
+monitor.updatePhase('transforming', '正在转换文件...')
+monitor.updateProgress(50, 100)
+
+monitor.stop()
+```
+
+### MemoryLeakDetector
+
+```typescript
+import { createMemoryLeakDetector } from '@ldesign/builder'
+
+const detector = createMemoryLeakDetector({
+  sampleInterval: 1000,
+  growthThreshold: 1 // 1MB/s
+})
+
+detector.start()
+
+detector.on('leak:detected', (detection) => {
+  console.log('检测到内存泄漏:', detection)
+  console.log('建议:', detection.recommendations)
+})
+
+// 生成报告
+const report = detector.generateReport()
+
+detector.stop()
+```
+
+---
+
+## 配置 Schema
+
+### BuilderConfigSchema
+
+完整的 Zod Schema 定义。
+
+```typescript
+import { BuilderConfigSchema, type InferredBuilderConfig } from '@ldesign/builder'
+
+// 类型推断
+type Config = InferredBuilderConfig
+
+// 验证配置
+const result = BuilderConfigSchema.safeParse(userConfig)
+```
+
+---
+
+## 事件系统
+
+### LibraryBuilder 事件
+
+```typescript
+builder.on('build:start', ({ config, buildId }) => {
+  console.log('构建开始:', buildId)
+})
+
+builder.on('build:end', ({ result, duration }) => {
+  console.log('构建完成，耗时:', duration)
+})
+
+builder.on('build:error', ({ error, phase }) => {
+  console.log('构建错误:', error)
+})
+
+builder.on('status:change', ({ status, oldStatus }) => {
+  console.log('状态变化:', oldStatus, '->', status)
+})
+```
+
+### RealTimeMonitor 事件
+
+```typescript
+monitor.on('phase:change', ({ phase, message }) => {
+  console.log('阶段:', phase, message)
+})
+
+monitor.on('progress:update', (progress) => {
+  console.log('进度:', progress.percentage, '%')
+})
+
+monitor.on('error', (message) => {
+  console.error('错误:', message)
+})
+```
+
+---
+
+## 类型定义
+
+### BuilderConfig
+
+主配置接口。
+
+```typescript
+interface BuilderConfig {
+  input?: string | string[] | Record<string, string>
+  output?: OutputConfig
+  bundler?: 'rollup' | 'rolldown' | 'esbuild' | 'swc'
+  mode?: 'development' | 'production'
+  libraryType?: LibraryType
+  external?: string[] | ((id: string) => boolean)
+  plugins?: UnifiedPlugin[]
+  // ... 更多配置
+}
+```
+
+### BuildResult
+
+构建结果接口。
+
+```typescript
 interface BuildResult {
-  success: boolean        // 是否构建成功
-  outputs: OutputInfo[]   // 输出文件信息
-  duration: number        // 构建耗时（毫秒）
-  errors?: BuildError[]   // 错误信息
-  warnings?: BuildError[] // 警告信息
-  validation?: ValidationResult // 打包后验证结果（如果启用）
+  success: boolean
+  outputs: OutputFile[]
+  duration: number
+  stats: BuildStats
+  performance: PerformanceMetrics
+  warnings: Warning[]
+  errors: Error[]
+  buildId: string
+  bundler: BundlerType
+  mode: BuildMode
 }
 ```
 
-### watch(options)
+---
 
-启动监听模式，文件变化时自动重新构建。
+## 工具函数
 
-```typescript
-import { watch } from '@ldesign/builder'
+### defineConfig
 
-const { watcher, stop, getState } = await watch({
-  input: 'src/index.ts',
-  outDir: 'dist',
-  formats: ['esm'],
-  buildOnStart: true,
-  debounce: 100
-})
-
-// 停止监听
-await stop()
-
-// 获取监听状态
-const state = getState()
-console.log(state.buildCount)  // 构建次数
-console.log(state.errorCount)  // 错误次数
-```
-
-### analyze(rootDir, options)
-
-分析项目结构，提供构建建议。
-
-```typescript
-import { analyze } from '@ldesign/builder'
-
-const result = await analyze('./src', {
-  includePatterns: ['**/*.{ts,tsx,js,jsx,vue}'],
-  ignorePatterns: ['node_modules/**']
-})
-
-// 分析结果
-interface AnalyzeResult {
-  projectType: ProjectType      // 项目类型
-  files: FileInfo[]            // 文件列表
-  entryPoints: string[]        // 入口文件
-  stats: ProjectStats          // 统计信息
-  recommendations: string[]    // 构建建议
-  issues: string[]            // 潜在问题
-}
-```
-
-### init(options)
-
-初始化项目模板。
-
-```typescript
-import { init } from '@ldesign/builder'
-
-const result = await init({
-  template: 'vue',           // 模板类型
-  typescript: true,          // 是否使用 TypeScript
-  output: './my-project',    // 输出目录
-  name: 'my-awesome-lib',    // 项目名称
-  overwrite: false          // 是否覆盖已存在的文件
-})
-```
-
-## 配置 API
-
-### defineConfig(config)
-
-定义构建配置，提供类型安全。
+定义配置（带类型提示）。
 
 ```typescript
 import { defineConfig } from '@ldesign/builder'
 
 export default defineConfig({
-  input: 'src/index.ts',
-  outDir: 'dist',
-  formats: ['esm', 'cjs'],
-  dts: true
-})
-```
-
-### mergeConfigs(...configs)
-
-合并多个配置对象。
-
-```typescript
-import { mergeConfigs, presets } from '@ldesign/builder'
-
-const baseConfig = {
-  input: 'src/index.ts',
-  outDir: 'dist'
-}
-
-const prodConfig = {
-  mode: 'production',
-  minify: true
-}
-
-export default mergeConfigs(baseConfig, prodConfig)
-```
-
-### extendConfig(baseConfig, overrides)
-
-基于基础配置创建新配置。
-
-```typescript
-import { extendConfig, presets } from '@ldesign/builder'
-
-const baseConfig = presets.library()
-
-export default extendConfig(baseConfig, {
-  external: ['lodash', 'axios'],
-  globals: {
-    lodash: '_',
-    axios: 'axios'
+  bundler: 'rollup',
+  output: {
+    esm: { dir: 'es', format: 'esm' }
   }
 })
 ```
 
-### createConditionalConfig(conditions, defaultConfig)
+### createBuilder
 
-根据环境变量创建条件配置。
+快速创建构建器实例。
 
 ```typescript
-import { createConditionalConfig, presets } from '@ldesign/builder'
+import { createBuilder } from '@ldesign/builder'
 
-export default createConditionalConfig({
-  development: presets.development(),
-  production: presets.production(),
-  test: {
-    input: 'src/index.ts',
-    outDir: 'dist-test',
-    formats: ['esm']
+const builder = createBuilder({
+  bundler: 'esbuild',
+  mode: 'development'
+})
+
+await builder.build()
+```
+
+---
+
+## 高级功能
+
+### 增量构建
+
+```typescript
+import { createIncrementalBuildManager } from '@ldesign/builder'
+
+const manager = createIncrementalBuildManager({
+  enabled: true,
+  stateFile: '.build-state.json'
+})
+
+await manager.loadState()
+
+const { changed, unchanged } = await manager.getChangedFiles(files)
+console.log(`需要构建 ${changed.length} 个文件`)
+
+// 获取循环依赖建议
+const advice = manager.getCircularDependencyAdvice()
+
+// 获取构建顺序
+const buildOrder = manager.getBuildOrder()
+
+// 获取关键路径
+const criticalPath = manager.getCriticalPath()
+
+await manager.saveState()
+```
+
+### 并行构建
+
+```typescript
+import { createAdvancedParallelExecutor } from '@ldesign/builder'
+
+const executor = createAdvancedParallelExecutor({
+  maxWorkers: 4,
+  strategy: 'critical-path', // or 'priority', 'resource-aware'
+  resourceMonitoring: true
+})
+
+executor.addTask({
+  id: 'task-1',
+  fn: async () => buildFile('file1.ts'),
+  dependencies: [],
+  priority: 10,
+  estimatedTime: 1000,
+  resourceRequirements: {
+    cpu: 0.5,
+    memory: 50 * 1024 * 1024,
+    io: 0.3
   }
-}, presets.library())
-```
-
-### createMultiEntryConfig(entries, baseConfig)
-
-创建多入口配置。
-
-```typescript
-import { createMultiEntryConfig } from '@ldesign/builder'
-
-export default createMultiEntryConfig({
-  main: 'src/index.ts',
-  utils: 'src/utils/index.ts',
-  components: 'src/components/index.ts'
-}, {
-  outDir: 'dist',
-  formats: ['esm', 'cjs'],
-  dts: true
 })
+
+const results = await executor.execute()
+const stats = executor.getStats()
 ```
 
-## 预设配置
+---
 
-### presets.library(options)
+## 配置预设
 
-库开发预设，适用于 npm 包开发。
-
-```typescript
-import { presets } from '@ldesign/builder'
-
-export default presets.library({
-  input: 'src/index.ts',
-  external: ['lodash']
-})
-```
-
-### presets.vue(options)
+### presets.vueLibrary
 
 Vue 组件库预设。
 
 ```typescript
-export default presets.vue({
-  input: 'src/index.ts',
-  name: 'MyVueLib'
+import { presets } from '@ldesign/builder'
+
+export default presets.vueLibrary({
+  external: ['vue', 'vue-router']
 })
 ```
 
-### presets.react(options)
+### presets.reactLibrary
 
 React 组件库预设。
 
 ```typescript
-export default presets.react({
-  input: 'src/index.tsx',
-  name: 'MyReactLib'
+import { presets } from '@ldesign/builder'
+
+export default presets.reactLibrary({
+  external: ['react', 'react-dom']
 })
 ```
 
-### presets.node(options)
+### presets.monorepoPackage
 
-Node.js 库预设，自动排除内置模块。
+Monorepo 包预设。
 
 ```typescript
-export default presets.node({
-  input: 'src/index.ts'
+import { presets } from '@ldesign/builder'
+
+export default presets.monorepoPackage({
+  libraryType: 'typescript'
 })
 ```
 
-### presets.browser(options)
+---
 
-浏览器库预设，输出 ESM + UMD 格式。
+## 最佳实践
 
-```typescript
-export default presets.browser({
-  input: 'src/index.ts',
-  name: 'MyBrowserLib'
-})
-```
-
-## 类型定义
-
-### BuildOptions
+### 1. 选择合适的打包器
 
 ```typescript
-interface BuildOptions {
-  // 入口文件
-  input: string | Record<string, string>
-  
-  // 输出目录
-  outDir?: string
-  
-  // 输出格式
-  formats?: ('esm' | 'cjs' | 'umd' | 'iife')[]
-  
-  // 构建模式
-  mode?: 'development' | 'production'
-  
-  // 生成类型声明文件
-  dts?: boolean | DtsOptions
-  
-  // 生成 sourcemap
-  sourcemap?: boolean
-  
-  // 压缩代码
-  minify?: boolean
-  
-  // 清理输出目录
-  clean?: boolean
-  
-  // 外部依赖
-  external?: string[] | ((id: string) => boolean)
-  
-  // 全局变量映射（UMD 格式）
-  globals?: Record<string, string>
-  
-  // UMD 包名
-  name?: string
-  
-  // 自定义 Rollup 配置
-  rollupOptions?: Partial<RollupOptions>
-  
-  // 自定义插件
-  plugins?: RollupPlugin[]
+// 开发模式 - 使用 esbuild
+export default {
+  bundler: 'esbuild',
+  mode: 'development'
+}
+
+// 生产模式 - 使用 swc 或 rollup
+export default {
+  bundler: 'swc',  // 快速
+  // 或
+  bundler: 'rollup', // 稳定
+  mode: 'production'
 }
 ```
 
-### WatchOptions
+### 2. 启用缓存
 
 ```typescript
-interface WatchOptions extends BuildOptions {
-  // 监听的文件模式
-  include?: string[]
-  
-  // 忽略的文件模式
-  exclude?: string[]
-  
-  // 防抖延迟时间（毫秒）
-  debounce?: number
-  
-  // 是否在启动时立即构建
-  buildOnStart?: boolean
+export default {
+  cache: {
+    enabled: true,
+    cacheDir: 'node_modules/.cache/@ldesign/builder'
+  },
+  performance: {
+    incremental: true
+  }
 }
 ```
 
-### DtsOptions
+### 3. 优化性能
 
 ```typescript
-interface DtsOptions {
-  // 是否打包成单个文件
-  bundled?: boolean
-  
-  // 输出文件名
-  fileName?: string
-  
-  // 输出目录
-  outDir?: string
-  
-  // 是否包含外部依赖的类型
-  respectExternal?: boolean
-  
-  // TypeScript 编译选项
-  compilerOptions?: Record<string, any>
+export default {
+  performance: {
+    parallel: {
+      enabled: true,
+      maxConcurrency: 4
+    },
+    incremental: true,
+    cache: true,
+    streamProcessing: true
+  }
 }
 ```
 
-### InitOptions
+---
 
-```typescript
-interface InitOptions {
-  // 项目模板
-  template: 'vanilla' | 'vue' | 'react' | 'typescript' | 'library'
-  
-  // 是否使用 TypeScript
-  typescript?: boolean
-  
-  // 输出目录
-  output?: string
-  
-  // 项目名称
-  name?: string
-  
-  // 是否覆盖已存在的文件
-  overwrite?: boolean
-}
-```
+## 参考链接
 
-### ScanOptions
-
-```typescript
-interface ScanOptions {
-  // 包含的文件模式
-  includePatterns?: string[]
-  
-  // 忽略的文件模式
-  ignorePatterns?: string[]
-  
-  // 最大扫描深度
-  maxDepth?: number
-  
-  // 是否跟随符号链接
-  followSymlinks?: boolean
-  
-  // 支持的文件扩展名
-  extensions?: string[]
-}
-```
-
-## 工具函数
-
-### 文件操作
-
-```typescript
-import { 
-  fileExists,
-  readFile,
-  writeFile,
-  readJson,
-  writeJson,
-  ensureDir,
-  cleanDir
-} from '@ldesign/builder'
-
-// 检查文件是否存在
-const exists = await fileExists('path/to/file')
-
-// 读取文件
-const content = await readFile('path/to/file')
-
-// 写入文件
-await writeFile('path/to/file', content)
-
-// 读取 JSON
-const data = await readJson('package.json')
-
-// 写入 JSON
-await writeJson('config.json', { key: 'value' })
-```
-
-### 路径处理
-
-```typescript
-import {
-  normalizePath,
-  resolvePath,
-  getRelativePath,
-  detectEntryFiles
-} from '@ldesign/builder'
-
-// 规范化路径
-const normalized = normalizePath('path\\to\\file')
-
-// 解析绝对路径
-const absolute = resolvePath('relative/path')
-
-// 获取相对路径
-const relative = getRelativePath('/from/path', '/to/path')
-
-// 检测入口文件
-const entries = await detectEntryFiles('./src')
-```
-
-### 格式化工具
-
-```typescript
-import {
-  formatFileSize,
-  formatTime,
-  formatBuildSummary
-} from '@ldesign/builder'
-
-// 格式化文件大小
-const size = formatFileSize(1024) // "1 KB"
-
-// 格式化时间
-const time = formatTime(1500) // "1.50s"
-
-// 格式化构建摘要
-const summary = formatBuildSummary(outputs, duration)
-```
-
-### 验证工具
-
-```typescript
-import {
-  validateBuildOptions,
-  validatePackageName,
-  validateVersion
-} from '@ldesign/builder'
-
-// 验证构建选项
-const validation = await validateBuildOptions(options)
-
-// 验证包名
-const isValidName = validatePackageName('@scope/package')
-
-// 验证版本号
-const isValidVersion = validateVersion('1.0.0')
-```
-
-## 错误处理
-
-```typescript
-import {
-  BuilderError,
-  ConfigError,
-  FileError,
-  PluginError,
-  safeExecute
-} from '@ldesign/builder'
-
-// 安全执行
-const result = await safeExecute(async () => {
-  // 可能出错的操作
-  return await someAsyncOperation()
-})
-
-if (result.success) {
-  console.log(result.data)
-} else {
-  console.error(result.error)
-}
-
-// 自定义错误
-throw new BuilderError('构建失败', 'BUILD_ERROR')
-throw new ConfigError('配置无效', 'config.js')
-throw new FileError('文件不存在', '/path/to/file')
-```
-
-## 日志系统
-
-```typescript
-import { logger, LogLevel, createTimer } from '@ldesign/builder'
-
-// 设置日志级别
-logger.setLevel(LogLevel.DEBUG)
-
-// 输出日志
-logger.info('构建开始')
-logger.warn('发现警告')
-logger.error('构建失败')
-logger.success('构建成功')
-
-// 性能计时
-const timer = createTimer('构建时间')
-// ... 执行操作
-timer.end() // 输出耗时
-```
-
-## 打包后验证 API
-
-### PostBuildValidator
-
-打包后验证器类，用于验证构建产物的正确性。
-
-```typescript
-import { PostBuildValidator } from '@ldesign/builder'
-
-const validator = new PostBuildValidator({
-  enabled: true,
-  testFramework: 'vitest',
-  testPattern: ['**/*.test.ts'],
-  timeout: 60000,
-  failOnError: true
-})
-
-// 执行验证
-const result = await validator.validate(context)
-
-// 验证结果
-interface ValidationResult {
-  success: boolean              // 验证是否成功
-  duration: number             // 验证耗时
-  testResult: TestRunResult    // 测试运行结果
-  report: ValidationReport     // 验证报告
-  errors: ValidationError[]    // 错误信息
-  warnings: ValidationWarning[] // 警告信息
-  stats: ValidationStats       // 验证统计
-  timestamp: number            // 验证时间戳
-  validationId: string         // 验证ID
-}
-```
-
-### TestRunner
-
-测试运行器，负责执行测试用例。
-
-```typescript
-import { TestRunner } from '@ldesign/builder'
-
-const testRunner = new TestRunner()
-
-// 检测测试框架
-const framework = await testRunner.detectFramework('/project/path')
-
-// 运行测试
-const result = await testRunner.runTests(context)
-
-// 安装依赖
-await testRunner.installDependencies(context)
-```
-
-### ValidationReporter
-
-验证报告生成器，支持多种格式的报告输出。
-
-```typescript
-import { ValidationReporter } from '@ldesign/builder'
-
-const reporter = new ValidationReporter()
-
-// 生成报告
-const report = await reporter.generateReport(result, config)
-
-// 输出报告
-await reporter.outputReport(report, {
-  format: 'html',
-  outputPath: 'validation-report.html',
-  verbose: true
-})
-```
-
-### 配置接口
-
-```typescript
-// 打包后验证配置
-interface PostBuildValidationConfig {
-  enabled?: boolean
-  testFramework?: 'vitest' | 'jest' | 'mocha' | 'auto'
-  testPattern?: string | string[]
-  timeout?: number
-  failOnError?: boolean
-  environment?: ValidationEnvironmentConfig
-  reporting?: ValidationReportingConfig
-  hooks?: ValidationHooks
-  scope?: ValidationScopeConfig
-}
-
-// 验证环境配置
-interface ValidationEnvironmentConfig {
-  tempDir?: string
-  keepTempFiles?: boolean
-  env?: Record<string, string>
-  packageManager?: 'npm' | 'yarn' | 'pnpm' | 'auto'
-  installDependencies?: boolean
-  installTimeout?: number
-}
-
-// 验证报告配置
-interface ValidationReportingConfig {
-  format?: 'json' | 'html' | 'markdown' | 'console'
-  outputPath?: string
-  verbose?: boolean
-  logLevel?: 'debug' | 'info' | 'warn' | 'error'
-  includePerformance?: boolean
-  includeCoverage?: boolean
-}
-```
+- [快速开始](./QUICK_START.md)
+- [配置参考](./CONFIGURATION.md)
+- [迁移指南](./MIGRATION.md)
+- [故障排除](./TROUBLESHOOTING.md)
+- [性能优化](./PERFORMANCE.md)
+- [插件开发](./PLUGIN_DEVELOPMENT.md)

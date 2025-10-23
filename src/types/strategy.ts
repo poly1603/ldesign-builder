@@ -61,22 +61,55 @@ export interface StrategyValidationResult {
  */
 export interface StrategyContext {
   /** 项目根目录 */
-  projectRoot: string
+  projectRoot?: string
+
+  /** 项目路径 */
+  projectPath: string
 
   /** 构建模式 */
-  mode: 'development' | 'production'
+  mode?: 'development' | 'production'
 
   /** 目标平台 */
-  platform: 'browser' | 'node' | 'neutral'
+  platform?: 'browser' | 'node' | 'neutral'
 
   /** 环境变量 */
-  env: Record<string, string>
+  env?: Record<string, string>
 
   /** 项目信息 */
-  projectInfo: ProjectInfo
+  projectInfo?: ProjectInfo
+
+  /** package.json 内容 */
+  packageJson?: any
 
   /** 依赖信息 */
-  dependencies: DependencyInfo[]
+  dependencies?: DependencyInfo[]
+}
+
+/**
+ * 构建策略接口（简化版）
+ */
+export interface BuildStrategy {
+  /** 策略名称 */
+  readonly name: string
+
+  /** 优先级 */
+  readonly priority: number
+
+  /** 匹配检查 */
+  match(context: StrategyContext): Promise<boolean>
+
+  /** 应用策略 */
+  applyStrategy(config: BuilderConfig, context: StrategyContext): Promise<BuilderConfig>
+
+  /** 验证配置 */
+  validate(config: BuilderConfig, context: StrategyContext): Promise<{
+    valid: boolean
+    errors: string[]
+    warnings: string[]
+  }>
+
+  /** 获取推荐 */
+  getRecommendations(context: StrategyContext): string[]
 }
 
 // ProjectInfo 已在 common.ts 中定义，这里导入
