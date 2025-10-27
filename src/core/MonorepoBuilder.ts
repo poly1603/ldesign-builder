@@ -151,10 +151,60 @@ export class MonorepoBuilder extends EventEmitter {
   }
 
   /**
+   * 检测循环依赖
+   * 返回所有循环依赖路径
+   */
+  detectCircularDependencies(): string[][] {
+    const cycles: string[][] = []
+    const visited = new Set<string>()
+    const stack = new Set<string>()
+
+    const dfs = (pkg: string, path: string[]) => {
+      if (stack.has(pkg)) {
+        // 找到循环
+        const cycleStart = path.indexOf(pkg)
+        if (cycleStart !== -1) {
+          const cycle = path.slice(cycleStart).concat(pkg)
+          cycles.push(cycle)
+        }
+        return
+      }
+
+      if (visited.has(pkg)) return
+
+      visited.add(pkg)
+      stack.add(pkg)
+      path.push(pkg)
+
+      const deps = this.dependencyGraph.get(pkg) || new Set()
+      for (const dep of deps) {
+        dfs(dep, [...path])
+      }
+
+      stack.delete(pkg)
+    }
+
+    for (const pkg of this.packages) {
+      dfs(pkg.name, [])
+    }
+
+    return cycles
+  }
+
+  /**
    * 拓扑排序
    * 确保依赖的包先构建
    */
   topologicalSort(): PackageInfo[] {
+    // 首先检测循环依赖
+    const cycles = this.detectCircularDependencies()
+    if (cycles.length > 0) {
+      this.logger.warn(`检测到 ${cycles.length} 个循环依赖:`)
+      cycles.forEach((cycle, index) => {
+        this.logger.warn(`  循环 ${index + 1}: ${cycle.join(' -> ')}`)
+      })
+    }
+
     const sorted: PackageInfo[] = []
     const visited = new Set<string>()
     const visiting = new Set<string>()
@@ -162,7 +212,7 @@ export class MonorepoBuilder extends EventEmitter {
     const visit = (pkgName: string): void => {
       if (visited.has(pkgName)) return
       if (visiting.has(pkgName)) {
-        this.logger.warn(`检测到循环依赖: ${pkgName}`)
+        // 跳过循环依赖节点，避免无限递归
         return
       }
 

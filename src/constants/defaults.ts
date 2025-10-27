@@ -351,7 +351,13 @@ export const DEFAULT_BUILDER_CONFIG: Omit<
     updateEntryPoints: true,
     updateFiles: true,
     customExports: {}
-  }
+  },
+
+  // 混合框架配置（默认不启用）
+  mixedFramework: undefined as any,
+
+  // 自动检测框架（默认不启用）
+  autoDetectFramework: false
 }
 
 /**

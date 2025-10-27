@@ -168,10 +168,27 @@ export class AutoConfigEnhancer {
     }
     this.logger.debug(`所有依赖: ${JSON.stringify(Object.keys(allDeps))}`)
 
-    // 检查是否有 Vue 文件
+    // 🔥 优先检测混合框架
+    const frameworks = []
     const hasVueFiles = await this.hasVueFiles()
-    this.logger.debug(`是否有 Vue 文件: ${hasVueFiles}`)
+    const hasReactFiles = await this.hasFiles('src/**/*.{jsx,tsx}')
+    const hasLitFiles = await this.hasFiles('**/adapters/lit/**/*')
 
+    if (hasVueFiles || allDeps.vue) frameworks.push('vue')
+    if (hasReactFiles || allDeps.react) frameworks.push('react')
+    if (hasLitFiles || allDeps.lit) frameworks.push('lit')
+    if (allDeps.svelte) frameworks.push('svelte')
+    if (allDeps['solid-js']) frameworks.push('solid')
+
+    this.logger.debug(`检测到的框架: ${frameworks.join(', ')} (共 ${frameworks.length} 个)`)
+
+    // 如果有多个框架，返回增强混合类型
+    if (frameworks.length > 1) {
+      this.logger.info(`检测到混合框架项目: ${frameworks.join(', ')}`)
+      return LibraryType.ENHANCED_MIXED
+    }
+
+    // 单框架检测
     if (hasVueFiles) {
       // 检查 Vue 版本
       const vueVersion = allDeps.vue
@@ -186,13 +203,11 @@ export class AutoConfigEnhancer {
       }
     }
 
-    // 检查 React
     if (allDeps.react) {
       this.logger.info('检测到 React 项目')
       return LibraryType.REACT
     }
 
-    // 检查样式库
     if (allDeps.less || allDeps.sass || allDeps.stylus) {
       this.logger.info('检测到样式库项目')
       return LibraryType.STYLE
@@ -213,6 +228,24 @@ export class AutoConfigEnhancer {
       return files.length > 0
     } catch (error) {
       this.logger.warn(`检查 Vue 文件时出错: ${error}`)
+      return false
+    }
+  }
+
+  /**
+   * 检查是否有指定模式的文件
+   */
+  private async hasFiles(pattern: string): Promise<boolean> {
+    try {
+      const { glob } = await import('glob')
+      const files = await glob(pattern, {
+        cwd: this.projectPath,
+        ignore: ['**/node_modules/**', '**/dist/**', '**/es/**', '**/lib/**']
+      })
+      this.logger.debug(`模式 ${pattern} 匹配到 ${files.length} 个文件`)
+      return files.length > 0
+    } catch (error) {
+      this.logger.debug(`检查文件模式 ${pattern} 时出错: ${error}`)
       return false
     }
   }

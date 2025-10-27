@@ -5,6 +5,7 @@
 import { beforeAll, afterAll, beforeEach, afterEach } from 'vitest'
 import { join } from 'path'
 import { tmpdir } from 'os'
+import * as fs from 'fs-extra'
 
 // 全局测试配置
 export const TEST_CONFIG = {
@@ -26,11 +27,11 @@ beforeAll(async () => {
   global.__TEST_TEMP_DIR__ = await fs.mkdtemp(
     join(tmpdir(), TEST_CONFIG.tempDirPrefix)
   )
-  
+
   // 初始化清理函数数组
   global.__TEST_CLEANUP_FUNCTIONS__ = []
-  
-  
+
+
 })
 
 // 全局清理
@@ -43,7 +44,7 @@ afterAll(async () => {
       console.warn('Cleanup function failed:', error)
     }
   }
-  
+
   // 清理全局临时目录
   try {
     await fs.rm(global.__TEST_TEMP_DIR__, { recursive: true, force: true })
@@ -74,12 +75,12 @@ afterEach(() => {
  */
 export async function createTempDir(prefix = 'test-'): Promise<string> {
   const tempDir = await fs.mkdtemp(join(global.__TEST_TEMP_DIR__, prefix))
-  
+
   // 添加清理函数
   global.__TEST_CLEANUP_FUNCTIONS__.push(async () => {
     await fs.rm(tempDir, { recursive: true, force: true })
   })
-  
+
   return tempDir
 }
 
@@ -91,7 +92,7 @@ export async function createTestProject(
   type: 'typescript' | 'vue3' | 'style' = 'typescript'
 ): Promise<void> {
   await fs.mkdir(join(dir, 'src'), { recursive: true })
-  
+
   switch (type) {
     case 'typescript':
       await fs.writeFile(
@@ -111,7 +112,7 @@ export async function createTestProject(
         }, null, 2)
       )
       break
-      
+
     case 'vue3':
       await fs.writeFile(
         join(dir, 'src/index.ts'),
@@ -122,7 +123,7 @@ export default defineComponent({
 })`
       )
       break
-      
+
     case 'style':
       await fs.writeFile(
         join(dir, 'src/index.css'),
@@ -130,7 +131,7 @@ export default defineComponent({
       )
       break
   }
-  
+
   await fs.writeFile(
     join(dir, 'package.json'),
     JSON.stringify({
@@ -202,8 +203,8 @@ export function createMockAdapter(name: 'rollup' | 'rolldown' = 'rollup') {
           total: 1,
           external: 0,
           internal: 1,
-          largest: { 
-            id: 'index.ts', 
+          largest: {
+            id: 'index.ts',
             size: 100,
             renderedLength: 100,
             originalLength: 100,
@@ -226,9 +227,9 @@ export function createMockAdapter(name: 'rollup' | 'rolldown' = 'rollup') {
     watch: async () => ({
       patterns: ['src/**/*'],
       watching: true,
-      close: async () => {},
-      on: () => {},
-      off: () => {},
+      close: async () => { },
+      on: () => { },
+      off: () => { },
       emit: () => false
     }),
     getPerformanceMetrics: async () => ({
@@ -242,7 +243,7 @@ export function createMockAdapter(name: 'rollup' | 'rolldown' = 'rollup') {
       },
       cpuUsage: 50
     }),
-    dispose: async () => {}
+    dispose: async () => { }
   }
 }
 
@@ -260,7 +261,7 @@ export const assertions = {
       throw new Error(`File does not exist: ${filePath}`)
     }
   },
-  
+
   /**
    * 断言目录存在
    */
@@ -274,7 +275,7 @@ export const assertions = {
       throw new Error(`Directory does not exist: ${dirPath}`)
     }
   },
-  
+
   /**
    * 断言文件内容包含指定文本
    */

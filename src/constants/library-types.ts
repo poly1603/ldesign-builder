@@ -412,6 +412,27 @@ export const LIBRARY_TYPE_RECOMMENDED_CONFIG = {
     },
     external: [],
     bundleless: false
+  },
+
+  [LibraryType.ENHANCED_MIXED]: {
+    // 🆕 增强混合框架库配置
+    files: [
+      '**/adapters/**/*.{ts,tsx,vue,jsx}',
+      'src/**/*.{ts,tsx,vue,jsx}'
+    ],
+    dependencies: [],
+    configs: [],
+    packageJsonFields: [],
+    output: {
+      format: ['esm', 'cjs'],
+      sourcemap: true,
+      preserveModules: true
+    },
+    typescript: {
+      declaration: true
+    },
+    external: [], // 将由智能分析器填充
+    bundleless: false
   }
 } as const
 
@@ -424,6 +445,7 @@ export const LIBRARY_TYPE_RECOMMENDED_CONFIG = {
  * - 框架特定的保持高优先级（10-9）
  */
 export const LIBRARY_TYPE_PRIORITY = {
+  [LibraryType.ENHANCED_MIXED]: 11,  // 🆕 最高优先级！智能混合框架
   [LibraryType.VUE2]: 10,
   [LibraryType.VUE3]: 10,
   [LibraryType.REACT]: 10,

@@ -83,15 +83,9 @@ export default defineConfig({
   entry: ['src/**/*.ts', '!src/**/*.test.ts', '!src/**/__tests__/**', '!src/tests/**'],
   format: ['esm', 'cjs'],
   outDir: 'dist',
-  // 启用 DTS 生成，使用专门的 TypeScript 配置
-  dts: {
-    resolve: true,
-    tsconfig: './tsconfig.dts.json',
-    compilerOptions: {
-      skipLibCheck: true,
-      skipDefaultLibCheck: true
-    }
-  },
+  // 暂时禁用 DTS 生成以避免内存溢出
+  // 可以使用 tsc 单独生成类型定义
+  dts: false,
   splitting: false,
   sourcemap: true,
   clean: true,

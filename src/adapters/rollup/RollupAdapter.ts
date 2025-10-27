@@ -95,18 +95,25 @@ export class RollupAdapter implements IBundlerAdapter {
         const outputExists = await this.validateOutputArtifacts(config)
 
         if (outputExists) {
-          // 附加缓存信息并返回
-          cachedResult.cache = {
-            enabled: true,
-            hit: true,
-            lookupMs,
-            savedMs: typeof cachedResult.duration === 'number' ? cachedResult.duration : 0,
-            dir: cache.getDirectory?.() || undefined,
-            ttl: cache.getTTL?.() || undefined,
-            maxSize: cache.getMaxSize?.() || undefined,
+          // 验证源文件是否被修改（时间戳检查）
+          const sourceModified = await this.checkSourceFilesModified(config, cachedResult)
+
+          if (sourceModified) {
+            this.logger.debug('源文件已修改，缓存失效')
+          } else {
+            // 附加缓存信息并返回
+            cachedResult.cache = {
+              enabled: true,
+              hit: true,
+              lookupMs,
+              savedMs: typeof cachedResult.duration === 'number' ? cachedResult.duration : 0,
+              dir: cache.getDirectory?.() || undefined,
+              ttl: cache.getTTL?.() || undefined,
+              maxSize: cache.getMaxSize?.() || undefined,
+            }
+            this.logger.info('使用缓存的构建结果 (cache hit, artifacts verified, sources unchanged)')
+            return cachedResult
           }
-          this.logger.info('使用缓存的构建结果 (cache hit, artifacts verified)')
-          return cachedResult
         } else {
           // 输出产物不存在，尝试从缓存恢复文件
           this.logger.info('缓存命中但输出产物不存在，尝试从缓存恢复文件')
@@ -973,6 +980,81 @@ export class RollupAdapter implements IBundlerAdapter {
       this.logger.warn(`验证输出产物时出错: ${(error as Error).message}`)
       // 出错时保守处理，认为产物不存在
       return false
+    }
+  }
+
+  /**
+   * 检查源文件是否被修改
+   * 通过比较源文件的修改时间与缓存时间来判断
+   */
+  private async checkSourceFilesModified(config: any, cachedResult: BuildResult): Promise<boolean> {
+    try {
+      const fs = await import('fs-extra')
+      const glob = await import('fast-glob')
+
+      // 获取缓存时间戳
+      const cacheTime = cachedResult.cache?.timestamp || cachedResult.timestamp || 0
+      if (!cacheTime) {
+        // 如果没有缓存时间戳，保守处理认为已修改
+        return true
+      }
+
+      // 获取源文件路径模式
+      const input = config.input || 'src/index.ts'
+      const sourcePatterns: string[] = []
+
+      if (typeof input === 'string') {
+        // 单入口：扫描 src 目录
+        const srcDir = path.dirname(input)
+        sourcePatterns.push(`${srcDir}/**/*.{ts,tsx,js,jsx,vue,css,less,scss,sass}`)
+      } else if (Array.isArray(input)) {
+        // 多入口数组
+        input.forEach(entry => {
+          if (typeof entry === 'string') {
+            sourcePatterns.push(entry)
+          }
+        })
+      } else if (typeof input === 'object') {
+        // 入口对象
+        Object.values(input).forEach(entry => {
+          if (typeof entry === 'string') {
+            sourcePatterns.push(entry)
+          }
+        })
+      }
+
+      // 如果没有模式，使用默认
+      if (sourcePatterns.length === 0) {
+        sourcePatterns.push('src/**/*.{ts,tsx,js,jsx,vue,css,less,scss,sass}')
+      }
+
+      // 扫描源文件
+      const sourceFiles = await glob.glob(sourcePatterns, {
+        cwd: process.cwd(),
+        absolute: true,
+        ignore: ['**/node_modules/**', '**/*.d.ts', '**/*.test.*', '**/*.spec.*']
+      })
+
+      // 检查每个源文件的修改时间
+      for (const file of sourceFiles) {
+        try {
+          const stat = await fs.stat(file)
+          if (stat.mtimeMs > cacheTime) {
+            this.logger.debug(`源文件已修改: ${path.relative(process.cwd(), file)}`)
+            return true
+          }
+        } catch (err) {
+          // 文件可能被删除，认为已修改
+          return true
+        }
+      }
+
+      // 所有源文件都未修改
+      return false
+    } catch (error) {
+      this.logger.warn(`检查源文件修改时出错: ${(error as Error).message}`)
+      // 出错时保守处理，认为已修改
+      return true
     }
   }
 

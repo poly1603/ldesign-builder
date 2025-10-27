@@ -179,9 +179,11 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     }
 
     // 生成 TypeScript 声明文件（如果需要）
-    // 直接从命令行选项读取 formats
+    // 从命令行选项和配置文件读取
     const originalFormats = options.format ? options.format.split(',').map(f => f.trim()) : []
-    const hasDts = originalFormats.includes('dts') || originalFormats.includes('declaration') || originalFormats.includes('types')
+    const hasDtsFromCli = originalFormats.includes('dts') || originalFormats.includes('declaration') || originalFormats.includes('types')
+    const hasDtsFromConfig = config.dts === true
+    const hasDts = hasDtsFromCli || hasDtsFromConfig
     const formats = Array.isArray(config.output?.format) ? config.output.format : [config.output?.format].filter(Boolean)
 
     if (hasDts) {

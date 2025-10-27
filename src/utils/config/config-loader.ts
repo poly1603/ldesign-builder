@@ -14,6 +14,7 @@ import { BuilderError } from '../error-handler'
  * 配置文件加载器类
  */
 export class ConfigLoader {
+  private logger?: any
   /**
    * 查找配置文件
    */
@@ -110,10 +111,27 @@ export class ConfigLoader {
 
   /**
    * 加载 JavaScript/TypeScript 配置
+   * 支持 ESM 和 CJS 兼容
    */
   private async loadJSConfig(configPath: string): Promise<BuilderConfig> {
+    const ext = path.extname(configPath)
+
     try {
-      // 使用 jiti 动态导入，支持 TypeScript
+      // 优先尝试使用动态 import（对于 .mjs 和 .js with type=module）
+      if (ext === '.mjs' || ext === '.js') {
+        try {
+          const { pathToFileURL } = await import('url')
+          const fileUrl = pathToFileURL(configPath).href
+          const configModule = await import(fileUrl)
+
+          return this.extractConfigFromModule(configModule)
+        } catch (importError) {
+          // 如果动态 import 失败，fallback 到 jiti
+          this.logger?.debug?.(`动态 import 失败，fallback 到 jiti: ${importError}`)
+        }
+      }
+
+      // 使用 jiti 动态导入，支持 TypeScript 和 CommonJS
       const jiti = createJiti(import.meta.url, {
         interopDefault: true,
         esmResolve: true,
@@ -122,26 +140,7 @@ export class ConfigLoader {
 
       const configModule = await jiti(configPath)
 
-      // 处理不同的导出格式
-      let config: BuilderConfig
-      if (typeof configModule === 'function') {
-        // 函数式配置
-        const env: Record<string, string> = Object.fromEntries(
-          Object.entries(process.env || {}).map(([k, v]) => [k, v ?? ''])
-        )
-        config = await configModule({
-          mode: process.env.NODE_ENV || 'production',
-          bundler: process.env.BUILDER_BUNDLER || 'rollup',
-          env
-        })
-      } else if (configModule && typeof configModule === 'object') {
-        // 对象配置
-        config = configModule
-      } else {
-        throw new Error('配置文件必须导出对象或函数')
-      }
-
-      return config
+      return this.extractConfigFromModule(configModule)
     } catch (error) {
       throw new BuilderError(
         ErrorCode.CONFIG_PARSE_ERROR,
@@ -152,6 +151,33 @@ export class ConfigLoader {
         }
       )
     }
+  }
+
+  /**
+   * 从模块中提取配置
+   */
+  private async extractConfigFromModule(configModule: any): Promise<BuilderConfig> {
+    // 处理不同的导出格式
+    let config: BuilderConfig
+
+    if (typeof configModule === 'function') {
+      // 函数式配置
+      const env: Record<string, string> = Object.fromEntries(
+        Object.entries(process.env || {}).map(([k, v]) => [k, v ?? ''])
+      )
+      config = await configModule({
+        mode: process.env.NODE_ENV || 'production',
+        bundler: process.env.BUILDER_BUNDLER || 'rollup',
+        env
+      })
+    } else if (configModule && typeof configModule === 'object') {
+      // 对象配置
+      config = configModule
+    } else {
+      throw new Error('配置文件必须导出对象或函数')
+    }
+
+    return config
   }
 
   /**

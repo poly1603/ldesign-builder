@@ -26,6 +26,7 @@ import type { PerformanceConfig } from './performance'
 import type { UnifiedPlugin } from './plugin'
 import type { PostBuildValidationConfig } from './validation'
 import type { MinifyOptions } from './minify'
+import type { MixedFrameworkConfig } from '../strategies/mixed/EnhancedMixedStrategy'
 
 /**
  * 构建器主配置接口
@@ -132,6 +133,12 @@ export interface BuilderConfig {
 
   /** Package.json 自动更新配置 */
   packageUpdate?: PackageUpdateConfig
+
+  /** 混合框架配置 */
+  mixedFramework?: MixedFrameworkConfig
+
+  /** 自动检测框架 */
+  autoDetectFramework?: boolean
 }
 
 /**

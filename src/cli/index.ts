@@ -19,6 +19,7 @@ import { initCommand } from './commands/init'
 import { analyzeCommand } from './commands/analyze'
 import { cleanCommand } from './commands/clean'
 import { examplesCommand } from './commands/examples'
+import { registerLintConfigsCommand } from './commands/lint-configs'
 import { logger, setLogLevel } from '../utils/logger'
 import { setupGlobalErrorHandling } from '../utils/error-handler'
 
@@ -74,6 +75,7 @@ function createCLI(): Command {
   program.addCommand(analyzeCommand)
   program.addCommand(cleanCommand)
   program.addCommand(examplesCommand)
+  registerLintConfigsCommand(program)
 
   // 处理全局选项
   program.hook('preAction', (thisCommand) => {

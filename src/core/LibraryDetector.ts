@@ -65,8 +65,9 @@ export class LibraryDetector {
         lit: 0,
         angular: 0,
         qwik: 0,
-        mixed: 0
-      }
+        mixed: 0,
+        'enhanced-mixed': 0
+      } as any
 
       const evidence: Record<LibraryType, DetectionEvidence[]> = {
         typescript: [],
@@ -80,8 +81,9 @@ export class LibraryDetector {
         lit: [],
         angular: [],
         qwik: [],
-        mixed: []
-      }
+        mixed: [],
+        'enhanced-mixed': []
+      } as any
 
       // 检测文件模式
       await this.detectFilePatterns(projectPath, scores, evidence)
@@ -95,14 +97,33 @@ export class LibraryDetector {
       // 检测 package.json 字段
       await this.detectPackageJsonFields(projectPath, scores, evidence)
 
-      // 如果检测到 .vue 文件，优先判定为 Vue 项目（根据依赖决定 2/3 版本），以确保无需额外配置也能正确处理 SFC
+      // 🔥 最优先检测混合框架（在 Vue 快速检测之前）
+      this.logger.info('🔍 开始混合框架检测...')
+      const mixedFrameworks = await this.detectMixedFrameworks(projectPath, scores)
+      this.logger.info(`🔍 混合框架检测完成，发现 ${mixedFrameworks.length} 个框架`)
+      if (mixedFrameworks.length > 1) {
+        this.logger.success(`检测到混合框架项目: ${mixedFrameworks.join(', ')}`)
+        return {
+          type: LibraryType.ENHANCED_MIXED,
+          confidence: 0.95,
+          evidence: [{
+            type: 'mixed',
+            description: `检测到多个框架: ${mixedFrameworks.join(', ')}`,
+            weight: 1,
+            source: mixedFrameworks.join(', ')
+          }],
+          frameworks: mixedFrameworks
+        } as any
+      }
+
+      // 单框架 Vue 快速检测（仅当不是混合框架时）
       try {
         const vueFiles = await findFiles(['src/**/*.vue', 'lib/**/*.vue', 'components/**/*.vue'], {
           cwd: projectPath,
           ignore: ['node_modules/**', 'dist/**', '**/*.test.*', '**/*.spec.*']
         })
 
-        if (vueFiles.length > 0) {
+        if (vueFiles.length > 0 && mixedFrameworks.length <= 1) {
           // 解析 package.json 以判断 Vue 主版本
           let vueMajor = 3
           try {
@@ -627,6 +648,77 @@ export class LibraryDetector {
     } catch (error) {
       this.logger.debug('项目类型推断失败:', error)
       return 'mixed'
+    }
+  }
+
+  /**
+   * 🆕 检测混合框架
+   * 检测项目中是否同时使用多个框架
+   */
+  private async detectMixedFrameworks(
+    projectPath: string,
+    scores: Record<LibraryType, number>
+  ): Promise<string[]> {
+    const frameworks: string[] = []
+
+    try {
+      this.logger.debug(`[混合框架检测] 开始检测项目: ${projectPath}`)
+
+      // 检测 Vue
+      const vueFiles = await findFiles(
+        ['src/**/*.vue', '**/adapters/vue/**/*', '**/composables/**/*'],
+        { cwd: projectPath, ignore: ['node_modules/**', 'dist/**', 'es/**', 'lib/**'] }
+      )
+      this.logger.debug(`[混合框架检测] Vue 文件数: ${vueFiles.length}, 分数: vue2=${scores.vue2}, vue3=${scores.vue3}`)
+      if (vueFiles.length > 0 || scores.vue2 > 0.3 || scores.vue3 > 0.3) {
+        frameworks.push('vue')
+      }
+
+      // 检测 React
+      const reactFiles = await findFiles(
+        ['src/**/*.jsx', 'src/**/*.tsx', '**/adapters/react/**/*', '**/hooks/**/*'],
+        { cwd: projectPath, ignore: ['node_modules/**', 'dist/**', 'es/**', 'lib/**'] }
+      )
+      this.logger.debug(`[混合框架检测] React 文件数: ${reactFiles.length}, 分数: ${scores.react}`)
+      if (reactFiles.length > 0 || scores.react > 0.3) {
+        frameworks.push('react')
+      }
+
+      // 检测 Lit
+      const litFiles = await findFiles(
+        ['**/adapters/lit/**/*', '**/web-components/**/*'],
+        { cwd: projectPath, ignore: ['node_modules/**', 'dist/**', 'es/**', 'lib/**'] }
+      )
+      this.logger.debug(`[混合框架检测] Lit 文件数: ${litFiles.length}, 分数: ${scores.lit}`)
+      if (litFiles.length > 0 || scores.lit > 0.3) {
+        frameworks.push('lit')
+      }
+
+      // 检测 Svelte
+      const svelteFiles = await findFiles(
+        ['src/**/*.svelte'],
+        { cwd: projectPath, ignore: ['node_modules/**', 'dist/**', 'es/**', 'lib/**'] }
+      )
+      if (svelteFiles.length > 0 || scores.svelte > 0.3) {
+        frameworks.push('svelte')
+      }
+
+      // 检测 Angular
+      if (scores.angular > 0.3) {
+        frameworks.push('angular')
+      }
+
+      // 检测 Solid
+      if (scores.solid > 0.3) {
+        frameworks.push('solid')
+      }
+
+      this.logger.info(`[混合框架检测] 检测结果: ${frameworks.join(', ') || '无'} (共 ${frameworks.length} 个框架)`)
+
+      return frameworks
+    } catch (error) {
+      this.logger.warn('[混合框架检测] 检测失败:', error)
+      return []
     }
   }
 }

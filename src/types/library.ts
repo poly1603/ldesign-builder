@@ -29,7 +29,9 @@ export enum LibraryType {
   /** Qwik 组件库 */
   QWIK = 'qwik',
   /** 混合库 */
-  MIXED = 'mixed'
+  MIXED = 'mixed',
+  /** 增强混合库（支持多框架智能处理） */
+  ENHANCED_MIXED = 'enhanced-mixed'
 }
 
 /**
