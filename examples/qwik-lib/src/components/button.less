@@ -1,0 +1,21 @@
+@primary-color: #1890ff;
+
+.ldesign-button {
+  padding: 8px 16px;
+  border: 1px solid #d9d9d9;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  
+  &--primary {
+    background: @primary-color;
+    color: #fff;
+    border-color: @primary-color;
+  }
+  
+  &--disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+

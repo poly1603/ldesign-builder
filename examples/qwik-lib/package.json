@@ -1,0 +1,52 @@
+{
+  "name": "@ldesign/qwik-lib-example",
+  "version": "1.0.0",
+  "description": "Qwik 组件库示例 - 使用 @ldesign/builder 打包",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs"
+    },
+    "./components/*": {
+      "types": "./es/components/*.d.ts",
+      "import": "./es/components/*.js",
+      "require": "./lib/components/*.cjs"
+    },
+    "./es/components/button.css": "./es/components/button.css",
+    "./es/components/input.css": "./es/components/input.css",
+    "./es/index.css": "./es/index.css",
+    "./lib/components/button.css": "./lib/components/button.css",
+    "./lib/components/input.css": "./lib/components/input.css",
+    "./lib/index.css": "./lib/index.css",
+    "./dist/index.css": "./dist/index.css",
+    "./dist/index.min.css": "./dist/index.min.css"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "package.json",
+    "es",
+    "lib",
+    "dist"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "clean": "rimraf es lib dist"
+  },
+  "peerDependencies": {
+    "@builder.io/qwik": "^1.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "@builder.io/qwik": "^1.11.0",
+    "typescript": "^5.7.3",
+    "less": "^4.4.1"
+  }
+}

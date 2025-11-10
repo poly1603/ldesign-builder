@@ -1,0 +1,124 @@
+<template>
+  <button
+    :class="buttonClasses"
+    :disabled="disabled"
+    @click="handleClick"
+  >
+    <slot />
+  </button>
+</template>
+
+<script setup lang="ts">
+import { computed } from 'vue'
+import type { ButtonProps } from './types'
+
+const props = withDefaults(defineProps<ButtonProps>(), {
+  type: 'default',
+  size: 'medium',
+  disabled: false
+})
+
+const emit = defineEmits<{
+  click: [event: MouseEvent]
+}>()
+
+const buttonClasses = computed(() => [
+  'ldesign-button',
+  `ldesign-button--${props.type}`,
+  `ldesign-button--${props.size}`,
+  props.disabled && 'ldesign-button--disabled'
+].filter(Boolean).join(' '))
+
+const handleClick = (event: MouseEvent) => {
+  if (!props.disabled) {
+    emit('click', event)
+  }
+}
+</script>
+
+<style lang="less" scoped>
+@primary-color: #1890ff;
+@danger-color: #ff4d4f;
+@default-color: #d9d9d9;
+
+.ldesign-button {
+  display: inline-block;
+  padding: 8px 16px;
+  font-size: 14px;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s;
+  user-select: none;
+  
+  &:hover {
+    opacity: 0.8;
+  }
+  
+  &:active {
+    opacity: 0.9;
+  }
+  
+  // 类型样式
+  &--default {
+    background-color: #fff;
+    border-color: @default-color;
+    color: rgba(0, 0, 0, 0.85);
+    
+    &:hover {
+      border-color: @primary-color;
+      color: @primary-color;
+    }
+  }
+  
+  &--primary {
+    background-color: @primary-color;
+    border-color: @primary-color;
+    color: #fff;
+    
+    &:hover {
+      background-color: lighten(@primary-color, 10%);
+      border-color: lighten(@primary-color, 10%);
+    }
+  }
+  
+  &--danger {
+    background-color: @danger-color;
+    border-color: @danger-color;
+    color: #fff;
+    
+    &:hover {
+      background-color: lighten(@danger-color, 10%);
+      border-color: lighten(@danger-color, 10%);
+    }
+  }
+  
+  // 尺寸样式
+  &--small {
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  
+  &--medium {
+    padding: 8px 16px;
+    font-size: 14px;
+  }
+  
+  &--large {
+    padding: 12px 24px;
+    font-size: 16px;
+  }
+  
+  // 禁用状态
+  &--disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    
+    &:hover {
+      opacity: 0.6;
+    }
+  }
+}
+</style>
+
