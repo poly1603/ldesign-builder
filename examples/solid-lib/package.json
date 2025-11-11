@@ -14,14 +14,8 @@
       "import": "./es/components/*.js",
       "require": "./lib/components/*.cjs"
     },
-    "./es/components/Button.css": "./es/components/Button.css",
-    "./es/components/Input.css": "./es/components/Input.css",
     "./es/index.css": "./es/index.css",
-    "./lib/components/Button.css": "./lib/components/Button.css",
-    "./lib/components/Input.css": "./lib/components/Input.css",
-    "./lib/index.css": "./lib/index.css",
-    "./dist/index.css": "./dist/index.css",
-    "./dist/index.min.css": "./dist/index.min.css"
+    "./lib/index.css": "./lib/index.css"
   },
   "main": "./lib/index.cjs",
   "module": "./es/index.js",
@@ -33,8 +27,7 @@
     "LICENSE",
     "package.json",
     "es",
-    "lib",
-    "dist"
+    "lib"
   ],
   "scripts": {
     "build": "ldesign-builder build",

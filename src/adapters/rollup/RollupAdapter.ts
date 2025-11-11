@@ -736,7 +736,7 @@ export class RollupAdapter implements IBundlerAdapter {
             const originalOptions = (plugin as any).options || {}
 
             // 清理不被 @rollup/plugin-typescript 支持的字段
-            const { tsconfigOverride: _ignored, compilerOptions: origCO = {}, tsconfig: _tsconfig, ...rest } = originalOptions as any
+            const { tsconfigOverride: _ignored, compilerOptions: origCO = {}, tsconfig: _tsconfig, declaration: _decl, declarationDir: _declDir, declarationMap: _declMap, ...rest } = originalOptions as any
 
             // 从 origCO 中排除 outDir,避免与 Rollup 的输出配置冲突
             const { outDir: _outDir, ...cleanedCO } = origCO as any
@@ -746,6 +746,8 @@ export class RollupAdapter implements IBundlerAdapter {
 
             const newPlugin = typescript.default({
               ...rest,
+              // 当不需要 DTS 时,显式禁止读取 tsconfig.json,避免从文件中读取 declaration: true
+              tsconfig: emitDts ? (_tsconfig || 'tsconfig.json') : false,
               compilerOptions: {
                 ...cleanedCO,
                 declaration: emitDts,
@@ -1394,10 +1396,20 @@ export class RollupAdapter implements IBundlerAdapter {
         }
       }
 
+      // 如果没有找到候选文件，使用配置中的主入口文件
       if (!umdEntry) {
-        // 兜底：使用 src/index.ts，但如果不存在会在后续报错
-        umdEntry = 'src/index.ts'
-        this.logger.warn(`未找到有效的 UMD 入口文件，使用默认值: ${umdEntry}`)
+        // 尝试使用主入口文件
+        const mainInput = typeof config.input === 'string' ? config.input : 
+                         typeof filteredInput === 'string' ? filteredInput : null
+        
+        if (mainInput && fs.existsSync(path.resolve(projectRoot, mainInput))) {
+          umdEntry = mainInput
+          this.logger.info(`UMD 入口文件使用主入口: ${mainInput}`)
+        } else {
+          // 最后的兜底
+          umdEntry = 'src/index.ts'
+          this.logger.warn(`未找到有效的 UMD 入口文件，使用默认值: ${umdEntry}`)
+        }
       }
     }
 

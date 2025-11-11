@@ -61,10 +61,14 @@ export class ReactStrategy implements ILibraryStrategy {
       plugin: async () => ts.default({
         tsconfig: 'tsconfig.json',
         declaration: true,
-        emitDeclarationOnly: true,
         // declarationDir 将由 RollupAdapter 动态设置
         jsx: 'react-jsx'
-      } as any)
+      } as any),
+      options: {
+        tsconfig: 'tsconfig.json',
+        declaration: true,
+        jsx: 'react-jsx'
+      }
     })
 
     // PostCSS (optional)
@@ -86,6 +90,13 @@ export class ReactStrategy implements ILibraryStrategy {
 
   private buildOutputConfig(config: BuilderConfig): any {
     const out = config.output || {}
+    
+    // 如果使用格式特定配置（output.esm, output.cjs, output.umd），直接返回
+    if (out.esm || out.cjs || out.umd) {
+      return out
+    }
+    
+    // 否则使用传统的 format 数组配置
     const formats = Array.isArray(out.format) ? out.format : ['esm', 'cjs']
     return { dir: out.dir || 'dist', format: formats, sourcemap: out.sourcemap !== false, exports: 'auto' }
   }

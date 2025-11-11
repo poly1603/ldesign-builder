@@ -59,33 +59,23 @@ export class SolidStrategy implements ILibraryStrategy {
       include: /node_modules/
     }))
 
-    // Babel 插件用于 Solid JSX 转换（更好的优化）
-    try {
-      const babel = await import('@rollup/plugin-babel')
-      plugins.push(babel.getBabelOutputPlugin({
-        presets: [
-          ['babel-preset-solid', {
-            generate: config.mode === 'development' ? 'dom' : 'universal',
-            hydratable: true
-          }]
-        ],
-        allowAllFormats: true
-      } as any))
-    } catch (error) {
-      // 回退到 esbuild
-      this.warn('Babel 插件不可用，使用 esbuild 处理 JSX')
-      const esbuild = await import('rollup-plugin-esbuild')
-      plugins.push(esbuild.default({
-        include: /\.(tsx?|jsx?)$/,
-        exclude: [/node_modules/],
-        target: 'es2020',
-        jsx: 'preserve', // 保留 JSX 让 Solid 插件处理
-        jsxImportSource: 'solid-js',
-        tsconfig: 'tsconfig.json',
-        sourceMap: config.output?.sourcemap !== false,
-        minify: shouldMinify(config)
-      }))
-    }
+    // Babel 插件用于 Solid JSX 转换和 TypeScript 处理
+    const babel = await import('@rollup/plugin-babel')
+    plugins.push(babel.default({
+      extensions: ['.js', '.jsx', '.ts', '.tsx'],
+      babelHelpers: 'bundled',
+      presets: [
+        ['@babel/preset-typescript', {
+          isTSX: true,
+          allExtensions: true
+        }],
+        ['babel-preset-solid', {
+          generate: config.mode === 'development' ? 'dom' : 'universal',
+          hydratable: true
+        }]
+      ],
+      exclude: /node_modules/
+    } as any))
 
     // PostCSS 处理（支持多种预处理器）
     if (config.style?.extract !== false) {

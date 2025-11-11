@@ -97,7 +97,79 @@ export class LibraryDetector {
       // 检测 package.json 字段
       await this.detectPackageJsonFields(projectPath, scores, evidence)
 
-      // 🔥 最优先检测混合框架（在 Vue 快速检测之前）
+      // 单框架 Solid 快速检测
+      try {
+        const solidFiles = await findFiles(['src/**/*.tsx', 'src/**/*.jsx'], {
+          cwd: projectPath,
+          ignore: ['node_modules/**', 'dist/**', '**/*.test.*', '**/*.spec.*']
+        })
+
+        if (solidFiles.length > 0) {
+          // 检查是否有 solid-js 依赖
+          try {
+            const pkgPath = path.join(projectPath, 'package.json')
+            if (await exists(pkgPath)) {
+              const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
+              const allDeps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies }
+              if (allDeps['solid-js']) {
+                const forcedEvidence = [
+                  ...evidence[LibraryType.SOLID],
+                  {
+                    type: 'file',
+                    description: `检测到 ${solidFiles.length} 个 .tsx/.jsx 文件且有 solid-js 依赖，优先判定为 Solid`,
+                    weight: 1,
+                    source: solidFiles.slice(0, 3).join(', ')
+                  }
+                ] as DetectionEvidence[]
+
+                const result: LibraryDetectionResult = {
+                  type: LibraryType.SOLID,
+                  confidence: 1,
+                  evidence: forcedEvidence
+                }
+
+                this.logger.success(`检测完成: ${LibraryType.SOLID} (置信度: 100.0%)`)
+                return result
+              }
+            }
+          } catch { }
+        }
+      } catch (e) {
+        this.logger.debug('Solid 文件快速检测失败，回退到评分机制:', e)
+      }
+
+      // 单框架 Svelte 快速检测
+      try {
+        const svelteFiles = await findFiles(['src/**/*.svelte', 'lib/**/*.svelte', 'components/**/*.svelte'], {
+          cwd: projectPath,
+          ignore: ['node_modules/**', 'dist/**', '**/*.test.*', '**/*.spec.*']
+        })
+
+        if (svelteFiles.length > 0) {
+          const forcedEvidence = [
+            ...evidence[LibraryType.SVELTE],
+            {
+              type: 'file',
+              description: `检测到 ${svelteFiles.length} 个 .svelte 文件，优先判定为 Svelte`,
+              weight: 1,
+              source: svelteFiles.slice(0, 3).join(', ')
+            }
+          ] as DetectionEvidence[]
+
+          const result: LibraryDetectionResult = {
+            type: LibraryType.SVELTE,
+            confidence: 1,
+            evidence: forcedEvidence
+          }
+
+          this.logger.success(`检测完成: ${LibraryType.SVELTE} (置信度: 100.0%)`)
+          return result
+        }
+      } catch (e) {
+        this.logger.debug('Svelte 文件快速检测失败，回退到评分机制:', e)
+      }
+
+      // 🔥 混合框架检测
       this.logger.info('🔍 开始混合框架检测...')
       const mixedFrameworks = await this.detectMixedFrameworks(projectPath, scores)
       this.logger.info(`🔍 混合框架检测完成，发现 ${mixedFrameworks.length} 个框架`)
@@ -674,13 +746,25 @@ export class LibraryDetector {
         frameworks.push('vue')
       }
 
-      // 检测 React
+      // 检测 React（需排除 Solid 项目）
       const reactFiles = await findFiles(
         ['src/**/*.jsx', 'src/**/*.tsx', '**/adapters/react/**/*', '**/hooks/**/*'],
         { cwd: projectPath, ignore: ['node_modules/**', 'dist/**', 'es/**', 'lib/**'] }
       )
-      this.logger.debug(`[混合框架检测] React 文件数: ${reactFiles.length}, 分数: ${scores.react}`)
-      if (reactFiles.length > 0 || scores.react > 0.3) {
+      // 检查是否有 React 依赖，避免误判 Solid 项目
+      let hasReactDep = false
+      try {
+        const pkgPath = path.join(projectPath, 'package.json')
+        if (await exists(pkgPath)) {
+          const pkg = JSON.parse(await readFile(pkgPath, 'utf-8'))
+          const allDeps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies }
+          hasReactDep = !!(allDeps.react || allDeps['react-dom'])
+        }
+      } catch { }
+      
+      this.logger.debug(`[混合框架检测] React 文件数: ${reactFiles.length}, 分数: ${scores.react}, 有React依赖: ${hasReactDep}`)
+      // 必须有 React 依赖才算 React 项目，避免误判 Solid/Preact
+      if (hasReactDep && (reactFiles.length > 0 || scores.react > 0.3)) {
         frameworks.push('react')
       }
 
