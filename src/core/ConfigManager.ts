@@ -295,7 +295,9 @@ export class ConfigManager extends EventEmitter {
 
     // 合并顶层配置
     for (const [key, value] of Object.entries(override)) {
-      if (value === undefined) continue
+      if (value === undefined) {
+        continue
+      }
 
       // format 特殊处理：可以是数组或字符串
       if (key === 'format') {
@@ -303,8 +305,8 @@ export class ConfigManager extends EventEmitter {
         continue
       }
 
-      // esm/cjs/umd 子配置需要深度合并
-      if (['esm', 'cjs', 'umd', 'iife'].includes(key)) {
+      // es/esm/cjs/umd 子配置需要深度合并
+      if (['es', 'esm', 'cjs', 'umd', 'iife'].includes(key)) {
         if (typeof value === 'object' && value !== null) {
           result[key] = {
             ...result[key],

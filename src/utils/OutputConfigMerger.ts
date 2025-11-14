@@ -57,9 +57,9 @@ export class OutputConfigMerger {
         continue
       }
 
-      // esm/cjs/umd/iife 子配置需要深度合并
-      if (['esm', 'cjs', 'umd', 'iife'].includes(key)) {
-        result[key as 'esm' | 'cjs' | 'umd' | 'iife'] = this.mergeFormatConfig(
+      // es/esm/cjs/umd/iife 子配置需要深度合并
+      if (['es', 'esm', 'cjs', 'umd', 'iife'].includes(key)) {
+        result[key as 'es' | 'esm' | 'cjs' | 'umd' | 'iife'] = this.mergeFormatConfig(
           (base as any)[key],
           value
         )
@@ -188,6 +188,9 @@ export class OutputConfigMerger {
     const formatSet = new Set(formats)
 
     // 如果 format 中没有某个格式,且用户没有显式配置该格式,则删除配置
+    if (!formatSet.has('es') && !override.es && result.es !== true) {
+      delete result.es
+    }
     if (!formatSet.has('esm') && !override.esm && result.esm !== true) {
       delete result.esm
     }
@@ -250,9 +253,9 @@ export class OutputConfigMerger {
     // 检查输出目录配置
     if (!config.dir && !config.file) {
       const hasFormatDir = (config.esm && typeof config.esm === 'object' && config.esm.dir) ||
-                           (config.cjs && typeof config.cjs === 'object' && config.cjs.dir) ||
-                           (config.umd && typeof config.umd === 'object' && config.umd.dir) ||
-                           (config.iife && typeof config.iife === 'object' && config.iife.dir)
+        (config.cjs && typeof config.cjs === 'object' && config.cjs.dir) ||
+        (config.umd && typeof config.umd === 'object' && config.umd.dir) ||
+        (config.iife && typeof config.iife === 'object' && config.iife.dir)
 
       if (!hasFormatDir) {
         warnings.push('No output directory specified, will use default')
@@ -274,9 +277,9 @@ export class OutputConfigMerger {
    */
   private hasEnabledFormat(config: OutputConfig): boolean {
     return this.isFormatEnabled(config.esm) ||
-           this.isFormatEnabled(config.cjs) ||
-           this.isFormatEnabled(config.umd) ||
-           this.isFormatEnabled(config.iife)
+      this.isFormatEnabled(config.cjs) ||
+      this.isFormatEnabled(config.umd) ||
+      this.isFormatEnabled(config.iife)
   }
 
   /**

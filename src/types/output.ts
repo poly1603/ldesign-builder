@@ -97,7 +97,10 @@ export interface OutputConfig {
   /** 输出格式 */
   format?: OutputFormat | OutputFormat[]
 
-  /** ESM 格式特定配置（true 使用默认配置，false 禁用） */
+  /** ES 模块配置（TDesign 风格: .mjs + 编译后的 CSS，true 使用默认配置，false 禁用） */
+  es?: boolean | FormatOutputConfig
+
+  /** ESM 模块配置（TDesign 风格: .js + 保留 less 源文件，true 使用默认配置，false 禁用） */
   esm?: boolean | FormatOutputConfig
 
   /** CommonJS 格式特定配置（true 使用默认配置，false 禁用） */

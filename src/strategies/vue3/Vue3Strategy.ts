@@ -192,11 +192,22 @@ export class Vue3Strategy implements ILibraryStrategy {
   private buildOutputConfig(config: BuilderConfig): any {
     const outputConfig = config.output || {}
 
-    // 如果使用格式特定配置（output.esm, output.cjs, output.umd），直接返回
-    if (outputConfig.esm || outputConfig.cjs || outputConfig.umd) {
+    // 如果使用格式特定配置（output.es, output.esm, output.cjs, output.umd），直接返回
+    if (outputConfig.es || outputConfig.esm || outputConfig.cjs || outputConfig.umd) {
       const result = { ...outputConfig }
 
       // 为每个输出格式添加 assetFileNames 配置
+      if (result.es && typeof result.es === 'object') {
+        result.es = {
+          ...result.es,
+          assetFileNames: '[name].[ext]',
+          globals: {
+            vue: 'Vue',
+            ...result.es.globals
+          }
+        }
+      }
+
       if (result.esm && typeof result.esm === 'object') {
         result.esm = {
           ...result.esm,

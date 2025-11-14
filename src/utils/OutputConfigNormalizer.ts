@@ -68,6 +68,13 @@ export class OutputConfigNormalizer {
   normalize(config: OutputConfig): OutputConfig {
     const result = { ...config }
 
+    // 处理 ES 格式 (TDesign 风格: .mjs + 编译后的 CSS)
+    if (result.es === true) {
+      result.es = this.getDefaultEsConfig()
+    } else if (typeof result.es === 'object') {
+      result.es = this.mergeWithDefault(this.getDefaultEsConfig(), result.es)
+    }
+
     // 处理 ESM 格式
     if (result.esm === true) {
       result.esm = this.getDefaultEsmConfig()
@@ -100,11 +107,24 @@ export class OutputConfigNormalizer {
   }
 
   /**
-   * 获取 ESM 默认配置
+   * 获取 ES 默认配置 (TDesign 风格: .mjs + 编译后的 CSS)
+   */
+  private getDefaultEsConfig(): FormatOutputConfig {
+    return {
+      dir: 'es',
+      format: 'esm',
+      preserveStructure: true,
+      dts: true,
+      sourcemap: true,
+    }
+  }
+
+  /**
+   * 获取 ESM 默认配置 (TDesign 风格: .js + 保留 less 源文件)
    */
   private getDefaultEsmConfig(): FormatOutputConfig {
     return {
-      dir: 'es',
+      dir: 'esm',
       format: 'esm',
       preserveStructure: true,
       dts: true,
@@ -117,7 +137,7 @@ export class OutputConfigNormalizer {
    */
   private getDefaultCjsConfig(): FormatOutputConfig {
     return {
-      dir: 'lib',
+      dir: 'cjs',
       format: 'cjs',
       preserveStructure: true,
       dts: true,

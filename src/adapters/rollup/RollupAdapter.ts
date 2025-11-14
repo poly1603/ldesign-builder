@@ -408,15 +408,66 @@ export class RollupAdapter implements IBundlerAdapter {
     if (config.output) {
       const outputConfig = config.output as any
 
-      // 优先处理对象化的输出配置（output.esm / output.cjs / output.umd）
-      if (outputConfig.esm || outputConfig.cjs || outputConfig.umd) {
+      // 优先处理对象化的输出配置（output.es / output.esm / output.cjs / output.umd）
+      this.logger.info(`[DEBUG] outputConfig keys: ${Object.keys(outputConfig).join(', ')}`)
+      this.logger.info(`[DEBUG] outputConfig.es: ${JSON.stringify(outputConfig.es)}`)
+      this.logger.info(`[DEBUG] outputConfig.esm: ${JSON.stringify(outputConfig.esm)}`)
+      this.logger.info(`[DEBUG] outputConfig.cjs: ${JSON.stringify(outputConfig.cjs)}`)
+      this.logger.info(`[DEBUG] outputConfig.umd: ${JSON.stringify(outputConfig.umd)}`)
+
+      if (outputConfig.es || outputConfig.esm || outputConfig.cjs || outputConfig.umd) {
+        this.logger.info('[DEBUG] 进入 TDesign 风格配置分支')
         const configs: any[] = []
 
-        // 处理 ESM 配置
+        // 处理 ES 配置 (TDesign 风格: .mjs + 编译后的 CSS)
+        if (outputConfig.es && outputConfig.es !== false) {
+          const isSimpleConfig = outputConfig.es === true
+          const esConfig = isSimpleConfig ? {} : outputConfig.es
+          const esDir = esConfig.dir || 'es'
+          const esPlugins = await this.transformPluginsForFormat(config.plugins || [], esDir, { emitDts: true })
+          const esInput = esConfig.input
+            ? await normalizeInput(esConfig.input, process.cwd(), config.exclude)
+            : filteredInput
+          const bannerCfgEs = (config as any).banner
+          const _bannerEs = await this.resolveBanner(bannerCfgEs, config)
+          const _footerEs = await this.resolveFooter(bannerCfgEs)
+          const _introEs = await this.resolveIntro(bannerCfgEs)
+          const _outroEs = await this.resolveOutro(bannerCfgEs)
+
+          // 添加样式重组插件 (TDesign 风格)
+          const styleReorganizePlugin = this.createStyleReorganizePlugin(esDir)
+
+          configs.push({
+            input: esInput,
+            external: config.external,
+            plugins: [...basePlugins, ...esPlugins, styleReorganizePlugin],
+            output: {
+              dir: esDir,
+              format: 'es',
+              sourcemap: esConfig.sourcemap ?? outputConfig.sourcemap,
+              entryFileNames: '[name].mjs',  // 使用 .mjs 扩展名
+              chunkFileNames: '[name].mjs',
+              assetFileNames: '[name].[ext]',
+              exports: esConfig.exports ?? 'auto',
+              preserveModules: esConfig.preserveStructure ?? true,
+              preserveModulesRoot: 'src',
+              globals: outputConfig.globals,
+              name: outputConfig.name,
+              banner: _bannerEs,
+              footer: _footerEs,
+              intro: _introEs,
+              outro: _outroEs
+            },
+            treeshake: config.treeshake,
+            onwarn: this.getOnWarn(config)
+          })
+        }
+
+        // 处理 ESM 配置 (TDesign 风格: .js + 忽略样式)
         if (outputConfig.esm && outputConfig.esm !== false) {
           const isSimpleConfig = outputConfig.esm === true
           const esmConfig = isSimpleConfig ? {} : outputConfig.esm
-          const esmDir = esmConfig.dir || 'es'
+          const esmDir = esmConfig.dir || 'esm'  // 默认目录改为 'esm'
           const esmPlugins = await this.transformPluginsForFormat(config.plugins || [], esmDir, { emitDts: true })
           // 使用 output 中的 input 配置，如果没有则使用默认或顶层 input
           const esmInput = esmConfig.input
@@ -428,15 +479,19 @@ export class RollupAdapter implements IBundlerAdapter {
           const _footerEsm = await this.resolveFooter(bannerCfgEsm)
           const _introEsm = await this.resolveIntro(bannerCfgEsm)
           const _outroEsm = await this.resolveOutro(bannerCfgEsm)
+
+          // 添加 ESM 样式清理插件 (TDesign 风格: ESM 产物不包含 style/ 目录)
+          const esmStyleCleanupPlugin = this.createEsmStyleCleanupPlugin(esmDir)
+
           configs.push({
             input: esmInput,
             external: config.external,
-            plugins: [...basePlugins, ...esmPlugins],
+            plugins: [...basePlugins, ...esmPlugins, esmStyleCleanupPlugin],
             output: {
               dir: esmDir,
               format: 'es',
               sourcemap: esmConfig.sourcemap ?? outputConfig.sourcemap,
-              entryFileNames: '[name].js',
+              entryFileNames: '[name].js',  // 使用 .js 扩展名
               chunkFileNames: '[name].js',
               assetFileNames: '[name].[ext]',
               exports: esmConfig.exports ?? 'auto',
@@ -454,11 +509,11 @@ export class RollupAdapter implements IBundlerAdapter {
           })
         }
 
-        // 处理 CJS 配置
+        // 处理 CJS 配置 (TDesign 风格: .js + 忽略样式)
         if (outputConfig.cjs && outputConfig.cjs !== false) {
           const isSimpleConfig = outputConfig.cjs === true
           const cjsConfig = isSimpleConfig ? {} : outputConfig.cjs
-          const cjsDir = cjsConfig.dir || 'lib'
+          const cjsDir = cjsConfig.dir || 'cjs'  // 默认目录改为 'cjs'
           // CJS 格式也生成 DTS 文件
           const cjsPlugins = await this.transformPluginsForFormat(config.plugins || [], cjsDir, { emitDts: true })
           // 使用 output 中的 input 配置，如果没有则使用默认或顶层 input
@@ -479,8 +534,8 @@ export class RollupAdapter implements IBundlerAdapter {
               dir: cjsDir,
               format: 'cjs',
               sourcemap: cjsConfig.sourcemap ?? outputConfig.sourcemap,
-              entryFileNames: '[name].cjs',
-              chunkFileNames: '[name].cjs',
+              entryFileNames: '[name].js',  // 使用 .js 扩展名 (不是 .cjs)
+              chunkFileNames: '[name].js',
               assetFileNames: '[name].[ext]',
               exports: cjsConfig.exports ?? 'named',
               preserveModules: cjsConfig.preserveStructure ?? true,
@@ -1399,9 +1454,9 @@ export class RollupAdapter implements IBundlerAdapter {
       // 如果没有找到候选文件，使用配置中的主入口文件
       if (!umdEntry) {
         // 尝试使用主入口文件
-        const mainInput = typeof config.input === 'string' ? config.input : 
-                         typeof filteredInput === 'string' ? filteredInput : null
-        
+        const mainInput = typeof config.input === 'string' ? config.input :
+          typeof filteredInput === 'string' ? filteredInput : null
+
         if (mainInput && fs.existsSync(path.resolve(projectRoot, mainInput))) {
           umdEntry = mainInput
           this.logger.info(`UMD 入口文件使用主入口: ${mainInput}`)
@@ -1887,6 +1942,139 @@ export class RollupAdapter implements IBundlerAdapter {
     }
 
     return files
+  }
+
+  /**
+   * 创建样式文件重组插件 (TDesign 风格)
+   *
+   * 将组件目录下的 CSS 文件移动到 style/ 子目录,并生成 style/css.mjs 文件
+   *
+   * @param outputDir - 输出目录
+   * @returns Rollup 插件
+   */
+  private createStyleReorganizePlugin(outputDir: string): any {
+    return {
+      name: 'style-reorganize',
+      async writeBundle() {
+        console.log('[style-reorganize] 插件开始执行...')
+        const outputPath = path.resolve(process.cwd(), outputDir)
+        console.log('[style-reorganize] 输出路径:', outputPath)
+
+        // 遍历输出目录,找到所有 CSS 文件
+        const processDirectory = async (dir: string) => {
+          const entries = await fsPromises.readdir(dir, { withFileTypes: true })
+
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name)
+
+            if (entry.isDirectory()) {
+              // 跳过已经是 style 目录的
+              if (entry.name !== 'style') {
+                await processDirectory(fullPath)
+              }
+            } else if (entry.isFile() && entry.name.endsWith('.css')) {
+              console.log('[style-reorganize] 找到 CSS 文件:', fullPath)
+              // 找到 CSS 文件,检查是否在 style/ 目录中
+              const parentDir = path.dirname(fullPath)
+              const parentDirName = path.basename(parentDir)
+
+              if (parentDirName !== 'style') {
+                // CSS 文件不在 style/ 目录中,需要重组
+                const styleDir = path.join(parentDir, 'style')
+                const newCssPath = path.join(styleDir, 'index.css')
+                const cssMapPath = `${fullPath}.map`
+                const newCssMapPath = `${newCssPath}.map`
+                const cssMjsPath = path.join(styleDir, 'css.mjs')
+
+                console.log('[style-reorganize] 开始重组:', fullPath)
+
+                // 创建 style/ 目录
+                await fsPromises.mkdir(styleDir, { recursive: true })
+
+                // 移动 CSS 文件
+                await fsPromises.rename(fullPath, newCssPath)
+
+                // 移动 CSS map 文件(如果存在)
+                if (fs.existsSync(cssMapPath)) {
+                  await fsPromises.rename(cssMapPath, newCssMapPath)
+                }
+
+                // 生成 style/css.mjs 文件
+                const cssMjsContent = `import './index.css';\n`
+                await fsPromises.writeFile(cssMjsPath, cssMjsContent, 'utf-8')
+
+                console.log(`[style-reorganize] ✓ 重组完成: ${path.relative(outputPath, fullPath)} -> ${path.relative(outputPath, newCssPath)}`)
+              }
+            }
+          }
+        }
+
+        try {
+          await processDirectory(outputPath)
+          console.log('[style-reorganize] 插件执行完成')
+        } catch (error) {
+          console.error('[style-reorganize] 错误:', error)
+        }
+      }
+    }
+  }
+
+  /**
+   * 创建 ESM 样式清理插件 (TDesign 风格)
+   *
+   * 删除 ESM 产物中的 style/ 目录和 CSS 文件
+   * 根据 TDesign Vue Next 的实际结构,ESM 产物不应该包含样式文件
+   *
+   * @param outputDir - 输出目录
+   * @returns Rollup 插件
+   */
+  private createEsmStyleCleanupPlugin(outputDir: string): any {
+    return {
+      name: 'esm-style-cleanup',
+      async writeBundle() {
+        console.log('[esm-style-cleanup] 插件开始执行...')
+        const outputPath = path.resolve(process.cwd(), outputDir)
+        console.log('[esm-style-cleanup] 输出路径:', outputPath)
+
+        // 遍历输出目录,删除所有 style/ 目录和 CSS 文件
+        const processDirectory = async (dir: string) => {
+          const entries = await fsPromises.readdir(dir, { withFileTypes: true })
+
+          for (const entry of entries) {
+            const fullPath = path.join(dir, entry.name)
+
+            if (entry.isDirectory()) {
+              // 删除 style 目录
+              if (entry.name === 'style') {
+                console.log('[esm-style-cleanup] 删除 style 目录:', fullPath)
+                await fsPromises.rm(fullPath, { recursive: true, force: true })
+              } else {
+                // 递归处理子目录
+                await processDirectory(fullPath)
+              }
+            } else if (entry.isFile() && entry.name.endsWith('.css')) {
+              // 删除 CSS 文件
+              console.log('[esm-style-cleanup] 删除 CSS 文件:', fullPath)
+              await fsPromises.unlink(fullPath)
+
+              // 删除对应的 source map 文件
+              const cssMapPath = `${fullPath}.map`
+              if (fs.existsSync(cssMapPath)) {
+                console.log('[esm-style-cleanup] 删除 CSS map 文件:', cssMapPath)
+                await fsPromises.unlink(cssMapPath)
+              }
+            }
+          }
+        }
+
+        try {
+          await processDirectory(outputPath)
+          console.log('[esm-style-cleanup] 插件执行完成')
+        } catch (error) {
+          console.error('[esm-style-cleanup] 错误:', error)
+        }
+      }
+    }
   }
 
 }
