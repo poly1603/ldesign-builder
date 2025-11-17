@@ -59,7 +59,6 @@ export { MemoryOptimizer, getGlobalMemoryOptimizer } from './utils/memory-optimi
 export type { MemoryStats, MemoryConfig } from './utils/memory-optimizer'
 export { createIncrementalBuildManager, IncrementalBuildManager } from './utils/incremental-build-manager'
 export { createParallelProcessor, ParallelProcessor } from './utils/parallel-processor'
-export { createStreamFileProcessor, StreamFileProcessor } from './utils/stream-file-processor'
 export { createBuildReportGenerator, BuildReportGenerator } from './utils/build-report-generator'
 export { createBundleAnalyzer, BundleAnalyzer } from './utils/bundle-analyzer'
 export { createSmartWatcher, SmartWatcher } from './utils/smart-watcher'
