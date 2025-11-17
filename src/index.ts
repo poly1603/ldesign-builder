@@ -150,16 +150,6 @@ export type {
 // 分布式缓存已移除 - 功能过于复杂且未被使用
 // 如需分布式缓存，请使用 MultilayerCache 的 L3 层配置
 
-// Monorepo 增强导出
-export { MonorepoEnhancer, createMonorepoEnhancer } from './monorepo/MonorepoEnhancer'
-export type {
-  WorkspacePackage,
-  BuildTask,
-  DependencyGraph,
-  BuildStrategy,
-  MonorepoBuildResult
-} from './monorepo/MonorepoEnhancer'
-
 // ========== 混合框架支持导出 ==========
 
 // 框架检测器导出
