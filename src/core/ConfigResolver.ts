@@ -18,7 +18,7 @@ import type { LibraryType } from '../types/library'
 import type { SimpleConfig } from '../config/simple-config'
 import { ConfigManager } from './ConfigManager'
 import { LibraryDetector } from './LibraryDetector'
-import { AutoConfigEnhancer } from '../utils/auto-config-enhancer'
+// import { AutoConfigEnhancer } from '../utils/auto-config-enhancer' // 已删除
 import { Logger } from '../utils/logger'
 import { DEFAULT_BUILDER_CONFIG } from '../constants/defaults'
 import { expandSimpleConfig } from '../config/simple-config'
@@ -30,13 +30,13 @@ import { hasPreset } from '../presets'
 export interface ConfigResolverOptions {
   /** 日志记录器 */
   logger?: Logger
-  
+
   /** 是否启用自动增强 */
   autoEnhance?: boolean
-  
+
   /** 是否启用库类型检测 */
   autoDetect?: boolean
-  
+
   /** 配置文件路径 */
   configFile?: string
 }
@@ -57,7 +57,7 @@ export class ConfigResolver {
       autoDetect: true,
       ...options
     }
-    
+
     this.configManager = new ConfigManager({ logger: this.logger })
     this.libraryDetector = new LibraryDetector({ logger: this.logger })
   }
@@ -191,13 +191,13 @@ export class ConfigResolver {
     config: BuilderConfig,
     projectPath: string
   ): Promise<BuilderConfig> {
-    this.logger.debug('开始自动增强配置...')
-    
-    const enhancer = new AutoConfigEnhancer(projectPath, this.logger)
-    const enhanced = await enhancer.enhanceConfig(config)
-    
-    this.logger.debug('配置自动增强完成')
-    return enhanced
+    this.logger.debug('自动增强配置功能已禁用')
+
+    // const enhancer = new AutoConfigEnhancer(projectPath, this.logger)
+    // const enhanced = await enhancer.enhanceConfig(config)
+
+    // this.logger.debug('配置自动增强完成')
+    return config // 直接返回原配置
   }
 
   /**

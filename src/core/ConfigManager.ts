@@ -22,7 +22,7 @@ import { Logger } from '../utils/logger'
 import { ErrorHandler, BuilderError } from '../utils/error-handler'
 import { ErrorCode } from '../constants/errors'
 import { LibraryType } from '../types/library'
-import { createAutoConfigEnhancer } from '../utils/auto-config-enhancer'
+// import { createAutoConfigEnhancer } from '../utils/auto-config-enhancer' // 已删除
 
 /**
  * 配置管理器类
@@ -86,11 +86,11 @@ export class ConfigManager extends EventEmitter {
         }
       }
 
-      // 自动增强配置
-      if (loadOptions.autoEnhance !== false) {
-        const enhancer = createAutoConfigEnhancer(process.cwd(), this.logger)
-        mergedConfig = await enhancer.enhanceConfig(mergedConfig)
-      }
+      // 自动增强配置（已禁用，功能已删除）
+      // if (loadOptions.autoEnhance !== false) {
+      //   const enhancer = createAutoConfigEnhancer(process.cwd(), this.logger)
+      //   mergedConfig = await enhancer.enhanceConfig(mergedConfig)
+      // }
 
       // 验证配置
       if (loadOptions.validate !== false && this.options.validateOnLoad) {

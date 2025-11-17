@@ -63,10 +63,8 @@ export { createStreamFileProcessor, StreamFileProcessor } from './utils/stream-f
 export { createBuildReportGenerator, BuildReportGenerator } from './utils/build-report-generator'
 export { createBundleAnalyzer, BundleAnalyzer } from './utils/bundle-analyzer'
 export { createSmartWatcher, SmartWatcher } from './utils/smart-watcher'
-export { createAutoConfigEnhancer, AutoConfigEnhancer } from './utils/auto-config-enhancer'
 export { createOutputNormalizer, OutputNormalizer } from './utils/output-normalizer'
-export { createParallelBuildExecutor, ParallelBuildExecutor, buildParallel } from './utils/parallel-build-executor'
-// 错误处理器已合并到 error-handler.ts
+// 错误处理器已合并到 error-handler/ 目录
 export { tailwindPlugin } from './plugins/tailwind'
 export { cssInJSPlugin } from './plugins/css-in-js'
 export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules-advanced'
@@ -74,7 +72,6 @@ export { swcPlugin, swcMinifyPlugin } from './compilers/swc-compiler'
 export { createConfigSchemaValidator, ConfigSchemaValidator } from './config/schema-validator'
 export { createInteractiveConfigGenerator, InteractiveConfigGenerator } from './cli/interactive-init'
 export { createOptimizationAdvisor, OptimizationAdvisor } from './advisor/optimization-advisor'
-export { createDependencyGraphVisualizer, DependencyGraphVisualizer } from './visualize/dependency-graph-visualizer'
 
 // 便捷函数
 export { defineAsyncConfig } from './utils/config'
@@ -137,37 +134,7 @@ export type { OxcIntegrationOptions } from './integrations/oxc-integration'
 export { lightningCSSPlugin, generateLightningCSSConfig } from './integrations/lightning-css'
 export type { LightningCSSOptions } from './integrations/lightning-css'
 
-// 调试工具导出
-export { BuildDebugger, createBuildDebugger } from './debugger/build-debugger'
-export type { Breakpoint, DebugContext, BuildDebuggerOptions } from './debugger/build-debugger'
-export { PerformanceProfiler, createPerformanceProfiler } from './debugger/performance-profiler'
-export type { PerformanceEvent, FlameGraphNode, TimelineEvent, PerformanceProfilerOptions } from './debugger/performance-profiler'
-
 // 构建报告生成器已整合到 build-report-generator.ts
-
-// 实时监控导出
-export { RealTimeMonitor, createRealTimeMonitor } from './monitor/real-time-monitor'
-export type { ProgressInfo, MonitorData, RealTimeMonitorOptions } from './monitor/real-time-monitor'
-
-// 边缘运行时支持导出
-export { applyCloudflareWorkersConfig, generateWranglerConfig } from './runtimes/cloudflare-workers'
-export type { CloudflareWorkersOptions } from './runtimes/cloudflare-workers'
-export { applyDenoDeployConfig, generateDenoConfig, generateImportMap } from './runtimes/deno-deploy'
-export type { DenoDeployOptions } from './runtimes/deno-deploy'
-
-// CI/CD 模板导出
-export { generateGitHubActionsWorkflow, generatePerformanceWorkflow } from './ci/github-actions-template'
-export { generateDockerfile, generateDockerCompose, generateDockerIgnore } from './ci/docker-template'
-
-// 插件市场导出（registry）
-export { PluginRegistry, createPluginRegistry } from './plugin-market/plugin-registry'
-export type { PluginMetadata as PluginRegistryMetadata } from './plugin-market/plugin-registry'
-export { PluginSDK, createPluginSDK } from './plugin-market/plugin-sdk'
-export type { PluginTemplate } from './plugin-market/plugin-sdk'
-
-// 配置可视化导出
-export { ConfigVisualizer, createConfigVisualizer } from './visualizer/config-visualizer'
-export type { ConfigTemplate } from './visualizer/config-visualizer'
 
 // ========== 高级功能增强导出 ==========
 
@@ -205,19 +172,6 @@ export type {
   CacheBackendInterface
 } from './cache/DistributedCache'
 
-// 性能分析器导出
-export { PerformanceProfiler as BuildPerformanceProfiler, createPerformanceProfiler as createBuildPerformanceProfiler } from './monitoring/profiler'
-export type {
-  PerformanceMetrics,
-  PhaseMetrics,
-  CPUUsage,
-  MemoryUsage,
-  FileIOMetrics,
-  Bottleneck,
-  FlameGraphData,
-  PerformanceProfilerConfig as BuildPerformanceProfilerConfig
-} from './monitoring/profiler'
-
 // 压缩工具导出
 export {
   compress,
@@ -229,35 +183,6 @@ export {
 } from './utils/compression'
 export type { CompressionOptions } from './utils/compression'
 
-// 3D Bundle 分析器导出
-export { Bundle3DAnalyzer, createBundle3DAnalyzer } from './visualizers/bundle-analyzer'
-export type {
-  Bundle3DAnalyzerConfig,
-  Bundle3DAnalysis,
-  Node3D,
-  Edge3D,
-  Scene3DConfig
-} from './visualizers/bundle-analyzer'
-
-// AI 配置优化器导出
-export { AIConfigOptimizer, createAIConfigOptimizer } from './ai/config-optimizer'
-export type {
-  AIModelConfig,
-  OptimizationSuggestion,
-  ProjectFeatures,
-  DiagnosticResult
-} from './ai/config-optimizer'
-
-// 插件市场导出（marketplace）
-export { PluginMarketplace, createPluginMarketplace } from './plugin-market/PluginMarketplace'
-export type {
-  PluginMetadata as PluginMarketMetadata,
-  PluginSearchOptions,
-  PluginInstallOptions,
-  PluginReview,
-  PluginConfigTemplate
-} from './plugin-market/PluginMarketplace'
-
 // Monorepo 增强导出
 export { MonorepoEnhancer, createMonorepoEnhancer } from './monorepo/MonorepoEnhancer'
 export type {
@@ -267,17 +192,6 @@ export type {
   BuildStrategy,
   MonorepoBuildResult
 } from './monorepo/MonorepoEnhancer'
-
-// CDN 优化器导出
-export { CDNOptimizer, createCDNOptimizer } from './cdn/CDNOptimizer'
-export type {
-  CDNConfig,
-  CDNProvider,
-  UploadResult,
-  VersionInfo,
-  EdgeWorkerScript
-} from './cdn/CDNOptimizer'
-export { CDNProvider as CDNProviderType } from './cdn/CDNOptimizer'
 
 // ========== 混合框架支持导出 ==========
 

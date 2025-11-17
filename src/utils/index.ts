@@ -14,7 +14,7 @@ export * from './config'
 export * from './file-system'
 export * from './path-utils'
 export * from './logger'
-export * from './error-handler'
+export * from './error-handler' // 使用 error-handler 目录
 
 // 其他工具函数
 export * from './format-utils'
@@ -73,14 +73,6 @@ export {
 } from './build-performance-analyzer'
 
 export {
-  CodeSplittingOptimizer,
-  type SplittingAnalysisResult,
-  type ModuleInfo as UtilsModuleInfo,
-  type ChunkInfo as UtilsChunkInfo,
-  type SplittingStrategy
-} from './code-splitting-optimizer'
-
-export {
   BuildCacheManager,
   type CacheEntry,
   type CacheStats as UtilsCacheStats,
@@ -91,13 +83,6 @@ export {
 // 基础工具模块
 export * from './glob'
 export * from './factory'
-export * from './cache'
-
-// 自动配置增强器
-export {
-  AutoConfigEnhancer,
-  createAutoConfigEnhancer
-} from './auto-config-enhancer'
 
 // 增量构建管理器
 export {
