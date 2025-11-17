@@ -160,17 +160,6 @@ export type {
 // 分布式缓存已移除 - 功能过于复杂且未被使用
 // 如需分布式缓存，请使用 MultilayerCache 的 L3 层配置
 
-// 压缩工具导出
-export {
-  compress,
-  decompress,
-  detectCompressionAlgorithm,
-  calculateCompressionRatio,
-  selectBestCompression,
-  CompressionAlgorithm
-} from './utils/compression'
-export type { CompressionOptions } from './utils/compression'
-
 // Monorepo 增强导出
 export { MonorepoEnhancer, createMonorepoEnhancer } from './monorepo/MonorepoEnhancer'
 export type {

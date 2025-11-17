@@ -34,20 +34,6 @@ export {
   formatDuration
 } from './performance-utils'
 
-// 通用模式工具
-export {
-  withRetry,
-  safeAsync,
-  batchProcess,
-  deepMerge,
-  isEmpty,
-  ensureArray,
-  safeJsonParse,
-  createTimer,
-  ConcurrencyLimiter,
-  type RetryOptions
-} from './common-patterns'
-
 // 高级功能模块 - 使用命名导出避免类型冲突
 export {
   DependencyAnalyzer,
