@@ -125,14 +125,6 @@ export type { SVGOptimizerOptions } from './plugins/svg-optimizer'
 export { i18nExtractorPlugin } from './plugins/i18n-extractor'
 export type { I18nExtractorOptions } from './plugins/i18n-extractor'
 
-// 现代工具链集成导出
-export { biomeIntegrationPlugin, generateBiomeConfig } from './integrations/biome-integration'
-export type { BiomeIntegrationOptions } from './integrations/biome-integration'
-export { oxcIntegrationPlugin, generateOxcConfig } from './integrations/oxc-integration'
-export type { OxcIntegrationOptions } from './integrations/oxc-integration'
-export { lightningCSSPlugin, generateLightningCSSConfig } from './integrations/lightning-css'
-export type { LightningCSSOptions } from './integrations/lightning-css'
-
 // 构建报告生成器已整合到 build-report-generator.ts
 
 // ========== 高级功能增强导出 ==========
