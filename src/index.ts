@@ -158,19 +158,8 @@ export type {
   TreeShakingReport
 } from './optimizers/tree-shaking/tree-shaker'
 
-// 分布式缓存导出
-export { DistributedCache, createDistributedCache, CacheBackend } from './cache/DistributedCache'
-export type {
-  DistributedCacheConfig,
-  CacheBackend as CacheBackendType,
-  CacheEntry as DistributedCacheEntry,
-  CacheMetadata,
-  CacheStats as DistributedCacheStats,
-  RedisConfig,
-  S3Config,
-  MongoDBConfig,
-  CacheBackendInterface
-} from './cache/DistributedCache'
+// 分布式缓存已移除 - 功能过于复杂且未被使用
+// 如需分布式缓存，请使用 MultilayerCache 的 L3 层配置
 
 // 压缩工具导出
 export {
