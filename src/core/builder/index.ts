@@ -47,12 +47,17 @@ export function createBuildCacheManager(options?: Partial<import('../../utils/bu
 }
 
 // ========== 导出依赖分析 ==========
+// 重新导出 utils/dependency-analyzer 中的实现（功能更完整，有测试）
 export {
   DependencyAnalyzer,
-  createDependencyAnalyzer,
-  type DependencyAnalysis,
-  type DependencyAnalyzerOptions
-} from './DependencyAnalyzer'
+  type DependencyAnalysisResult as DependencyAnalysis,
+  type AnalysisOptions as DependencyAnalyzerOptions
+} from '../../utils/dependency-analyzer'
+
+export function createDependencyAnalyzer(options?: Partial<import('../../utils/dependency-analyzer').AnalysisOptions>): import('../../utils/dependency-analyzer').DependencyAnalyzer {
+  const { DependencyAnalyzer } = require('../../utils/dependency-analyzer')
+  return new DependencyAnalyzer(options)
+}
 
 // ========== 导出构建验证 ==========
 export {
