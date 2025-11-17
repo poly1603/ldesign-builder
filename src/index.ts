@@ -67,7 +67,6 @@ export { createOutputNormalizer, OutputNormalizer } from './utils/output-normali
 export { tailwindPlugin } from './plugins/tailwind'
 export { cssInJSPlugin } from './plugins/css-in-js'
 export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules-advanced'
-export { swcPlugin, swcMinifyPlugin } from './compilers/swc-compiler'
 export { createConfigSchemaValidator, ConfigSchemaValidator } from './config/schema-validator'
 export { createInteractiveConfigGenerator, InteractiveConfigGenerator } from './cli/interactive-init'
 export { createOptimizationAdvisor, OptimizationAdvisor } from './advisor/optimization-advisor'
