@@ -29,12 +29,22 @@
  */
 
 // ========== 导出构建缓存管理 ==========
+// 重新导出 utils/build-cache-manager 中的实现（功能更完整，有测试）
 export {
   BuildCacheManager,
-  createBuildCacheManager,
-  type BuildCache,
-  type BuildCacheManagerOptions
-} from './BuildCache'
+  type CacheEntry as BuildCache,
+  type CacheConfig as BuildCacheManagerOptions
+} from '../../utils/build-cache-manager'
+
+/**
+ * 创建构建缓存管理器实例
+ * @param options - 缓存配置选项
+ * @returns 缓存管理器实例
+ */
+export function createBuildCacheManager(options?: Partial<import('../../utils/build-cache-manager').CacheConfig>): import('../../utils/build-cache-manager').BuildCacheManager {
+  const { BuildCacheManager } = require('../../utils/build-cache-manager')
+  return new BuildCacheManager(options)
+}
 
 // ========== 导出依赖分析 ==========
 export {
