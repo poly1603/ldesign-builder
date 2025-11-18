@@ -5,7 +5,7 @@
 import { Command } from 'commander'
 import { LibraryBuilder } from '../../core/LibraryBuilder'
 import { logger, highlight } from '../../utils/logger'
-import { formatFileSize, formatDuration } from '../../utils/format-utils'
+import { formatFileSize, formatDuration } from '../../utils/formatters/format-utils'
 import { ConfigLoader } from '../../utils/config/config-loader'
 import type { BuilderConfig } from '../../types/config'
 import path from 'path'
@@ -611,7 +611,7 @@ function parseSizeLimit(input: string): number {
 }
 
 async function analyzeBuildResult(result: any): Promise<void> {
-  const { createBundleAnalyzer } = await import('../../utils/bundle-analyzer')
+  const { createBundleAnalyzer } = await import('../../utils/optimization/BundleAnalyzer')
 
   logger.newLine()
   logger.info('📊 正在分析打包结果...')

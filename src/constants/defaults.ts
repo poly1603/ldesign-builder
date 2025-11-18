@@ -362,88 +362,11 @@ export const DEFAULT_BUILDER_CONFIG: Omit<
 
 /**
  * 预设配置
+ *
+ * @remarks
+ * 实际定义已移动至 `./default-presets` 模块，此处仅做转发导出，保持对外 API 不变。
  */
-export const PRESET_CONFIGS = {
-  // TypeScript 库预设
-  typescript: {
-    libraryType: LibraryType.TYPESCRIPT,
-    typescript: {
-      declaration: true,
-      isolatedDeclarations: true
-    },
-    output: {
-      format: ['esm', 'cjs']
-    },
-    library: {
-      generateTypes: true,
-      formats: ['esm', 'cjs']
-    }
-  },
-
-  // Vue3 组件库预设
-  vue3: {
-    libraryType: LibraryType.VUE3,
-    vue: {
-      version: 3,
-      onDemand: true
-    },
-    external: ['vue'],
-    globals: {
-      vue: 'Vue'
-    },
-    library: {
-      formats: ['esm', 'cjs', 'umd']
-    }
-  },
-
-  // Vue2 组件库预设
-  vue2: {
-    libraryType: LibraryType.VUE2,
-    vue: {
-      version: 2,
-      onDemand: true
-    },
-    external: ['vue'],
-    globals: {
-      vue: 'Vue'
-    },
-    library: {
-      formats: ['esm', 'cjs', 'umd']
-    }
-  },
-
-  // 样式库预设
-  style: {
-    libraryType: LibraryType.STYLE,
-    style: {
-      extract: true,
-      minimize: true
-    },
-    output: {
-      format: ['esm']
-    },
-    library: {
-      formats: ['esm']
-    }
-  },
-
-  // 混合库预设
-  mixed: {
-    libraryType: LibraryType.MIXED,
-    typescript: {
-      declaration: true
-    },
-    style: {
-      extract: true
-    },
-    output: {
-      format: ['esm', 'cjs']
-    },
-    library: {
-      formats: ['esm', 'cjs']
-    }
-  }
-} as const
+export { PRESET_CONFIGS } from './default-presets'
 
 /**
  * 支持的配置文件名称
@@ -496,56 +419,32 @@ export const DEFAULT_GLOBALS = {
 
 /**
  * 默认文件名模式
+ *
+ * @remarks
+ * 实际定义已移动至 `./runtime-defaults` 模块，此处仅做转发导出，保持对外 API 不变。
  */
-export const DEFAULT_FILE_PATTERNS = {
-  entry: '[name].[format].js',
-  chunk: '[name]-[hash].js',
-  asset: '[name]-[hash][extname]',
-  types: '[name].d.ts'
-} as const
+export { DEFAULT_FILE_PATTERNS } from './runtime-defaults'
 
 /**
  * 默认缓存配置
+ *
+ * @remarks
+ * 实际定义已移动至 `./runtime-defaults` 模块，此处仅做转发导出，保持对外 API 不变。
  */
-export const DEFAULT_CACHE_CONFIG = {
-  enabled: true,
-  dir: 'node_modules/.cache/@ldesign/builder',
-  ttl: 24 * 60 * 60 * 1000, // 24 hours
-  maxSize: 500 * 1024 * 1024, // 500MB
-  compress: true,
-  version: '1.0.0'
-} as const
+export { DEFAULT_CACHE_CONFIG } from './runtime-defaults'
 
 /**
  * 默认性能配置
+ *
+ * @remarks
+ * 实际定义已移动至 `./runtime-defaults` 模块，此处仅做转发导出，保持对外 API 不变。
  */
-export const DEFAULT_PERFORMANCE_CONFIG = {
-  bundleAnalyzer: false,
-  sizeLimit: undefined,
-  treeshaking: true,
-  cache: true,
-  parallel: true,
-  memoryLimit: '2GB',
-  timeout: 300000, // 5 minutes
-  monitoring: false
-} as const
+export { DEFAULT_PERFORMANCE_CONFIG } from './runtime-defaults'
 
 /**
  * 默认监听配置
+ *
+ * @remarks
+ * 实际定义已移动至 `./runtime-defaults` 模块，此处仅做转发导出，保持对外 API 不变。
  */
-export const DEFAULT_WATCH_CONFIG = {
-  include: ['src/**/*'],
-  exclude: ['node_modules/**/*', 'dist/**/*', '**/*.test.*', '**/*.spec.*'],
-  persistent: true,
-  ignoreInitial: true,
-  followSymlinks: true,
-  usePolling: false,
-  interval: 100,
-  binaryInterval: 300,
-  alwaysStat: false,
-  depth: 99,
-  awaitWriteFinish: {
-    stabilityThreshold: 2000,
-    pollInterval: 100
-  }
-} as const
+export { DEFAULT_WATCH_CONFIG } from './runtime-defaults'

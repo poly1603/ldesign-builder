@@ -23,6 +23,8 @@ import type {
   ValidationResult as PostBuildValidationResult,
   ValidationContext
 } from '../types/validation'
+import type { BuildStats } from '../types/output'
+import type { PerformanceMetrics } from '../types/performance'
 import { ConfigManager } from './ConfigManager'
 import { StrategyManager } from './StrategyManager'
 import { PluginManager } from './PluginManager'
@@ -35,15 +37,22 @@ import { Logger, createLogger } from '../utils/logger'
 import { ErrorHandler, createErrorHandler } from '../utils/error-handler'
 import { ErrorCode } from '../constants/errors'
 import { DEFAULT_BUILDER_CONFIG } from '../constants/defaults'
-import { getOutputDirs } from '../utils/glob'
+import { getOutputDirs } from '../utils/file-system/glob'
 import path from 'path'
 import fs from 'fs-extra'
-import { getGlobalMemoryManager } from '../utils/memory-manager'
-import { PackageUpdater } from '../utils/package-updater'
+import { getGlobalMemoryManager } from '../utils/memory/MemoryManager'
+import { PackageUpdater } from '../utils/misc/PackageUpdater'
+
+/**
+ * 带清理方法的适配器接口
+ */
+interface IBundlerAdapterWithCleanup extends IBundlerAdapter {
+  cleanup?(): void | Promise<void>
+}
 
 /**
  * 库构建器主控制器类
- * 
+ *
  * 采用依赖注入模式，统一管理各种服务组件
  * 继承 EventEmitter，支持事件驱动的构建流程
  */
@@ -82,16 +91,16 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   protected postBuildValidator!: PostBuildValidator
 
   /** 当前构建统计 */
-  protected currentStats: any = null
+  protected currentStats: BuildStats | null = null
 
   /** 当前性能指标 */
-  protected currentMetrics: any = null
+  protected currentMetrics: PerformanceMetrics | null = null
 
   /** 内存管理器 */
   protected memoryManager = getGlobalMemoryManager()
 
   /** 文件监听器 */
-  protected fileWatchers: Set<any> = new Set()
+  protected fileWatchers: Set<BuildWatcher> = new Set()
 
   /** 清理函数列表 */
   protected cleanupFunctions: Array<() => void | Promise<void>> = []
@@ -152,7 +161,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       this.performanceMonitor.startBuild(buildId)
 
       // 获取库类型（优先使用配置中指定的类型；否则基于项目根目录自动检测）
-      const projectRoot = (mergedConfig as any).cwd || process.cwd()
+      const projectRoot = mergedConfig.cwd || process.cwd()
       let libraryType = mergedConfig.libraryType || await this.detectLibraryType(projectRoot)
 
       // 确保 libraryType 是正确的枚举值
@@ -252,7 +261,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       }
 
       // 获取库类型（优先使用配置中指定的类型；否则基于项目根目录自动检测）
-      const projectRoot = (mergedConfig as any).cwd || process.cwd()
+      const projectRoot = mergedConfig.cwd || process.cwd()
       let libraryType = mergedConfig.libraryType || await this.detectLibraryType(projectRoot)
 
       // 确保 libraryType 是正确的枚举值
@@ -350,8 +359,9 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       this.removeAllListeners()
 
       // 清理适配器
-      if (this.bundlerAdapter && typeof (this.bundlerAdapter as any).cleanup === 'function') {
-        await (this.bundlerAdapter as any).cleanup()
+      const adapter = this.bundlerAdapter as IBundlerAdapterWithCleanup
+      if (adapter && typeof adapter.cleanup === 'function') {
+        await adapter.cleanup()
       }
 
       // 重置状态
@@ -369,8 +379,9 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   setBundler(bundler: BundlerType): void {
     try {
       // 清理旧的适配器
-      if (this.bundlerAdapter && typeof (this.bundlerAdapter as any).cleanup === 'function') {
-        (this.bundlerAdapter as any).cleanup()
+      const adapter = this.bundlerAdapter as IBundlerAdapterWithCleanup
+      if (adapter && typeof adapter.cleanup === 'function') {
+        adapter.cleanup()
       }
 
       this.bundlerAdapter = BundlerAdapterFactory.create(bundler, {
@@ -413,38 +424,82 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
    *   3) 若未找到，回退到当前工作目录
    */
   async detectLibraryType(projectPath: string): Promise<LibraryType> {
-    let base = projectPath
-
     try {
-      const stat = await fs.stat(projectPath).catch(() => null as any)
-      if (stat && stat.isFile()) {
-        base = path.dirname(projectPath)
-      }
-
-      // 自下而上查找最近的 package.json
-      let current = base
-      let resolvedRoot = ''
-      for (let i = 0; i < 10; i++) {
-        const pkg = path.join(current, 'package.json')
-        const exists = await fs.access(pkg).then(() => true).catch(() => false)
-        if (exists) {
-          resolvedRoot = current
-          break
-        }
-        const parent = path.dirname(current)
-        if (parent === current) break
-        current = parent
-      }
-
-      const root = resolvedRoot || (this.config?.cwd || process.cwd())
-      const result = await this.libraryDetector.detect(root)
+      const projectRoot = await this.resolveProjectRoot(projectPath)
+      const result = await this.libraryDetector.detect(projectRoot)
       return result.type
-
     } catch {
-      const fallbackRoot = this.config?.cwd || process.cwd()
+      const fallbackRoot = this.getFallbackRoot()
       const result = await this.libraryDetector.detect(fallbackRoot)
       return result.type
     }
+  }
+
+  /**
+   * 解析项目根目录
+   * 从给定路径向上查找包含 package.json 的目录
+   *
+   * @param projectPath - 项目路径（可能是文件或目录）
+   * @returns 项目根目录路径
+   */
+  private async resolveProjectRoot(projectPath: string): Promise<string> {
+    // 如果是文件，取其所在目录
+    const base = await this.normalizeToDirectory(projectPath)
+
+    // 向上查找 package.json
+    const resolvedRoot = await this.findPackageJsonDir(base)
+
+    return resolvedRoot || this.getFallbackRoot()
+  }
+
+  /**
+   * 将路径规范化为目录
+   * 如果是文件路径，返回其所在目录；否则返回原路径
+   *
+   * @param projectPath - 项目路径
+   * @returns 目录路径
+   */
+  private async normalizeToDirectory(projectPath: string): Promise<string> {
+    const stat = await fs.stat(projectPath).catch(() => null)
+    return (stat && stat.isFile()) ? path.dirname(projectPath) : projectPath
+  }
+
+  /**
+   * 向上查找包含 package.json 的目录
+   *
+   * @param startDir - 起始目录
+   * @returns package.json 所在目录，如果未找到则返回空字符串
+   */
+  private async findPackageJsonDir(startDir: string): Promise<string> {
+    let current = startDir
+
+    // 最多向上查找 10 层
+    for (let i = 0; i < 10; i++) {
+      const pkgPath = path.join(current, 'package.json')
+      const exists = await fs.access(pkgPath).then(() => true).catch(() => false)
+
+      if (exists) {
+        return current
+      }
+
+      const parent = path.dirname(current)
+      if (parent === current) {
+        break // 已到达文件系统根目录
+      }
+      current = parent
+    }
+
+    return ''
+  }
+
+  /**
+   * 获取回退根目录
+   * 优先使用配置中的 cwd，否则使用当前工作目录
+   *
+   * @returns 回退根目录路径
+   */
+  private getFallbackRoot(): string {
+    return this.config?.cwd || process.cwd()
   }
 
   /**
@@ -523,14 +578,14 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 获取构建统计信息
    */
-  getStats(): any {
+  getStats(): BuildStats | null {
     return this.currentStats
   }
 
   /**
    * 获取性能指标
    */
-  getPerformanceMetrics(): any {
+  getPerformanceMetrics(): PerformanceMetrics | null {
     return this.currentMetrics
   }
 
@@ -563,14 +618,16 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
     // 初始化策略管理器
     this.strategyManager = new StrategyManager({
       autoDetection: true,
-      cache: true
-    } as any)
+      cache: true,
+      logger: this.logger
+    })
 
     // 初始化插件管理器
     this.pluginManager = new PluginManager({
       cache: true,
-      hotReload: false
-    } as any)
+      hotReload: false,
+      logger: this.logger
+    })
 
     // 初始化库类型检测器
     this.libraryDetector = new LibraryDetector({
@@ -643,7 +700,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
    */
   protected async cleanOutputDirs(config: BuilderConfig): Promise<void> {
     const dirs = getOutputDirs(config)
-    const rootDir = (config as any).root || (config as any).cwd || process.cwd()
+    const rootDir = config.cwd || process.cwd()
 
     for (const dir of dirs) {
       const fullPath = path.isAbsolute(dir) ? dir : path.resolve(rootDir, dir)
@@ -712,7 +769,15 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
           outputs: buildResult.outputs,
           duration: 0,
           stats: buildResult.stats,
-          performance: this.currentMetrics || {} as any,
+          performance: this.currentMetrics || {
+            buildTime: 0,
+            bundleTime: 0,
+            transformTime: 0,
+            pluginTime: 0,
+            memory: { used: 0, total: 0, peak: 0 },
+            cpu: { usage: 0, cores: 0 },
+            io: { read: 0, write: 0 }
+          },
           warnings: buildResult.warnings || [],
           errors: [],
           buildId,
@@ -763,7 +828,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   private async updatePackageJsonIfEnabled(config: BuilderConfig, projectRoot: string): Promise<void> {
     try {
       // 检查是否启用了 package.json 自动更新
-      const packageUpdateConfig = (config as any).packageUpdate
+      const packageUpdateConfig = config.packageUpdate
       if (!packageUpdateConfig || packageUpdateConfig.enabled === false) {
         return
       }
@@ -797,9 +862,9 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 从配置中获取输出目录配置
    */
-  private getOutputDirsFromConfig(config: BuilderConfig): any {
+  private getOutputDirsFromConfig(config: BuilderConfig): Record<string, string> {
     const output = config.output || {}
-    const outputDirs: any = {}
+    const outputDirs: Record<string, string> = {}
 
     // 处理不同的输出配置格式
     if (Array.isArray(output)) {

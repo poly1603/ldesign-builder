@@ -8,7 +8,8 @@
 
 import type { UnifiedConfig, BundlerSpecificConfig } from '../../types/adapter'
 import type { Logger } from '../../utils/logger'
-import { normalizeInput } from '../../utils/glob'
+import { normalizeInput } from '../../utils/file-system/glob'
+import { RollupFormatMapper } from './utils/RollupFormatMapper'
 import path from 'path'
 import fs from 'fs'
 
@@ -17,9 +18,11 @@ import fs from 'fs'
  */
 export class RollupConfigBuilder {
   private logger: Logger
+  private formatMapper: RollupFormatMapper
 
   constructor(logger: Logger) {
     this.logger = logger
+    this.formatMapper = new RollupFormatMapper()
   }
 
   /**
@@ -325,7 +328,7 @@ export class RollupConfigBuilder {
    */
   private async buildFormatConfig(config: UnifiedConfig, filteredInput: any, basePlugins: any[], format: string): Promise<any> {
     const outputConfig = config.output as any
-    const mapped = this.mapFormat(format)
+    const mapped = this.formatMapper.mapFormat(format)
     const isESM = format === 'esm'
     const isCJS = format === 'cjs'
     const dir = isESM ? 'es' : isCJS ? 'lib' : 'dist'
@@ -359,7 +362,7 @@ export class RollupConfigBuilder {
   private async buildSingleFormatConfig(config: UnifiedConfig, filteredInput: any, basePlugins: any[], rollupConfig: any): Promise<any> {
     const outputConfig = config.output as any
     const format = outputConfig?.format || 'esm'
-    const mapped = this.mapFormat(format)
+    const mapped = this.formatMapper.mapFormat(format)
     const isESM = format === 'esm'
     const isCJS = format === 'cjs'
     const dir = outputConfig.dir || (isESM ? 'es' : isCJS ? 'lib' : 'dist')
@@ -512,19 +515,6 @@ export class RollupConfigBuilder {
     }
 
     return 'src/index.ts'
-  }
-
-  /**
-   * 映射输出格式
-   */
-  private mapFormat(format: any): string {
-    const formatMap: Record<string, string> = {
-      esm: 'es',
-      cjs: 'cjs',
-      umd: 'umd',
-      iife: 'iife'
-    }
-    return typeof format === 'string' ? (formatMap[format] || format) : 'es'
   }
 
   /**

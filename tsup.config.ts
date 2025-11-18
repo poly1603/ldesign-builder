@@ -88,7 +88,7 @@ export default defineConfig({
   dts: false,
   splitting: false,
   sourcemap: true,
-  clean: true,
+  clean: false, // 禁用清理,避免删除 dist 目录
   outExtension: sharedOutExtension,
   external: sharedExternal,
   ...sharedBuildOptions,

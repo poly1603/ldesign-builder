@@ -18,7 +18,7 @@ import type { UnifiedConfig, UnifiedPlugin } from '../../types/adapter'
 import type { LibraryType } from '../../types/library'
 import type { BuilderPlugin, BuilderPlugins, LazyPlugin } from '../../types/plugin'
 import { findFiles } from '../../utils/file-system'
-import { shouldMinify } from '../../utils/minify-processor'
+import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
 import path from 'path'
 import { existsSync } from 'fs'
 

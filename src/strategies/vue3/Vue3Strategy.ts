@@ -16,7 +16,7 @@ import type { ILibraryStrategy } from '../../types/strategy'
 import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
-import { shouldMinify } from '../../utils/minify-processor'
+import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
 
 /**
  * Vue 3 组件库构建策略
@@ -103,11 +103,9 @@ export class Vue3Strategy implements ILibraryStrategy {
       options: this.getVueOptions(config)
     })
 
-    // TypeScript 插件
-    plugins.push({
-      name: '@rollup/plugin-typescript',
-      options: this.getTypeScriptOptions(config)
-    })
+    // 注意:不使用 @rollup/plugin-typescript,因为它会读取 tsconfig.json 并验证 compiler options
+    // 这会导致与根 tsconfig.json 的冲突(composite, incremental, noEmit 等)
+    // 改用 esbuild 来处理 TypeScript,类型声明由单独的 DTS 插件生成
 
     // Node 解析插件
     plugins.push({
@@ -318,19 +316,9 @@ export class Vue3Strategy implements ILibraryStrategy {
       const commonjs = await import('@rollup/plugin-commonjs')
       plugins.push(commonjs.default())
 
-      // TypeScript 插件（用于生成声明文件）
-      const tsOptions = this.getTypeScriptOptions(config)
-      if (tsOptions.declaration) {
-        plugins.push({
-          name: 'typescript',
-          plugin: async () => {
-            const typescript = await import('@rollup/plugin-typescript')
-            return typescript.default(tsOptions)
-          },
-          // 将选项附加到插件对象以便 RollupAdapter 读取
-          options: tsOptions
-        })
-      }
+      // 注意:不使用 @rollup/plugin-typescript 生成声明文件,因为它会读取 tsconfig.json 并验证 compiler options
+      // 这会导致与根 tsconfig.json 的冲突(composite, incremental, noEmit 等)
+      // 改用 rollup-plugin-dts 或其他方式生成类型声明
 
       // esbuild 插件处理 TypeScript 和 JSX（保留 JSX 语法）
       const { default: esbuild } = await import('rollup-plugin-esbuild')

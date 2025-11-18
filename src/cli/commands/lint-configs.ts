@@ -4,7 +4,7 @@
  */
 
 import { Command } from 'commander'
-import { lintConfigs } from '../../utils/config-linter'
+import { lintConfigs } from '../../utils/misc/ConfigLinter'
 
 export function registerLintConfigsCommand(program: Command): void {
   program

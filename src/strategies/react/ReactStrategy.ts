@@ -7,7 +7,7 @@ import type { ILibraryStrategy } from '../../types/strategy'
 import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
-import { shouldMinify } from '../../utils/minify-processor'
+import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
 
 export class ReactStrategy implements ILibraryStrategy {
   readonly name = 'react'
@@ -90,12 +90,12 @@ export class ReactStrategy implements ILibraryStrategy {
 
   private buildOutputConfig(config: BuilderConfig): any {
     const out = config.output || {}
-    
+
     // 如果使用格式特定配置（output.esm, output.cjs, output.umd），直接返回
     if (out.esm || out.cjs || out.umd) {
       return out
     }
-    
+
     // 否则使用传统的 format 数组配置
     const formats = Array.isArray(out.format) ? out.format : ['esm', 'cjs']
     return { dir: out.dir || 'dist', format: formats, sourcemap: out.sourcemap !== false, exports: 'auto' }

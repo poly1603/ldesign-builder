@@ -49,32 +49,23 @@
  */
 
 import type { Logger } from '../logger/Logger'
-import { BuilderError, isBuilderError } from './BuilderError'
+import { BuilderError } from './BuilderError'
 import { ErrorCode } from '../../constants/errors'
 import {
   recoverWithRetry,
-  analyzeErrorRecoverability,
-  getSuggestedRecoveryStrategies,
   type RecoveryOptions
 } from './recovery'
-
-/**
- * 错误处理器选项接口
- */
-export interface ErrorHandlerOptions {
-  /** 日志记录器 */
-  logger?: Logger
-  /** 是否显示堆栈跟踪，默认 false */
-  showStack?: boolean
-  /** 是否显示建议，默认 true */
-  showSuggestions?: boolean
-  /** 错误回调函数 */
-  onError?: (error: Error) => void
-  /** 是否在错误时退出进程，默认 false */
-  exitOnError?: boolean
-  /** 退出码，默认 1 */
-  exitCode?: number
-}
+import {
+  analyzeErrorContextInternal,
+  formatErrorMessage,
+  getErrorSuggestions,
+  type ErrorSuggestionContext
+} from './error-analysis-helpers'
+import {
+  wrapAsyncFunction,
+  wrapFunction
+} from './error-wrap'
+import type { ErrorHandlerOptions } from './error-handler-types'
 
 /**
  * 错误处理器类
@@ -279,14 +270,14 @@ export class ErrorHandler {
 
   /**
    * 包装同步函数以处理错误
-   * 
+   *
    * 【详细说明】
    * 将一个函数包装起来，自动捕获和处理其抛出的错误
-   * 
+   *
    * @param fn - 要包装的函数
    * @param context - 错误上下文
    * @returns 包装后的函数
-   * 
+   *
    * @example
    * ```typescript
    * const safeBuild = handler.wrap(build, 'build')
@@ -297,38 +288,19 @@ export class ErrorHandler {
     fn: (...args: TArgs) => TReturn,
     context?: string
   ): (...args: TArgs) => TReturn {
-    return ((...args: TArgs) => {
-      try {
-        const result = fn(...args)
-
-        // ========== 处理返回 Promise 的情况 ==========
-        if (result && typeof result === 'object' && 'catch' in result && typeof result.catch === 'function') {
-          return (result as unknown as Promise<unknown>).catch((error: unknown) => {
-            const err = error instanceof Error ? error : new Error(String(error))
-            this.handle(err, context)
-            throw err
-          }) as TReturn
-        }
-
-        return result
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error))
-        this.handle(err, context)
-        throw err
-      }
-    })
+    return wrapFunction(this, fn, context)
   }
 
   /**
    * 包装异步函数以处理错误
-   * 
+   *
    * 【详细说明】
    * 将一个异步函数包装起来，自动捕获和处理其抛出的错误
-   * 
+   *
    * @param fn - 要包装的异步函数
    * @param context - 错误上下文
    * @returns 包装后的异步函数
-   * 
+   *
    * @example
    * ```typescript
    * const safeBuildAsync = handler.wrapAsync(buildAsync, 'build')
@@ -339,15 +311,7 @@ export class ErrorHandler {
     fn: (...args: TArgs) => Promise<TReturn>,
     context?: string
   ): (...args: TArgs) => Promise<TReturn> {
-    return async (...args: TArgs) => {
-      try {
-        return await fn(...args)
-      } catch (error) {
-        const err = error instanceof Error ? error : new Error(String(error))
-        await this.handleAsync(err, context)
-        throw err
-      }
-    }
+    return wrapAsyncFunction(this, fn, context)
   }
 
   // ========== 错误创建和格式化方法 ==========
@@ -412,38 +376,27 @@ export class ErrorHandler {
 
   /**
    * 格式化错误信息
-   * 
+   *
    * @param error - 错误对象
    * @param includeStack - 是否包含堆栈跟踪
    * @returns 格式化后的错误字符串
    */
   formatError(error: Error, includeStack?: boolean): string {
-    const showStack = includeStack ?? this.showStack
-
-    if (isBuilderError(error)) {
-      return error.getFullMessage()
-    }
-
-    let message = error.message
-    if (showStack && error.stack) {
-      message += `\n${error.stack}`
-    }
-
-    return message
+    return formatErrorMessage(error, this.showStack, includeStack)
   }
 
   // ========== 错误分析方法 ==========
 
   /**
    * 获取错误建议（增强版，上下文感知）
-   * 
+   *
    * 【详细说明】
    * 根据错误类型和上下文，提供智能的解决建议
-   * 
+   *
    * @param error - 错误对象
    * @param context - 错误上下文
    * @returns 建议列表
-   * 
+   *
    * @example
    * ```typescript
    * const suggestions = handler.getSuggestions(error, {
@@ -452,30 +405,19 @@ export class ErrorHandler {
    * })
    * ```
    */
-  getSuggestions(error: Error, context?: { phase?: string; file?: string; config?: any }): string[] {
-    const suggestions: string[] = []
-
-    // ========== 添加构建器错误的建议 ==========
-    if (isBuilderError(error) && error.suggestion) {
-      suggestions.push(error.suggestion)
-    }
-
-    // ========== 使用恢复模块的建议生成功能 ==========
-    const recoverySuggestions = getSuggestedRecoveryStrategies(error, context)
-    suggestions.push(...recoverySuggestions)
-
-    return [...new Set(suggestions)]  // 去重
+  getSuggestions(error: Error, context?: ErrorSuggestionContext): string[] {
+    return getErrorSuggestions(error, context)
   }
 
   /**
    * 分析错误上下文
-   * 
+   *
    * 【详细说明】
    * 分析错误的类型、严重程度、可恢复性等信息
-   * 
+   *
    * @param error - 错误对象
    * @returns 错误分析结果
-   * 
+   *
    * @example
    * ```typescript
    * const analysis = handler.analyzeErrorContext(error)
@@ -485,7 +427,7 @@ export class ErrorHandler {
    * ```
    */
   analyzeErrorContext(error: Error) {
-    return analyzeErrorRecoverability(error)
+    return analyzeErrorContextInternal(error)
   }
 
   // ========== 私有方法 ==========

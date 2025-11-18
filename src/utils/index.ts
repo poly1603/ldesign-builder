@@ -4,106 +4,61 @@
  * 提供所有工具函数的统一导出
  *
  * @author LDesign Team
- * @version 1.0.0
+ * @version 2.0.0
+ * @since 2024-01-01
+ *
+ * @description
+ * 工具模块已重组为功能性子目录，提供更清晰的模块结构：
+ * - cache/          缓存相关工具
+ * - parallel/       并行处理工具
+ * - memory/         内存管理工具
+ * - file-system/    文件系统工具
+ * - build/          构建相关工具
+ * - optimization/   优化工具
+ * - analysis/       分析工具
+ * - formatters/     格式化工具
+ * - config/         配置工具
+ * - logger/         日志工具
+ * - error-handler/  错误处理工具
+ * - misc/           其他工具
  */
+
+// ========== 核心工具模块 ==========
 
 // 配置相关工具
 export * from './config'
 
-// 通用工具函数
-export * from './file-system'
-export * from './path-utils'
+// 日志系统
 export * from './logger'
-export * from './error-handler' // 使用 error-handler 目录
 
-// 其他工具函数
-export * from './format-utils'
-export * from './banner-generator'
-export * from './minify-processor'
-export * from './package-updater'
+// 错误处理
+export * from './error-handler'
 
-// 性能工具 - 统一从 performance-utils 导出
-export {
-  MemoryMonitor,
-  BatchProcessor,
-  debounce,
-  throttle,
-  memoize,
-  memoizeAsync,
-  formatBytes,
-  formatDuration
-} from './performance-utils'
+// ========== 功能性工具模块 ==========
 
-// 高级功能模块 - 使用命名导出避免类型冲突
-export {
-  DependencyAnalyzer,
-  type DependencyAnalysisResult,
-  type DependencyInfo as UtilsDependencyInfo,
-  type CircularDependency,
-  type VulnerabilityInfo
-} from './dependency-analyzer'
+// 缓存工具
+export * from './cache'
 
-export {
-  BuildPerformanceAnalyzer,
-  type BuildPerformanceAnalysis,
-  type PerformanceBottleneck,
-  type PhasePerformance,
-  type PerformanceMetrics as UtilsPerformanceMetrics
-} from './build-performance-analyzer'
+// 并行处理工具
+export * from './parallel'
 
-export {
-  BuildCacheManager,
-  type CacheEntry,
-  type CacheStats as UtilsCacheStats,
-  type CacheConfig as UtilsCacheConfig,
-  type CacheOperationResult
-} from './build-cache-manager'
+// 内存管理工具
+export * from './memory'
 
-// 基础工具模块
-export * from './glob'
-export * from './factory'
+// 文件系统工具
+export * from './file-system'
 
-// 增量构建管理器
-export {
-  IncrementalBuildManager,
-  createIncrementalBuildManager,
-  type FileChangeInfo,
-  type IncrementalBuildState,
-  type IncrementalBuildOptions
-} from './incremental-build-manager'
+// 构建工具
+export * from './build'
 
-// 构建报告生成器
-export {
-  BuildReportGenerator,
-  createBuildReportGenerator,
-  type BuildReportData,
-  type ReportFormat,
-  type BuildReportOptions
-} from './build-report-generator'
+// 优化工具
+export * from './optimization'
 
-// 内存管理和流式处理
-export {
-  ResourceManager,
-  MemoryManager,
-  StreamProcessor,
-  GCOptimizer,
-  getGlobalMemoryManager,
-  resetGlobalMemoryManager,
-  createCleanupable,
-  managedResource,
-  createStreamProcessor,
-  createGCOptimizer,
-  type ICleanupable,
-  type MemoryManagerOptions,
-  type StreamProcessOptions
-} from './memory-manager'
+// 分析工具
+export * from './analysis'
 
-// 并行处理器
-export {
-  ParallelProcessor,
-  createParallelProcessor,
-  TaskStatus,
-  type Task,
-  type TaskResult,
-  type ParallelProcessorOptions
-} from './parallel-processor'
+// 格式化工具
+export * from './formatters'
+
+// 其他工具
+export * from './misc'

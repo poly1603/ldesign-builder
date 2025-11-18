@@ -7,7 +7,7 @@ import path from 'path'
 import fs from 'fs-extra'
 import { existsSync } from 'fs'
 import { logger } from '../../utils/logger'
-import { formatFileSize } from '../../utils/format-utils'
+import { formatFileSize } from '../../utils/formatters/format-utils'
 
 interface AnalyzeOptions {
   report?: string
@@ -477,12 +477,12 @@ function renderHTMLDiff(current: any, baseline: any, opts: DiffOptions = {}): st
   </ul>
 
   ${(() => {
-    const maxDelta = Math.max(Math.abs(totals.rawDelta), Math.abs(totals.gzipDelta), 1)
-    const rawPct = Math.min(100, (Math.abs(totals.rawDelta) / maxDelta) * 100)
-    const gzipPct = Math.min(100, (Math.abs(totals.gzipDelta) / maxDelta) * 100)
-    const rawColor = totals.rawDelta >= 0 ? '#10b981' : '#ef4444'
-    const gzipColor = totals.gzipDelta >= 0 ? '#10b981' : '#ef4444'
-    return `<h3>大小变化可视化</h3>
+      const maxDelta = Math.max(Math.abs(totals.rawDelta), Math.abs(totals.gzipDelta), 1)
+      const rawPct = Math.min(100, (Math.abs(totals.rawDelta) / maxDelta) * 100)
+      const gzipPct = Math.min(100, (Math.abs(totals.gzipDelta) / maxDelta) * 100)
+      const rawColor = totals.rawDelta >= 0 ? '#10b981' : '#ef4444'
+      const gzipColor = totals.gzipDelta >= 0 ? '#10b981' : '#ef4444'
+      return `<h3>大小变化可视化</h3>
     <div class="summary-bars">
       <div class="summary-bar-row">
         <div class="summary-bar-label">原始大小</div>
@@ -499,7 +499,7 @@ function renderHTMLDiff(current: any, baseline: any, opts: DiffOptions = {}): st
         <div class="diff-bar-val">${escapeHtml(formatSignedSize(totals.gzipDelta))}</div>
       </div>
     </div>`
-  })()}
+    })()}
 
   ${common.length ? `<h2>共同文件变化（按 |Δgzip| 降序）</h2>
   <table>
@@ -511,60 +511,60 @@ function renderHTMLDiff(current: any, baseline: any, opts: DiffOptions = {}): st
     </tbody>
   </table>
   ${(() => {
-    const topChanges = common.slice(0, 10)
-    if (!topChanges.length) return ''
-    const maxDelta = Math.max(...topChanges.map(f => Math.abs(f.gzipDelta || 0)), 1)
-    const bars = topChanges.map(f => {
-      const delta = f.gzipDelta || 0
-      const pct = Math.min(100, (Math.abs(delta) / maxDelta) * 100)
-      // const color = delta >= 0 ? '#10b981' : '#ef4444' // 暂时不需要
-      return `<div class="diff-bar-row">
+        const topChanges = common.slice(0, 10)
+        if (!topChanges.length) return ''
+        const maxDelta = Math.max(...topChanges.map(f => Math.abs(f.gzipDelta || 0)), 1)
+        const bars = topChanges.map(f => {
+          const delta = f.gzipDelta || 0
+          const pct = Math.min(100, (Math.abs(delta) / maxDelta) * 100)
+          // const color = delta >= 0 ? '#10b981' : '#ef4444' // 暂时不需要
+          return `<div class="diff-bar-row">
         <div class="diff-bar-label" title="${escapeHtml(f.fileName)}">${escapeHtml(f.fileName)}</div>
         <div class="diff-bar">
           <div class="${delta >= 0 ? 'diff-bar-positive' : 'diff-bar-negative'}" style="width:${pct.toFixed(1)}%"></div>
         </div>
         <div class="diff-bar-val">${escapeHtml(formatSignedSize(delta))}</div>
       </div>`
-    }).join('\n')
-    return `<h3>Top 变化可视化</h3><div class="diff-bars">${bars}</div>`
-  })()}` : ''}
+        }).join('\n')
+        return `<h3>Top 变化可视化</h3><div class="diff-bars">${bars}</div>`
+      })()}` : ''}
 
   ${added.length ? `<h2>新增文件</h2><ul>${addedLis}</ul>
   ${(() => {
-    const sortedAdded = [...added].sort((a, b) => (b.gzipSize || b.size || 0) - (a.gzipSize || a.size || 0)).slice(0, 10)
-    if (!sortedAdded.length) return ''
-    const maxSize = Math.max(...sortedAdded.map(f => (f.gzipSize || f.size || 0)), 1)
-    const bars = sortedAdded.map(f => {
-      const size = f.gzipSize || f.size || 0
-      const pct = Math.min(100, (size / maxSize) * 100)
-      return `<div class="diff-bar-row">
+        const sortedAdded = [...added].sort((a, b) => (b.gzipSize || b.size || 0) - (a.gzipSize || a.size || 0)).slice(0, 10)
+        if (!sortedAdded.length) return ''
+        const maxSize = Math.max(...sortedAdded.map(f => (f.gzipSize || f.size || 0)), 1)
+        const bars = sortedAdded.map(f => {
+          const size = f.gzipSize || f.size || 0
+          const pct = Math.min(100, (size / maxSize) * 100)
+          return `<div class="diff-bar-row">
         <div class="diff-bar-label" title="${escapeHtml(f.fileName)}">${escapeHtml(f.fileName)}</div>
         <div class="diff-bar">
           <div class="diff-bar-positive" style="width:${pct.toFixed(1)}%"></div>
         </div>
         <div class="diff-bar-val">${escapeHtml(formatFileSize(size))}</div>
       </div>`
-    }).join('\n')
-    return `<h3>新增文件大小可视化</h3><div class="diff-bars">${bars}</div>`
-  })()}` : ''}
+        }).join('\n')
+        return `<h3>新增文件大小可视化</h3><div class="diff-bars">${bars}</div>`
+      })()}` : ''}
   ${removed.length ? `<h2>移除文件</h2><ul>${removedLis}</ul>
   ${(() => {
-    const sortedRemoved = [...removed].sort((a, b) => (b.gzipSize || b.size || 0) - (a.gzipSize || a.size || 0)).slice(0, 10)
-    if (!sortedRemoved.length) return ''
-    const maxSize = Math.max(...sortedRemoved.map(f => (f.gzipSize || f.size || 0)), 1)
-    const bars = sortedRemoved.map(f => {
-      const size = f.gzipSize || f.size || 0
-      const pct = Math.min(100, (size / maxSize) * 100)
-      return `<div class="diff-bar-row">
+        const sortedRemoved = [...removed].sort((a, b) => (b.gzipSize || b.size || 0) - (a.gzipSize || a.size || 0)).slice(0, 10)
+        if (!sortedRemoved.length) return ''
+        const maxSize = Math.max(...sortedRemoved.map(f => (f.gzipSize || f.size || 0)), 1)
+        const bars = sortedRemoved.map(f => {
+          const size = f.gzipSize || f.size || 0
+          const pct = Math.min(100, (size / maxSize) * 100)
+          return `<div class="diff-bar-row">
         <div class="diff-bar-label" title="${escapeHtml(f.fileName)}">${escapeHtml(f.fileName)}</div>
         <div class="diff-bar">
           <div class="diff-bar-negative" style="width:${pct.toFixed(1)}%"></div>
         </div>
         <div class="diff-bar-val">${escapeHtml(formatFileSize(size))}</div>
       </div>`
-    }).join('\n')
-    return `<h3>移除文件大小可视化</h3><div class="diff-bars">${bars}</div>`
-  })()}` : ''}
+        }).join('\n')
+        return `<h3>移除文件大小可视化</h3><div class="diff-bars">${bars}</div>`
+      })()}` : ''}
 </body>
 </html>`
 }
@@ -600,7 +600,7 @@ async function openInBrowser(filePath: string): Promise<void> {
   const abs = path.resolve(filePath)
   const cmd = process.platform === 'win32' ? `start "" "${abs}"`
     : process.platform === 'darwin' ? `open "${abs}"`
-    : `xdg-open "${abs}"`
+      : `xdg-open "${abs}"`
   await new Promise<void>((resolve, reject) => {
     exec(cmd, (err) => err ? reject(err) : resolve())
   })

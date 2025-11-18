@@ -27,11 +27,12 @@ export default antfu({
     }],
     '@typescript-eslint/no-non-null-assertion': 'warn',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
-    '@typescript-eslint/no-floating-promises': 'error',
-    '@typescript-eslint/await-thenable': 'error',
-    '@typescript-eslint/no-misused-promises': 'error',
-    '@typescript-eslint/prefer-nullish-coalescing': 'warn',
-    '@typescript-eslint/prefer-optional-chain': 'warn',
+    // 以下规则需要类型信息，暂时禁用以避免配置复杂性
+    '@typescript-eslint/no-floating-promises': 'off',
+    '@typescript-eslint/await-thenable': 'off',
+    '@typescript-eslint/no-misused-promises': 'off',
+    '@typescript-eslint/prefer-nullish-coalescing': 'off',
+    '@typescript-eslint/prefer-optional-chain': 'off',
     '@typescript-eslint/consistent-type-imports': ['error', {
       prefer: 'type-imports',
       fixStyle: 'inline-type-imports',
@@ -61,20 +62,9 @@ export default antfu({
     'quotes': ['error', 'single', { avoidEscape: true }],
     'semi': ['error', 'never'], // 不使用分号（与 antfu 一致）
 
-    // Import 顺序
-    'import/order': ['error', {
-      'groups': [
-        'builtin',
-        'external',
-        'internal',
-        'parent',
-        'sibling',
-        'index',
-        'type',
-      ],
-      'newlines-between': 'always',
-      'alphabetize': { order: 'asc', caseInsensitive: true },
-    }],
+    // Import 顺序 - 使用 antfu 内置的排序规则
+    'sort-imports': 'off', // 禁用默认的排序规则
+    'perfectionist/sort-imports': 'off', // 使用 antfu 的默认配置
 
     // 注释
     'spaced-comment': ['error', 'always', {

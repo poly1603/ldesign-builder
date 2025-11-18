@@ -717,29 +717,28 @@ await manager.saveState()
 ### 并行构建
 
 ```typescript
-import { createAdvancedParallelExecutor } from '@ldesign/builder'
+import { createParallelProcessor } from '@ldesign/builder'
 
-const executor = createAdvancedParallelExecutor({
-  maxWorkers: 4,
-  strategy: 'critical-path', // or 'priority', 'resource-aware'
-  resourceMonitoring: true
+const processor = createParallelProcessor({
+  maxConcurrency: 4,
+  enablePriority: true,
+  autoAdjustConcurrency: true
 })
 
-executor.addTask({
+processor.addTask({
   id: 'task-1',
-  fn: async () => buildFile('file1.ts'),
-  dependencies: [],
+  fn: async (data) => buildFile(data.file),
+  data: { file: 'file1.ts' },
   priority: 10,
-  estimatedTime: 1000,
-  resourceRequirements: {
-    cpu: 0.5,
-    memory: 50 * 1024 * 1024,
-    io: 0.3
-  }
+  timeout: 30000,
+  retries: 2
 })
 
-const results = await executor.execute()
-const stats = executor.getStats()
+await processor.waitAll()
+
+// 获取性能指标
+const metrics = processor.getPerformanceMetrics()
+console.log(`完成任务: ${metrics.successfulTasks}/${metrics.totalTasks}`)
 ```
 
 ---

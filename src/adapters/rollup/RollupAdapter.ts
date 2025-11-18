@@ -17,16 +17,21 @@ import type {
 import type { BuildResult, BuildWatcher } from '../../types/builder'
 import type { PerformanceMetrics } from '../../types/performance'
 import type { BuilderConfig } from '../../types/config'
+import type { RollupOptions, OutputOptions, OutputChunk, OutputAsset } from 'rollup'
 import path from 'path'
 import fs from 'fs'
-import { promises as fsPromises } from 'fs'
-import { execSync } from 'child_process'
 import { Logger } from '../../utils/logger'
 import { BuilderError } from '../../utils/error-handler'
 import { ErrorCode } from '../../constants/errors'
-import { normalizeInput } from '../../utils/glob'
-import { BannerGenerator } from '../../utils/banner-generator'
+import { normalizeInput } from '../../utils/file-system/glob'
 import { RollupCache } from '../../utils/cache'
+import { RollupCacheManager } from './RollupCacheManager'
+import { RollupBannerGenerator } from './RollupBannerGenerator'
+import { RollupDtsHandler } from './RollupDtsHandler'
+import { RollupStyleHandler } from './RollupStyleHandler'
+import { RollupPluginManager } from './RollupPluginManager'
+import { RollupFormatMapper } from './utils/RollupFormatMapper'
+import { RollupUMDBuilder } from './config/RollupUMDBuilder'
 
 /**
  * Rollup 适配器类
@@ -37,7 +42,16 @@ export class RollupAdapter implements IBundlerAdapter {
   available: boolean
 
   private logger: Logger
-  private multiConfigs?: any[]
+  private multiConfigs?: RollupOptions[]
+
+  // 模块实例
+  private cacheManager: RollupCacheManager
+  private bannerGenerator: RollupBannerGenerator
+  private dtsHandler: RollupDtsHandler
+  private styleHandler: RollupStyleHandler
+  private pluginManager: RollupPluginManager
+  private formatMapper: RollupFormatMapper
+  private umdBuilder: RollupUMDBuilder
 
   constructor(options: Partial<AdapterOptions> = {}) {
     this.logger = options.logger || new Logger()
@@ -45,6 +59,15 @@ export class RollupAdapter implements IBundlerAdapter {
     // 初始化为可用状态，实际检查在第一次使用时进行
     this.version = 'unknown'
     this.available = true
+
+    // 初始化模块
+    this.cacheManager = new RollupCacheManager(this.logger)
+    this.bannerGenerator = new RollupBannerGenerator(this.logger)
+    this.dtsHandler = new RollupDtsHandler(this.logger)
+    this.styleHandler = new RollupStyleHandler(this.logger)
+    this.pluginManager = new RollupPluginManager(this.logger)
+    this.formatMapper = new RollupFormatMapper()
+    this.umdBuilder = new RollupUMDBuilder(this.logger, this.bannerGenerator)
   }
 
 
@@ -66,8 +89,8 @@ export class RollupAdapter implements IBundlerAdapter {
       this.logger.info(`清理模式检查: config.clean=${(config as any)?.clean}, isCleanMode=${isCleanMode}`)
 
       // 受控启用构建缓存（清理模式下禁用缓存）
-      const cacheEnabled = !isCleanMode && this.isCacheEnabled(config)
-      const cacheOptions = this.resolveCacheOptions(config)
+      const cacheEnabled = !isCleanMode && this.cacheManager.isCacheEnabled(config)
+      const cacheOptions = this.cacheManager.resolveCacheOptions(config)
       const cache = new RollupCache({
         cacheDir: cacheOptions.cacheDir,
         ttl: cacheOptions.ttl,
@@ -92,11 +115,11 @@ export class RollupAdapter implements IBundlerAdapter {
       // 检查缓存结果和输出产物的存在性
       if (cacheEnabled && cachedResult) {
         // 验证输出产物是否存在
-        const outputExists = await this.validateOutputArtifacts(config)
+        const outputExists = await this.cacheManager.validateOutputArtifacts(config)
 
         if (outputExists) {
           // 验证源文件是否被修改（时间戳检查）
-          const sourceModified = await this.checkSourceFilesModified(config, cachedResult)
+          const sourceModified = await this.cacheManager.checkSourceFilesModified(config, cachedResult)
 
           if (sourceModified) {
             this.logger.debug('源文件已修改，缓存失效')
@@ -121,7 +144,7 @@ export class RollupAdapter implements IBundlerAdapter {
           const restored = await cache.restoreFilesFromCache(cachedResult)
           if (restored) {
             // 文件恢复成功，验证产物是否存在
-            const outputExistsAfterRestore = await this.validateOutputArtifacts(config)
+            const outputExistsAfterRestore = await this.cacheManager.validateOutputArtifacts(config)
             if (outputExistsAfterRestore) {
               // 附加缓存信息并返回
               cachedResult.cache = {
@@ -157,7 +180,7 @@ export class RollupAdapter implements IBundlerAdapter {
       const startTime = Date.now()
 
       // 收集带格式信息的输出
-      const results: Array<{ chunk: any; format: string }> = []
+      const results: Array<{ chunk: OutputChunk | OutputAsset; format: string }> = []
 
       // 如果有多个配置，使用并行构建提升速度
       if (this.multiConfigs && this.multiConfigs.length > 1) {
@@ -290,7 +313,7 @@ export class RollupAdapter implements IBundlerAdapter {
       }
 
       // 复制 DTS 文件到所有格式的输出目录
-      await this.copyDtsFiles(config as any)
+      await this.dtsHandler.copyDtsFiles(config as any)
 
       // 缓存构建结果
       if (cacheEnabled) {
@@ -392,7 +415,7 @@ export class RollupAdapter implements IBundlerAdapter {
     // 应用 exclude 过滤到输入配置
     const filteredInput = await normalizeInput(config.input, process.cwd(), config.exclude)
 
-    const rollupConfig: any = {
+    const rollupConfig: RollupOptions = {
       input: filteredInput,
       external: config.external,
       onwarn: this.getOnWarn(config)
@@ -417,25 +440,22 @@ export class RollupAdapter implements IBundlerAdapter {
 
       if (outputConfig.es || outputConfig.esm || outputConfig.cjs || outputConfig.umd) {
         this.logger.info('[DEBUG] 进入 TDesign 风格配置分支')
-        const configs: any[] = []
+        const configs: RollupOptions[] = []
 
         // 处理 ES 配置 (TDesign 风格: .mjs + 编译后的 CSS)
         if (outputConfig.es && outputConfig.es !== false) {
-          const isSimpleConfig = outputConfig.es === true
-          const esConfig = isSimpleConfig ? {} : outputConfig.es
+          const esConfig = outputConfig.es === true ? {} : outputConfig.es
           const esDir = esConfig.dir || 'es'
-          const esPlugins = await this.transformPluginsForFormat(config.plugins || [], esDir, { emitDts: true })
+          const esPlugins = await this.pluginManager.transformPluginsForFormat(config.plugins || [], esDir, { emitDts: true })
           const esInput = esConfig.input
             ? await normalizeInput(esConfig.input, process.cwd(), config.exclude)
             : filteredInput
-          const bannerCfgEs = (config as any).banner
-          const _bannerEs = await this.resolveBanner(bannerCfgEs, config)
-          const _footerEs = await this.resolveFooter(bannerCfgEs)
-          const _introEs = await this.resolveIntro(bannerCfgEs)
-          const _outroEs = await this.resolveOutro(bannerCfgEs)
+
+          // 解析 banner/footer/intro/outro
+          const banners = await this.resolveBanners(config)
 
           // 添加样式重组插件 (TDesign 风格)
-          const styleReorganizePlugin = this.createStyleReorganizePlugin(esDir)
+          const styleReorganizePlugin = this.styleHandler.createStyleReorganizePlugin(esDir)
 
           configs.push({
             input: esInput,
@@ -453,10 +473,7 @@ export class RollupAdapter implements IBundlerAdapter {
               preserveModulesRoot: 'src',
               globals: outputConfig.globals,
               name: outputConfig.name,
-              banner: _bannerEs,
-              footer: _footerEs,
-              intro: _introEs,
-              outro: _outroEs
+              ...banners
             },
             treeshake: config.treeshake,
             onwarn: this.getOnWarn(config)
@@ -465,23 +482,18 @@ export class RollupAdapter implements IBundlerAdapter {
 
         // 处理 ESM 配置 (TDesign 风格: .js + 忽略样式)
         if (outputConfig.esm && outputConfig.esm !== false) {
-          const isSimpleConfig = outputConfig.esm === true
-          const esmConfig = isSimpleConfig ? {} : outputConfig.esm
+          const esmConfig = outputConfig.esm === true ? {} : outputConfig.esm
           const esmDir = esmConfig.dir || 'esm'  // 默认目录改为 'esm'
-          const esmPlugins = await this.transformPluginsForFormat(config.plugins || [], esmDir, { emitDts: true })
-          // 使用 output 中的 input 配置，如果没有则使用默认或顶层 input
+          const esmPlugins = await this.pluginManager.transformPluginsForFormat(config.plugins || [], esmDir, { emitDts: true })
           const esmInput = esmConfig.input
             ? await normalizeInput(esmConfig.input, process.cwd(), config.exclude)
             : filteredInput
-          // 统一注入 Banner/Footer/Intro/Outro
-          const bannerCfgEsm = (config as any).banner
-          const _bannerEsm = await this.resolveBanner(bannerCfgEsm, config)
-          const _footerEsm = await this.resolveFooter(bannerCfgEsm)
-          const _introEsm = await this.resolveIntro(bannerCfgEsm)
-          const _outroEsm = await this.resolveOutro(bannerCfgEsm)
+
+          // 解析 banner/footer/intro/outro
+          const banners = await this.resolveBanners(config)
 
           // 添加 ESM 样式清理插件 (TDesign 风格: ESM 产物不包含 style/ 目录)
-          const esmStyleCleanupPlugin = this.createEsmStyleCleanupPlugin(esmDir)
+          const esmStyleCleanupPlugin = this.styleHandler.createEsmStyleCleanupPlugin(esmDir)
 
           configs.push({
             input: esmInput,
@@ -499,10 +511,7 @@ export class RollupAdapter implements IBundlerAdapter {
               preserveModulesRoot: 'src',
               globals: outputConfig.globals,
               name: outputConfig.name,
-              banner: _bannerEsm,
-              footer: _footerEsm,
-              intro: _introEsm,
-              outro: _outroEsm
+              ...banners
             },
             treeshake: config.treeshake,
             onwarn: this.getOnWarn(config)
@@ -511,21 +520,17 @@ export class RollupAdapter implements IBundlerAdapter {
 
         // 处理 CJS 配置 (TDesign 风格: .js + 忽略样式)
         if (outputConfig.cjs && outputConfig.cjs !== false) {
-          const isSimpleConfig = outputConfig.cjs === true
-          const cjsConfig = isSimpleConfig ? {} : outputConfig.cjs
+          const cjsConfig = outputConfig.cjs === true ? {} : outputConfig.cjs
           const cjsDir = cjsConfig.dir || 'cjs'  // 默认目录改为 'cjs'
           // CJS 格式也生成 DTS 文件
-          const cjsPlugins = await this.transformPluginsForFormat(config.plugins || [], cjsDir, { emitDts: true })
-          // 使用 output 中的 input 配置，如果没有则使用默认或顶层 input
+          const cjsPlugins = await this.pluginManager.transformPluginsForFormat(config.plugins || [], cjsDir, { emitDts: true })
           const cjsInput = cjsConfig.input
             ? await normalizeInput(cjsConfig.input, process.cwd(), config.exclude)
             : filteredInput
-          // 统一注入 Banner/Footer/Intro/Outro
-          const bannerCfgCjs = (config as any).banner
-          const _bannerCjs = await this.resolveBanner(bannerCfgCjs, config)
-          const _footerCjs = await this.resolveFooter(bannerCfgCjs)
-          const _introCjs = await this.resolveIntro(bannerCfgCjs)
-          const _outroCjs = await this.resolveOutro(bannerCfgCjs)
+
+          // 解析 banner/footer/intro/outro
+          const banners = await this.resolveBanners(config)
+
           configs.push({
             input: cjsInput,
             external: config.external,
@@ -542,10 +547,7 @@ export class RollupAdapter implements IBundlerAdapter {
               preserveModulesRoot: 'src',
               globals: outputConfig.globals,
               name: outputConfig.name,
-              banner: _bannerCjs,
-              footer: _footerCjs,
-              intro: _introCjs,
-              outro: _outroCjs
+              ...banners
             },
             treeshake: config.treeshake,
             onwarn: this.getOnWarn(config)
@@ -584,64 +586,30 @@ export class RollupAdapter implements IBundlerAdapter {
       // 处理多格式输出
       if (Array.isArray(outputConfig.format)) {
         // 原有多格式逻辑（略微精简），同上
-        const isMultiEntry = this.isMultiEntryBuild(filteredInput)
+        const isMultiEntry = this.formatMapper.isMultiEntryBuild(filteredInput)
         let formats = outputConfig.format
-        let umdConfig: any = null
+        const umdConfig = await this.handleUMDConfig(config, filteredInput, formats, isMultiEntry)
 
-        if (isMultiEntry) {
-          const originalFormats = [...formats]
-          const hasUMD = formats.includes('umd')
-          const forceUMD = (config as any).umd?.forceMultiEntry || false
-          const umdEnabled = (config as any).umd?.enabled
-          this.logger.info(`多入口项目UMD检查: hasUMD=${hasUMD}, forceUMD=${forceUMD}, umdEnabled=${umdEnabled}`)
+        // 过滤掉 UMD 和 IIFE 格式（它们由独立配置处理）
+        formats = formats.filter((f: any) => f !== 'umd' && f !== 'iife')
 
-          if (hasUMD && forceUMD) {
-            umdConfig = await this.createUMDConfig(config, filteredInput)
-            this.logger.info('多入口项目强制启用 UMD 构建')
-          } else if (hasUMD) {
-            formats = formats.filter((format: any) => format !== 'umd' && format !== 'iife')
-            if ((config as any).umd?.enabled !== false) {
-              umdConfig = await this.createUMDConfig(config, filteredInput)
-              this.logger.info('为多入口项目创建独立的 UMD 构建')
-            }
-          } else {
-            if ((config as any).umd?.enabled) {
-              umdConfig = await this.createUMDConfig(config, filteredInput)
-              this.logger.info('根据UMD配置为多入口项目创建 UMD 构建')
-            }
-            formats = formats.filter((format: any) => format !== 'umd' && format !== 'iife')
-          }
-
-          const filteredFormats = originalFormats.filter((format: any) => !formats.includes(format))
-          if (filteredFormats.length > 0 && !umdConfig) {
-            this.logger.warn(`多入口构建不支持 ${filteredFormats.join(', ')} 格式，已自动过滤`)
-          }
-        } else {
-          const hasUmdSection = Boolean((config as any).umd || (config as any).output?.umd)
-          if (formats.includes('umd') || (config as any).umd?.enabled || hasUmdSection) {
-            umdConfig = await this.createUMDConfig(config, filteredInput)
-          }
-          formats = formats.filter((f: any) => f !== 'umd' && f !== 'iife')
-        }
-
-        const configs: any[] = []
+        const configs: RollupOptions[] = []
         for (const format of formats) {
-          const mapped = this.mapFormat(format)
+          const mapped = this.formatMapper.mapFormat(format)
           const isESM = format === 'esm'
           const isCJS = format === 'cjs'
           const dir = isESM ? 'es' : isCJS ? 'lib' : 'dist'
           const entryFileNames = isESM ? '[name].js' : isCJS ? '[name].cjs' : '[name].js'
           const chunkFileNames = entryFileNames
-          const formatPlugins = await this.transformPluginsForFormat(config.plugins || [], dir, { emitDts: true })
+          const formatPlugins = await this.pluginManager.transformPluginsForFormat(config.plugins || [], dir, { emitDts: true })
           try {
             const names = [...(formatPlugins || [])].map((p: any) => p?.name || '(anon)')
             this.logger.info(`[${format}] 有效插件: ${names.join(', ')}`)
           } catch { }
-          const bannerCfg = (config as any).banner
-          const _banner = await this.resolveBanner(bannerCfg, config)
-          const _footer = await this.resolveFooter(bannerCfg)
-          const _intro = await this.resolveIntro(bannerCfg)
-          const _outro = await this.resolveOutro(bannerCfg)
+
+          // 解析 banner/footer/intro/outro
+          const banners = await this.resolveBanners(config)
+
           configs.push({
             input: filteredInput,
             external: config.external,
@@ -658,10 +626,7 @@ export class RollupAdapter implements IBundlerAdapter {
               exports: isESM ? (outputConfig as any).exports ?? 'auto' : 'named',
               preserveModules: isESM || isCJS,
               preserveModulesRoot: (isESM || isCJS) ? 'src' : undefined,
-              banner: _banner,
-              footer: _footer,
-              intro: _intro,
-              outro: _outro
+              ...banners
             },
             treeshake: config.treeshake,
             onwarn: this.getOnWarn(config)
@@ -687,7 +652,7 @@ export class RollupAdapter implements IBundlerAdapter {
         return configs[0]
       } else {
         const format = (outputConfig as any).format
-        const mapped = this.mapFormat(format)
+        const mapped = this.formatMapper.mapFormat(format)
         const isESM = format === 'esm'
         const isCJS = format === 'cjs'
         // 使用配置中的输出目录，如果没有则使用默认值
@@ -695,16 +660,15 @@ export class RollupAdapter implements IBundlerAdapter {
         const dir = outputConfig.dir || defaultDir
         const entryFileNames = isESM ? '[name].js' : isCJS ? '[name].cjs' : '[name].js'
         const chunkFileNames = entryFileNames
-        const userPlugins = await this.transformPluginsForFormat(config.plugins || [], dir, { emitDts: true })
+        const userPlugins = await this.pluginManager.transformPluginsForFormat(config.plugins || [], dir, { emitDts: true })
         try {
           const names = [...(userPlugins || [])].map((p: any) => p?.name || '(anon)')
           this.logger.info(`[${format}] 有效插件: ${names.join(', ')}`)
         } catch { }
-        const bannerCfg2 = (config as any).banner
-        const _banner2 = await this.resolveBanner(bannerCfg2, config)
-        const _footer2 = await this.resolveFooter(bannerCfg2)
-        const _intro2 = await this.resolveIntro(bannerCfg2)
-        const _outro2 = await this.resolveOutro(bannerCfg2)
+
+        // 解析 banner/footer/intro/outro
+        const banners = await this.resolveBanners(config)
+
         rollupConfig.plugins = [...basePlugins, ...userPlugins]
         rollupConfig.output = {
           dir,
@@ -718,10 +682,7 @@ export class RollupAdapter implements IBundlerAdapter {
           exports: isESM ? (outputConfig as any).exports ?? 'auto' : 'named',
           preserveModules: isESM || isCJS,
           preserveModulesRoot: (isESM || isCJS) ? 'src' : undefined,
-          banner: _banner2,
-          footer: _footer2,
-          intro: _intro2,
-          outro: _outro2
+          ...banners
         }
       }
     }
@@ -732,133 +693,6 @@ export class RollupAdapter implements IBundlerAdapter {
     }
 
     return rollupConfig
-  }
-
-  /**
-   * 转换插件
-   */
-  async transformPlugins(plugins: any[]): Promise<BundlerSpecificPlugin[]> {
-    const transformedPlugins: BundlerSpecificPlugin[] = []
-
-    for (const plugin of plugins) {
-      try {
-        // 如果插件有 plugin 函数，调用它来获取实际插件
-        if (plugin.plugin && typeof plugin.plugin === 'function') {
-          const actualPlugin = await plugin.plugin()
-          transformedPlugins.push(actualPlugin)
-        }
-        // 如果插件有 rollup 特定配置，使用它
-        else if (plugin.rollup) {
-          transformedPlugins.push({ ...plugin, ...plugin.rollup })
-        }
-        // 直接使用插件
-        else {
-          transformedPlugins.push(plugin)
-        }
-      } catch (error) {
-        this.logger.warn(`插件 ${plugin.name || 'unknown'} 加载失败:`, (error as Error).message)
-      }
-    }
-
-    return transformedPlugins
-  }
-
-  /**
-   * 为特定格式转换插件，动态设置TypeScript插件的declarationDir
-   */
-  async transformPluginsForFormat(plugins: any[], outputDir: string, options?: { emitDts?: boolean }): Promise<BundlerSpecificPlugin[]> {
-    const { emitDts = true } = options || {}
-    const transformedPlugins: BundlerSpecificPlugin[] = []
-
-    for (const plugin of plugins) {
-      try {
-        const pluginName: string = (plugin && (plugin.name || plugin?.rollup?.name)) || ''
-        const nameLc = String(pluginName).toLowerCase()
-
-        // 当明确不需要 d.ts（例如 UMD/IIFE）时，跳过纯 dts 插件，但保留 typescript 插件（用于解析 .ts 文件）
-        if (!emitDts && nameLc.includes('dts') && !nameLc.includes('typescript')) {
-          continue
-        }
-
-        // 如果插件有 plugin 函数，调用它来获取实际插件
-        if (plugin.plugin && typeof plugin.plugin === 'function') {
-          // 如果是TypeScript插件，需要特殊处理（为 ESM/CJS 定向声明输出目录）
-          if (nameLc === 'typescript') {
-            // 重新创建TypeScript插件，设置正确的declarationDir
-            const typescript = await import('@rollup/plugin-typescript')
-
-            // 直接从插件包装对象读取原始选项（在策略中附加）
-            const originalOptions = (plugin as any).options || {}
-
-            // 清理不被 @rollup/plugin-typescript 支持的字段
-            const { tsconfigOverride: _ignored, compilerOptions: origCO = {}, tsconfig: _tsconfig, declaration: _decl, declarationDir: _declDir, declarationMap: _declMap, ...rest } = originalOptions as any
-
-            // 从 origCO 中排除 outDir,避免与 Rollup 的输出配置冲突
-            const { outDir: _outDir, ...cleanedCO } = origCO as any
-
-            // 不传递 tsconfig 选项,避免从文件中读取 outDir
-            // 所有配置都通过 compilerOptions 显式传递
-
-            const newPlugin = typescript.default({
-              ...rest,
-              // 当不需要 DTS 时,显式禁止读取 tsconfig.json,避免从文件中读取 declaration: true
-              tsconfig: emitDts ? (_tsconfig || 'tsconfig.json') : false,
-              compilerOptions: {
-                ...cleanedCO,
-                declaration: emitDts,
-                // 不使用 emitDeclarationOnly,因为 Rollup 需要 JS 文件
-                // 关闭 d.ts 的 sourceMap，避免生成到上级目录等不合法路径
-                declarationMap: false,
-                declarationDir: emitDts ? outputDir : undefined,
-                // 显式设置 outDir 为 undefined,覆盖 tsconfig.json 中的值
-                // 让 Rollup 自己处理 JS 文件的输出
-                outDir: undefined,
-                // 避免 @rollup/plugin-typescript 在缺少 tsconfig 时的根目录推断失败
-                rootDir: cleanedCO?.rootDir ?? 'src',
-                // 性能优化: 禁用不必要的检查
-                skipLibCheck: true,
-                // 性能优化: 只编译必要的文件
-                isolatedModules: !emitDts
-              }
-            })
-
-            // 如果需要生成 DTS，包装插件以添加进度日志
-            if (emitDts) {
-              const wrappedPlugin = this.wrapPluginWithProgress(newPlugin, 'TypeScript 类型定义')
-              transformedPlugins.push(wrappedPlugin)
-            } else {
-              transformedPlugins.push(newPlugin)
-            }
-          } else {
-            // 其他插件正常处理
-            const actualPlugin = await plugin.plugin()
-            transformedPlugins.push(actualPlugin)
-          }
-        }
-        // 如果插件有 rollup 特定配置，使用它
-        else if (plugin.rollup) {
-          // UMD/IIFE 禁止纯 dts 插件，但保留 typescript 插件
-          const rnameLc = String(plugin.rollup.name || '').toLowerCase()
-          if (!emitDts && rnameLc.includes('dts') && !rnameLc.includes('typescript')) {
-            continue
-          }
-          transformedPlugins.push({ ...plugin, ...plugin.rollup })
-        }
-        // 直接使用已实例化的插件
-        else {
-          // UMD/IIFE 禁止纯 dts 插件，但保留 typescript 插件
-          const inameLc = String((plugin as any)?.name || '').toLowerCase()
-          if (!emitDts && inameLc.includes('dts') && !inameLc.includes('typescript')) {
-            continue
-          }
-          transformedPlugins.push(plugin)
-        }
-      } catch (error) {
-        this.logger.warn(`插件 ${plugin.name || 'unknown'} 加载失败:`, (error as Error).message)
-      }
-    }
-
-    return transformedPlugins
   }
 
   /**
@@ -950,239 +784,8 @@ export class RollupAdapter implements IBundlerAdapter {
 
 
 
-  /**
-   * 判断是否启用构建缓存
-   */
-  private isCacheEnabled(config: any): boolean {
-    const c = (config as any)?.cache
-    if (c === false) return false
-    if (typeof c === 'object' && c) {
-      if ('enabled' in c) return (c as any).enabled !== false
-    }
-    return true
-  }
-  /**
-   * 验证输出产物是否存在
-   * 检查关键输出文件是否存在，如果不存在则缓存应该失效
-   */
-  private async validateOutputArtifacts(config: any): Promise<boolean> {
-    try {
-      const fs = await import('fs-extra')
-
-      // 获取输出配置 - 使用 any 类型避免类型问题
-      const outputConfig = config.output || {}
-      const outputDir = config.outDir || 'dist'
-
-      // 检查主要输出文件
-      const mainOutputFiles: string[] = []
-
-      // ESM 输出
-      if (outputConfig.esm) {
-        const esmDir = typeof outputConfig.esm === 'object' && outputConfig.esm.dir
-          ? outputConfig.esm.dir
-          : (outputConfig.esm === true ? 'es' : outputDir)
-        mainOutputFiles.push(path.join(esmDir, 'index.js'))
-      }
-
-      // CJS 输出
-      if (outputConfig.cjs) {
-        const cjsDir = typeof outputConfig.cjs === 'object' && outputConfig.cjs.dir
-          ? outputConfig.cjs.dir
-          : (outputConfig.cjs === true ? 'lib' : outputDir)
-        mainOutputFiles.push(path.join(cjsDir, 'index.cjs'))
-      }
-
-      // UMD 输出
-      if (outputConfig.umd) {
-        const umdDir = typeof outputConfig.umd === 'object' && outputConfig.umd.dir
-          ? outputConfig.umd.dir
-          : outputDir
-        mainOutputFiles.push(path.join(umdDir, 'index.umd.js'))
-      }
-
-      // 检查通用格式配置
-      if (outputConfig.format) {
-        const formats = Array.isArray(outputConfig.format) ? outputConfig.format : [outputConfig.format]
-        for (const format of formats) {
-          if (format === 'esm' && !outputConfig.esm) {
-            mainOutputFiles.push(path.join(outputDir, 'index.js'))
-          } else if (format === 'cjs' && !outputConfig.cjs) {
-            mainOutputFiles.push(path.join(outputDir, 'index.cjs'))
-          } else if (format === 'umd' && !outputConfig.umd) {
-            mainOutputFiles.push(path.join(outputDir, 'index.js'))
-          }
-        }
-      }
-
-      // 如果没有配置输出格式，检查默认输出
-      if (mainOutputFiles.length === 0) {
-        mainOutputFiles.push(path.join(outputDir, 'index.js'))
-      }
-
-      // 检查至少一个主要输出文件是否存在
-      for (const outputFile of mainOutputFiles) {
-        const fullPath = path.isAbsolute(outputFile)
-          ? outputFile
-          : path.resolve(process.cwd(), outputFile)
-
-        if (await fs.pathExists(fullPath)) {
-          this.logger.debug(`输出产物验证通过: ${fullPath}`)
-          return true
-        }
-      }
-
-      this.logger.debug(`输出产物验证失败，未找到任何主要输出文件: ${mainOutputFiles.join(', ')}`)
-      return false
-    } catch (error) {
-      this.logger.warn(`验证输出产物时出错: ${(error as Error).message}`)
-      // 出错时保守处理，认为产物不存在
-      return false
-    }
-  }
-
-  /**
-   * 检查源文件是否被修改
-   * 通过比较源文件的修改时间与缓存时间来判断
-   */
-  private async checkSourceFilesModified(config: any, cachedResult: BuildResult): Promise<boolean> {
-    try {
-      const fs = await import('fs-extra')
-      const glob = await import('fast-glob')
-
-      // 获取缓存时间戳
-      const cacheTime = cachedResult.cache?.timestamp || cachedResult.timestamp || 0
-      if (!cacheTime) {
-        // 如果没有缓存时间戳，保守处理认为已修改
-        return true
-      }
-
-      // 获取源文件路径模式
-      const input = config.input || 'src/index.ts'
-      const sourcePatterns: string[] = []
-
-      if (typeof input === 'string') {
-        // 单入口：扫描 src 目录
-        const srcDir = path.dirname(input)
-        sourcePatterns.push(`${srcDir}/**/*.{ts,tsx,js,jsx,vue,css,less,scss,sass}`)
-      } else if (Array.isArray(input)) {
-        // 多入口数组
-        input.forEach(entry => {
-          if (typeof entry === 'string') {
-            sourcePatterns.push(entry)
-          }
-        })
-      } else if (typeof input === 'object') {
-        // 入口对象
-        Object.values(input).forEach(entry => {
-          if (typeof entry === 'string') {
-            sourcePatterns.push(entry)
-          }
-        })
-      }
-
-      // 如果没有模式，使用默认
-      if (sourcePatterns.length === 0) {
-        sourcePatterns.push('src/**/*.{ts,tsx,js,jsx,vue,css,less,scss,sass}')
-      }
-
-      // 扫描源文件
-      const sourceFiles = await glob.glob(sourcePatterns, {
-        cwd: process.cwd(),
-        absolute: true,
-        ignore: ['**/node_modules/**', '**/*.d.ts', '**/*.test.*', '**/*.spec.*']
-      })
-
-      // 检查每个源文件的修改时间
-      for (const file of sourceFiles) {
-        try {
-          const stat = await fs.stat(file)
-          if (stat.mtimeMs > cacheTime) {
-            this.logger.debug(`源文件已修改: ${path.relative(process.cwd(), file)}`)
-            return true
-          }
-        } catch (err) {
-          // 文件可能被删除，认为已修改
-          return true
-        }
-      }
-
-      // 所有源文件都未修改
-      return false
-    } catch (error) {
-      this.logger.warn(`检查源文件修改时出错: ${(error as Error).message}`)
-      // 出错时保守处理，认为已修改
-      return true
-    }
-  }
-
-  /**
-   * 解析 config.cache -> RollupCache 选项
-   */
-  private resolveCacheOptions(config: any): { cacheDir?: string; ttl?: number; maxSize?: number } {
-    const c = (config as any)?.cache
-    const opts: { cacheDir?: string; ttl?: number; maxSize?: number } = {}
-    if (typeof c === 'object' && c) {
-      if (typeof c.dir === 'string' && c.dir.trim()) {
-        opts.cacheDir = path.isAbsolute(c.dir) ? c.dir : path.resolve(process.cwd(), c.dir)
-      }
-      if (typeof c.maxAge === 'number' && isFinite(c.maxAge) && c.maxAge > 0) {
-        opts.ttl = Math.floor(c.maxAge)
-      }
-      if (typeof c.maxSize === 'number' && isFinite(c.maxSize) && c.maxSize > 0) {
-        opts.maxSize = Math.floor(c.maxSize)
-      }
-    }
-    return opts
-  }
 
 
-  /**
-   * 包装插件以添加进度日志
-   * 用于在 DTS 生成等耗时操作时提供进度反馈
-   */
-  private wrapPluginWithProgress(plugin: any, taskName: string): any {
-    const logger = this.logger
-    let fileCount = 0
-    let startTime = 0
-
-    return {
-      ...plugin,
-      name: plugin.name,
-
-      // 在构建开始时记录
-      buildStart(...args: any[]) {
-        startTime = Date.now()
-        fileCount = 0
-        logger.info(`开始生成 ${taskName}...`)
-
-        if (plugin.buildStart) {
-          return plugin.buildStart.apply(this, args)
-        }
-      },
-
-      // 在处理每个文件时记录
-      transform(...args: any[]) {
-        fileCount++
-        if (fileCount % 10 === 0) {
-          logger.debug(`${taskName}: 已处理 ${fileCount} 个文件...`)
-        }
-
-        if (plugin.transform) {
-          return plugin.transform.apply(this, args)
-        }
-      },
-
-      // 在构建结束时记录
-      buildEnd(...args: any[]) {
-        const duration = Date.now() - startTime
-        logger.success(`${taskName} 生成完成 (${fileCount} 个文件, ${duration}ms)`)
-
-        if (plugin.buildEnd) {
-          return plugin.buildEnd.apply(this, args)
-        }
-      }
-    }
-  }
 
   /**
    * 尝试加载 Acorn 插件（JSX 与 TypeScript），以便 Rollup 在插件转换之前也能解析相应语法
@@ -1340,394 +943,54 @@ export class RollupAdapter implements IBundlerAdapter {
   }
 
   /**
-   * 映射输出格式
+   * 解析 Banner 配置
+   * 委托给 RollupBannerGenerator 处理
    */
-  private mapFormat(format: any): string {
-    if (typeof format === 'string') {
-      const formatMap: Record<string, string> = {
-        esm: 'es',
-        cjs: 'cjs',
-        umd: 'umd',
-        iife: 'iife'
-      }
-      return formatMap[format] || format
-    }
-    return 'es'
-  }
+  private async resolveBanners(config: UnifiedConfig): Promise<{
+    banner?: string
+    footer?: string
+    intro?: string
+    outro?: string
+  }> {
+    const bannerConfig = (config as any).banner
 
-  /**
-   * 检查是否为多入口构建
-   */
-  private isMultiEntryBuild(input: any): boolean {
-    // 如果input是数组，则为多入口
-    if (Array.isArray(input)) {
-      return input.length > 1
+    return {
+      banner: await this.bannerGenerator.resolveBanner(bannerConfig, config),
+      footer: await this.bannerGenerator.resolveFooter(bannerConfig),
+      intro: await this.bannerGenerator.resolveIntro(bannerConfig),
+      outro: await this.bannerGenerator.resolveOutro(bannerConfig)
     }
-
-    // 如果input是对象，则为多入口
-    if (typeof input === 'object' && input !== null) {
-      return Object.keys(input).length > 1
-    }
-
-    // 如果input是字符串且包含glob模式，可能为多入口
-    if (typeof input === 'string') {
-      // 检查是否包含glob通配符
-      return input.includes('*') || input.includes('?') || input.includes('[')
-    }
-
-    return false
   }
 
   /**
    * 创建 UMD 配置（返回常规版本和压缩版本的数组）
+   *
+   * 此方法现在委托给 RollupUMDBuilder 处理
    */
   private async createUMDConfig(config: UnifiedConfig, filteredInput?: string | string[] | Record<string, string>): Promise<any[]> {
-    // 检查顶层 umd 配置和 output.umd 配置的 enabled 字段
-    const topLevelUmd = (config as any).umd
-    const outputUmd = (config as any).output?.umd
-
-    // 如果顶层 umd.enabled === false，禁用 UMD
-    if (topLevelUmd && typeof topLevelUmd === 'object' && topLevelUmd.enabled === false) {
-      return [] // 通过顶层 umd.enabled: false 禁用 UMD，返回空数组
-    }
-
-    // 如果 output.umd.enabled === false，禁用 UMD
-    if (outputUmd && typeof outputUmd === 'object' && outputUmd.enabled === false) {
-      return [] // 通过 output.umd.enabled: false 禁用 UMD，返回空数组
-    }
-
-    // 处理 boolean 配置
-    let umdSection = topLevelUmd || outputUmd || {}
-    if (umdSection === true) {
-      umdSection = {} // 使用默认配置
-    } else if (umdSection === false) {
-      return [] // 禁用 UMD，返回空数组
-    } else if (typeof umdSection === 'object' && umdSection.enabled === false) {
-      return [] // 通过 enabled: false 禁用 UMD，返回空数组
-    }
-    const outputConfig = config.output || {}
-
-    // 确定 UMD 入口文件
-    const fs = await import('fs')
-    const path = await import('path')
-    const projectRoot = (config as any).root || (config as any).cwd || process.cwd()
-
-    // 优先使用 output.umd.input，然后是 umd.entry，最后是顶层 input
-    let umdEntry = umdSection.input || umdSection.entry || (typeof filteredInput === 'string' ? filteredInput : undefined)
-
-    // 如果有通配符，需要解析
-    if (umdEntry && (umdEntry.includes('*') || Array.isArray(umdEntry))) {
-      const resolved = await normalizeInput(umdEntry, projectRoot, config.exclude)
-      // UMD 必须是单入口
-      if (Array.isArray(resolved)) {
-        throw new Error('UMD 格式不支持多入口，请在配置中指定单个入口文件。例如: umd: { entry: "src/index.ts" }')
-      }
-      if (typeof resolved === 'object' && !Array.isArray(resolved)) {
-        throw new Error('UMD 格式不支持多入口配置。请指定单个入口文件，例如: umd: { entry: "src/index.ts" }')
-      }
-      umdEntry = resolved as string
-    }
-
-    // 如果未显式指定，优先使用 UMD 专用入口，然后回退到通用入口
-    if (!umdEntry) {
-      const candidates = [
-        'src/index-lib.ts',
-        'src/index-lib.js',
-        'src/index-umd.ts',
-        'src/index-umd.js',
-        'src/index.ts',
-        'src/index.js',
-        'src/main.ts',
-        'src/main.js',
-        'index.ts',
-        'index.js'
-      ]
-
-      for (const entry of candidates) {
-        if (fs.existsSync(path.resolve(projectRoot, entry))) {
-          umdEntry = entry
-          this.logger.info(`UMD 入口文件自动检测: ${entry}`)
-          break
-        }
-      }
-
-      // 如果没有找到候选文件，使用配置中的主入口文件
-      if (!umdEntry) {
-        // 尝试使用主入口文件
-        const mainInput = typeof config.input === 'string' ? config.input :
-          typeof filteredInput === 'string' ? filteredInput : null
-
-        if (mainInput && fs.existsSync(path.resolve(projectRoot, mainInput))) {
-          umdEntry = mainInput
-          this.logger.info(`UMD 入口文件使用主入口: ${mainInput}`)
-        } else {
-          // 最后的兜底
-          umdEntry = 'src/index.ts'
-          this.logger.warn(`未找到有效的 UMD 入口文件，使用默认值: ${umdEntry}`)
-        }
-      }
-    }
-
-    // 验证入口文件是否存在
-    if (!fs.existsSync(path.resolve(projectRoot, umdEntry))) {
-      throw new Error(`UMD 入口文件不存在: ${umdEntry}\n\n请检查：\n1. 确保文件存在于指定路径\n2. 或在配置中指定正确的入口文件: umd: { entry: "your-entry.ts" }\n3. 或禁用 UMD 构建: umd: { enabled: false }`)
-    }
-
-    // 确定 UMD 全局变量名
-    let umdName = umdSection.name || outputConfig.name
-    if (!umdName) {
-      // 尝试从 package.json 推断
-      try {
-        const packageJson = JSON.parse(fs.readFileSync(path.resolve(process.cwd(), 'package.json'), 'utf-8'))
-        umdName = this.generateUMDName(packageJson.name)
-      } catch {
-        umdName = 'MyLibrary'
-      }
-    }
-
-    // 创建 UMD 构建配置
+    // 获取基础插件和用户插件
     const basePlugins = await this.getBasePlugins(config)
-    const userPlugins = await this.transformPluginsForFormat(config.plugins || [], (umdSection.dir || 'dist'), { emitDts: false })
+    const umdSection = (config as any).umd || (config as any).output?.umd || {}
+    const userPlugins = await this.pluginManager.transformPluginsForFormat(
+      config.plugins || [],
+      (umdSection.dir || 'dist'),
+      { emitDts: false }
+    )
 
-    // 调试：打印 UMD 插件列表，确认没有 typescript/dts 插件
+    // 调试：打印 UMD 插件列表
     try {
       const names = [...(userPlugins || [])].map((p: any) => p?.name || '(anon)')
       this.logger.info(`[UMD] 有效插件: ${names.join(', ')}`)
     } catch { }
 
-    // 应用 Banner 和 Footer 配置
-    const bannerConfig = (config as any).banner
-    const banner = await this.resolveBanner(bannerConfig, config)
-    const footer = await this.resolveFooter(bannerConfig)
-
-    this.logger.info(`UMD Banner配置: ${JSON.stringify(bannerConfig)}`)
-    this.logger.info(`解析后的Banner: ${banner}`)
-
-    // 默认 UMD 全局变量映射（用于常见外部库）
-    const defaultGlobals: Record<string, string> = {
-      react: 'React',
-      'react-dom': 'ReactDOM',
-      'react/jsx-runtime': 'jsxRuntime',
-      'react/jsx-dev-runtime': 'jsxDevRuntime',
-      vue: 'Vue',
-      'vue-demi': 'VueDemi',
-      '@angular/core': 'ngCore',
-      '@angular/common': 'ngCommon',
-      preact: 'Preact',
-      'preact/hooks': 'preactHooks',
-      'preact/jsx-runtime': 'jsxRuntime',
-      'preact/jsx-dev-runtime': 'jsxDevRuntime',
-      'solid-js': 'Solid',
-      'solid-js/web': 'SolidWeb',
-      'solid-js/jsx-runtime': 'jsxRuntime',
-      svelte: 'Svelte',
-      lit: 'Lit',
-      'lit-html': 'litHtml'
-    }
-
-    const mergedGlobals = {
-      ...defaultGlobals,
-      ...(outputConfig.globals || {}),
-      ...(umdSection.globals || {})
-    }
-
-    // 根据入口自动推断默认 UMD 文件名
-    const defaultUmdFile = 'index.js'
-
-
-    // 创建两个 UMD 配置：常规版本和压缩版本
-    const baseConfig = {
-      input: umdEntry,
-      external: config.external,
-      treeshake: config.treeshake,
-      onwarn: this.getOnWarn(config)
-    }
-
-    const outputDir = umdSection.dir || 'dist'
-    const fileName = umdSection.fileName || defaultUmdFile
-    const baseFileName = fileName.replace(/\.js$/, '')
-
-    // 常规版本配置
-    const regularConfig = {
-      ...baseConfig,
-      plugins: [...basePlugins, ...userPlugins],
-      output: {
-        format: 'umd',
-        name: umdName,
-        file: `${outputDir}/${fileName}`,
-        inlineDynamicImports: true,
-        sourcemap: (umdSection.sourcemap ?? outputConfig.sourcemap),
-        globals: mergedGlobals,
-        exports: 'named',
-        assetFileNames: '[name].[ext]',
-        banner,
-        footer,
-        intro: await this.resolveIntro(bannerConfig),
-        outro: await this.resolveOutro(bannerConfig)
-      }
-    }
-
-    // 压缩版本配置
-    const terserPlugin = await this.getTerserPlugin()
-    const minifiedPlugins = terserPlugin ? [...basePlugins, ...userPlugins, terserPlugin] : [...basePlugins, ...userPlugins]
-
-    const minifiedConfig = {
-      ...baseConfig,
-      plugins: minifiedPlugins,
-      output: {
-        format: 'umd',
-        name: umdName,
-        file: `${outputDir}/${baseFileName}.min.js`,
-        inlineDynamicImports: true,
-        sourcemap: (umdSection.sourcemap ?? outputConfig.sourcemap),
-        globals: mergedGlobals,
-        exports: 'named',
-        assetFileNames: '[name].[ext]',
-        banner,
-        footer,
-        intro: await this.resolveIntro(bannerConfig),
-        outro: await this.resolveOutro(bannerConfig)
-      }
-    }
-
-    // 返回数组配置，Rollup 会分别构建两个版本
-    return [regularConfig, minifiedConfig]
-  }
-
-  /**
-   * 获取 Terser 压缩插件
-   */
-  private async getTerserPlugin(): Promise<any> {
-    try {
-      const { default: terser } = await import('@rollup/plugin-terser')
-      return terser({
-        compress: {
-          drop_console: false,
-          pure_funcs: ['console.log']
-        },
-        mangle: {
-          reserved: ['exports', 'require', 'module', '__dirname', '__filename']
-        },
-        format: {
-          comments: /^!/
-        }
-      })
-    } catch (error) {
-      this.logger.warn('Terser 插件不可用，跳过压缩:', error)
-      return null
-    }
-  }
-
-  /**
-   * 生成 UMD 全局变量名
-   */
-  private generateUMDName(packageName: string): string {
-    if (!packageName) return 'MyLibrary'
-
-    // 移除作用域前缀 (@scope/package -> package)
-    const name = packageName.replace(/^@[^/]+\//, '')
-
-    // 转换为 PascalCase
-    return name
-      .split(/[-_]/)
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
-      .join('')
-  }
-
-  /**
-   * 解析 Banner
-   */
-  private async resolveBanner(bannerConfig: any, config?: any): Promise<string | undefined> {
-    // 显式禁用
-    if (bannerConfig === false) return undefined
-
-    const banners: string[] = []
-
-    // 自定义 Banner
-    if (bannerConfig && typeof bannerConfig.banner === 'function') {
-      const customBanner = await bannerConfig.banner()
-      if (customBanner) banners.push(customBanner)
-    } else if (bannerConfig && typeof bannerConfig.banner === 'string' && bannerConfig.banner) {
-      banners.push(bannerConfig.banner)
-    }
-
-    // 自动生成版权信息
-    if (bannerConfig && (bannerConfig as any).copyright) {
-      const copyright = this.generateCopyright((bannerConfig as any).copyright)
-      if (copyright) banners.push(copyright)
-    }
-
-    // 自动生成构建信息
-    if (bannerConfig && (bannerConfig as any).buildInfo) {
-      const buildInfo = await this.generateBuildInfo((bannerConfig as any).buildInfo)
-      if (buildInfo) banners.push(buildInfo)
-    }
-
-    if (banners.length > 0) return banners.join('\n')
-
-    // 未提供任何 banner 配置时，自动生成默认 banner（从 package.json 推断）
-    try {
-      const projectInfo = await BannerGenerator.getProjectInfo()
-      const auto = BannerGenerator.generate({
-        bundler: this.name,
-        bundlerVersion: this.version !== 'unknown' ? this.version : undefined,
-        ...projectInfo,
-        buildMode: (config as any)?.mode || process.env.NODE_ENV || 'production',
-        minified: Boolean((config as any)?.minify)
-      })
-      return auto
-    } catch {
-      return undefined
-    }
-  }
-
-  /**
-   * 解析 Footer
-   */
-  private async resolveFooter(bannerConfig: any): Promise<string | undefined> {
-    if (bannerConfig === false) return undefined
-    if (bannerConfig && typeof bannerConfig.footer === 'function') {
-      return await bannerConfig.footer()
-    }
-    if (bannerConfig && typeof bannerConfig.footer === 'string') {
-      return bannerConfig.footer
-    }
-    // 默认 Footer（未提供时自动生成）
-    try {
-      const info = await BannerGenerator.getProjectInfo()
-      if (info.projectName) {
-        return `/*! End of ${info.projectName} | Powered by @ldesign/builder */`
-      }
-    } catch { }
-    return '/*! Powered by @ldesign/builder */'
-  }
-
-  /**
-   * 解析 Intro
-   */
-  private async resolveIntro(bannerConfig: any): Promise<string | undefined> {
-    if (!bannerConfig) return undefined
-    if (typeof bannerConfig.intro === 'function') {
-      return await bannerConfig.intro()
-    }
-    if (typeof bannerConfig.intro === 'string') {
-      return bannerConfig.intro
-    }
-    return undefined
-  }
-
-  /**
-   * 解析 Outro
-   */
-  private async resolveOutro(bannerConfig: any): Promise<string | undefined> {
-    if (!bannerConfig) return undefined
-    if (typeof bannerConfig.outro === 'function') {
-      return await bannerConfig.outro()
-    }
-    if (typeof bannerConfig.outro === 'string') {
-      return bannerConfig.outro
-    }
-    return undefined
+    // 委托给 RollupUMDBuilder 处理
+    return await this.umdBuilder.createUMDConfig(
+      config,
+      filteredInput,
+      basePlugins,
+      userPlugins,
+      (cfg) => this.getOnWarn(cfg)
+    )
   }
 
   /**
@@ -1793,288 +1056,90 @@ export class RollupAdapter implements IBundlerAdapter {
   }
 
   /**
-   * 生成版权信息
-   */
-  private generateCopyright(copyrightConfig: any): string {
-    const config = typeof copyrightConfig === 'object' ? copyrightConfig : {}
-    const year = config.year || new Date().getFullYear()
-    const owner = config.owner || 'Unknown'
-    const license = config.license || 'MIT'
-
-    if (config.template) {
-      return config.template
-        .replace(/\{year\}/g, year)
-        .replace(/\{owner\}/g, owner)
-        .replace(/\{license\}/g, license)
-    }
-
-    return `/*!\n * Copyright (c) ${year} ${owner}\n * Licensed under ${license}\n */`
-  }
-
-  /**
-   * 生成构建信息
-   */
-  private async generateBuildInfo(buildInfoConfig: any): Promise<string> {
-    const config = typeof buildInfoConfig === 'object' ? buildInfoConfig : {}
-    const parts: string[] = []
-
-    if (config.version !== false) {
-      try {
-        const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf-8'))
-        parts.push(`Version: ${packageJson.version}`)
-      } catch {
-        // 忽略错误
-      }
-    }
-
-    if (config.buildTime !== false) {
-      parts.push(`Built: ${new Date().toISOString()}`)
-    }
-
-    if (config.environment !== false) {
-      parts.push(`Environment: ${process.env.NODE_ENV || 'development'}`)
-    }
-
-    if (config.git !== false) {
-      try {
-        const commit = execSync('git rev-parse --short HEAD', { encoding: 'utf-8' }).trim()
-        parts.push(`Commit: ${commit}`)
-      } catch {
-        // 忽略错误
-      }
-    }
-
-    if (config.template) {
-      return config.template
-    }
-
-    return parts.length > 0 ? `/*!\n * ${parts.join('\n * ')}\n */` : ''
-  }
-
-  /**
-   * 复制 DTS 文件到所有格式的输出目录
-   * 确保 ESM 和 CJS 格式都有完整的类型定义文件
-   */
-  private async copyDtsFiles(config: BuilderConfig): Promise<void> {
-    const fs = await import('fs-extra')
-    const path = await import('path')
-
-    // 获取输出配置
-    const outputConfig = config.output || {}
-    const esmDir = (typeof outputConfig.esm === 'object' ? outputConfig.esm.dir : 'es') || 'es'
-    const cjsDir = (typeof outputConfig.cjs === 'object' ? outputConfig.cjs.dir : 'lib') || 'lib'
-
-    // 如果两个目录相同，不需要复制
-    if (esmDir === cjsDir) {
-      return
-    }
-
-    // 如果没有启用 CJS 输出，不需要复制
-    if (!outputConfig.cjs) {
-      return
-    }
-
-    // 确定源目录和目标目录
-    // ESM 目录有 .d.ts 文件，需要复制到 CJS 目录并重命名为 .d.cts
-    const sourceDir = path.resolve(process.cwd(), esmDir)
-    const targetDir = path.resolve(process.cwd(), cjsDir)
-
-    // 检查源目录是否存在
-    if (!await fs.pathExists(sourceDir)) {
-      return
-    }
-
-    try {
-      // 递归查找所有 .d.ts 文件
-      const dtsFiles = await this.findDtsFiles(sourceDir)
-
-      if (dtsFiles.length === 0) {
-        return
-      }
-
-      this.logger.debug(`复制 ${dtsFiles.length} 个 DTS 文件从 ${esmDir} 到 ${cjsDir} (重命名为 .d.cts)...`)
-
-      // 复制每个 DTS 文件并重命名
-      for (const dtsFile of dtsFiles) {
-        const relativePath = path.relative(sourceDir, dtsFile)
-        // 将 .d.ts 替换为 .d.cts
-        const targetRelativePath = relativePath.replace(/\.d\.ts$/, '.d.cts')
-        const targetPath = path.join(targetDir, targetRelativePath)
-
-        // 确保目标目录存在
-        await fs.ensureDir(path.dirname(targetPath))
-
-        // 复制文件
-        await fs.copy(dtsFile, targetPath, { overwrite: true })
-      }
-
-      this.logger.debug(`DTS 文件复制完成 (${dtsFiles.length} 个文件)`)
-    } catch (error) {
-      this.logger.warn(`复制 DTS 文件失败:`, (error as Error).message)
-    }
-  }
-
-  /**
-   * 递归查找目录中的所有 .d.ts 文件
-   */
-  private async findDtsFiles(dir: string): Promise<string[]> {
-    const fs = await import('fs-extra')
-    const path = await import('path')
-    const files: string[] = []
-
-    try {
-      const entries = await fs.readdir(dir, { withFileTypes: true })
-
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name)
-
-        if (entry.isDirectory()) {
-          // 递归查找子目录
-          const subFiles = await this.findDtsFiles(fullPath)
-          files.push(...subFiles)
-        } else if (entry.isFile() && entry.name.endsWith('.d.ts')) {
-          // 添加 .d.ts 文件
-          files.push(fullPath)
-        }
-      }
-    } catch (error) {
-      // 忽略错误
-    }
-
-    return files
-  }
-
-  /**
-   * 创建样式文件重组插件 (TDesign 风格)
+   * 处理 UMD 配置逻辑
+   * 提取复杂的 UMD 配置判断逻辑，减少嵌套
    *
-   * 将组件目录下的 CSS 文件移动到 style/ 子目录,并生成 style/css.mjs 文件
-   *
-   * @param outputDir - 输出目录
-   * @returns Rollup 插件
+   * @param config - 统一配置
+   * @param filteredInput - 过滤后的输入
+   * @param formats - 输出格式数组
+   * @param isMultiEntry - 是否为多入口构建
+   * @returns UMD 配置（可能为 null、单个配置或配置数组）
    */
-  private createStyleReorganizePlugin(outputDir: string): any {
-    return {
-      name: 'style-reorganize',
-      async writeBundle() {
-        console.log('[style-reorganize] 插件开始执行...')
-        const outputPath = path.resolve(process.cwd(), outputDir)
-        console.log('[style-reorganize] 输出路径:', outputPath)
+  private async handleUMDConfig(
+    config: UnifiedConfig,
+    filteredInput: any,
+    formats: any[],
+    isMultiEntry: boolean
+  ): Promise<RollupOptions | RollupOptions[] | null> {
+    const umdSettings = (config as any).umd
+    const hasUMDFormat = formats.includes('umd')
+    const hasUMDSection = Boolean(umdSettings || (config as any).output?.umd)
 
-        // 遍历输出目录,找到所有 CSS 文件
-        const processDirectory = async (dir: string) => {
-          const entries = await fsPromises.readdir(dir, { withFileTypes: true })
-
-          for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name)
-
-            if (entry.isDirectory()) {
-              // 跳过已经是 style 目录的
-              if (entry.name !== 'style') {
-                await processDirectory(fullPath)
-              }
-            } else if (entry.isFile() && entry.name.endsWith('.css')) {
-              console.log('[style-reorganize] 找到 CSS 文件:', fullPath)
-              // 找到 CSS 文件,检查是否在 style/ 目录中
-              const parentDir = path.dirname(fullPath)
-              const parentDirName = path.basename(parentDir)
-
-              if (parentDirName !== 'style') {
-                // CSS 文件不在 style/ 目录中,需要重组
-                const styleDir = path.join(parentDir, 'style')
-                const newCssPath = path.join(styleDir, 'index.css')
-                const cssMapPath = `${fullPath}.map`
-                const newCssMapPath = `${newCssPath}.map`
-                const cssMjsPath = path.join(styleDir, 'css.mjs')
-
-                console.log('[style-reorganize] 开始重组:', fullPath)
-
-                // 创建 style/ 目录
-                await fsPromises.mkdir(styleDir, { recursive: true })
-
-                // 移动 CSS 文件
-                await fsPromises.rename(fullPath, newCssPath)
-
-                // 移动 CSS map 文件(如果存在)
-                if (fs.existsSync(cssMapPath)) {
-                  await fsPromises.rename(cssMapPath, newCssMapPath)
-                }
-
-                // 生成 style/css.mjs 文件
-                const cssMjsContent = `import './index.css';\n`
-                await fsPromises.writeFile(cssMjsPath, cssMjsContent, 'utf-8')
-
-                console.log(`[style-reorganize] ✓ 重组完成: ${path.relative(outputPath, fullPath)} -> ${path.relative(outputPath, newCssPath)}`)
-              }
-            }
-          }
-        }
-
-        try {
-          await processDirectory(outputPath)
-          console.log('[style-reorganize] 插件执行完成')
-        } catch (error) {
-          console.error('[style-reorganize] 错误:', error)
-        }
-      }
+    // 多入口构建的 UMD 处理
+    if (isMultiEntry) {
+      return this.handleMultiEntryUMD(config, filteredInput, hasUMDFormat, umdSettings, formats)
     }
+
+    // 单入口构建的 UMD 处理
+    if (hasUMDFormat || umdSettings?.enabled || hasUMDSection) {
+      return await this.createUMDConfig(config, filteredInput)
+    }
+
+    return null
   }
 
   /**
-   * 创建 ESM 样式清理插件 (TDesign 风格)
+   * 处理多入口构建的 UMD 配置
    *
-   * 删除 ESM 产物中的 style/ 目录和 CSS 文件
-   * 根据 TDesign Vue Next 的实际结构,ESM 产物不应该包含样式文件
-   *
-   * @param outputDir - 输出目录
-   * @returns Rollup 插件
+   * @param config - 统一配置
+   * @param filteredInput - 过滤后的输入
+   * @param hasUMDFormat - 格式数组中是否包含 UMD
+   * @param umdSettings - UMD 配置对象
+   * @param originalFormats - 原始格式数组
+   * @returns UMD 配置或 null
    */
-  private createEsmStyleCleanupPlugin(outputDir: string): any {
-    return {
-      name: 'esm-style-cleanup',
-      async writeBundle() {
-        console.log('[esm-style-cleanup] 插件开始执行...')
-        const outputPath = path.resolve(process.cwd(), outputDir)
-        console.log('[esm-style-cleanup] 输出路径:', outputPath)
+  private async handleMultiEntryUMD(
+    config: UnifiedConfig,
+    filteredInput: any,
+    hasUMDFormat: boolean,
+    umdSettings: any,
+    originalFormats: any[]
+  ): Promise<RollupOptions | RollupOptions[] | null> {
+    const forceUMD = umdSettings?.forceMultiEntry || false
+    const umdEnabled = umdSettings?.enabled
 
-        // 遍历输出目录,删除所有 style/ 目录和 CSS 文件
-        const processDirectory = async (dir: string) => {
-          const entries = await fsPromises.readdir(dir, { withFileTypes: true })
+    this.logger.info(
+      `多入口项目UMD检查: hasUMD=${hasUMDFormat}, forceUMD=${forceUMD}, umdEnabled=${umdEnabled}`
+    )
 
-          for (const entry of entries) {
-            const fullPath = path.join(dir, entry.name)
-
-            if (entry.isDirectory()) {
-              // 删除 style 目录
-              if (entry.name === 'style') {
-                console.log('[esm-style-cleanup] 删除 style 目录:', fullPath)
-                await fsPromises.rm(fullPath, { recursive: true, force: true })
-              } else {
-                // 递归处理子目录
-                await processDirectory(fullPath)
-              }
-            } else if (entry.isFile() && entry.name.endsWith('.css')) {
-              // 删除 CSS 文件
-              console.log('[esm-style-cleanup] 删除 CSS 文件:', fullPath)
-              await fsPromises.unlink(fullPath)
-
-              // 删除对应的 source map 文件
-              const cssMapPath = `${fullPath}.map`
-              if (fs.existsSync(cssMapPath)) {
-                console.log('[esm-style-cleanup] 删除 CSS map 文件:', cssMapPath)
-                await fsPromises.unlink(cssMapPath)
-              }
-            }
-          }
-        }
-
-        try {
-          await processDirectory(outputPath)
-          console.log('[esm-style-cleanup] 插件执行完成')
-        } catch (error) {
-          console.error('[esm-style-cleanup] 错误:', error)
-        }
-      }
+    // 强制启用 UMD
+    if (hasUMDFormat && forceUMD) {
+      this.logger.info('多入口项目强制启用 UMD 构建')
+      return await this.createUMDConfig(config, filteredInput)
     }
-  }
 
+    // 格式中包含 UMD 且未禁用
+    if (hasUMDFormat && umdEnabled !== false) {
+      this.logger.info('为多入口项目创建独立的 UMD 构建')
+      return await this.createUMDConfig(config, filteredInput)
+    }
+
+    // 显式启用 UMD
+    if (umdEnabled) {
+      this.logger.info('根据UMD配置为多入口项目创建 UMD 构建')
+      return await this.createUMDConfig(config, filteredInput)
+    }
+
+    // 检查是否有被过滤的格式
+    const filteredFormats = originalFormats.filter(
+      (format: any) => format === 'umd' || format === 'iife'
+    )
+    if (filteredFormats.length > 0) {
+      this.logger.warn(
+        `多入口构建不支持 ${filteredFormats.join(', ')} 格式，已自动过滤`
+      )
+    }
+
+    return null
+  }
 }

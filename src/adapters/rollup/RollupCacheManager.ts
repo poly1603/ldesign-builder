@@ -154,9 +154,93 @@ export class RollupCacheManager {
   async getCachedBuildResult(cacheKey: any): Promise<any> {
     try {
       return await this.cache.getBuildResult(cacheKey)
-    } catch (error) {
+    }
+    catch (error) {
       this.logger.debug('获取缓存失败:', (error as Error).message)
       return null
+    }
+  }
+
+  /**
+   * 检查源文件是否被修改
+   *
+   * 通过比较源文件的修改时间与缓存时间来判断
+   *
+   * @param config - 构建配置
+   * @param cachedResult - 缓存的构建结果
+   * @returns 源文件是否被修改
+   */
+  async checkSourceFilesModified(config: any, cachedResult: BuildResult): Promise<boolean> {
+    try {
+      const glob = await import('fast-glob')
+
+      // 获取缓存时间戳
+      const cacheTime = cachedResult.cache?.timestamp || cachedResult.timestamp || 0
+      if (!cacheTime) {
+        // 如果没有缓存时间戳，保守处理认为已修改
+        return true
+      }
+
+      // 获取源文件路径模式
+      const input = config.input || 'src/index.ts'
+      const sourcePatterns: string[] = []
+
+      if (typeof input === 'string') {
+        // 单入口：扫描 src 目录
+        const srcDir = path.dirname(input)
+        sourcePatterns.push(`${srcDir}/**/*.{ts,tsx,js,jsx,vue,css,less,scss,sass}`)
+      }
+      else if (Array.isArray(input)) {
+        // 多入口数组
+        input.forEach((entry) => {
+          if (typeof entry === 'string') {
+            sourcePatterns.push(entry)
+          }
+        })
+      }
+      else if (typeof input === 'object') {
+        // 入口对象
+        Object.values(input).forEach((entry) => {
+          if (typeof entry === 'string') {
+            sourcePatterns.push(entry)
+          }
+        })
+      }
+
+      // 如果没有模式，使用默认
+      if (sourcePatterns.length === 0) {
+        sourcePatterns.push('src/**/*.{ts,tsx,js,jsx,vue,css,less,scss,sass}')
+      }
+
+      // 扫描源文件
+      const sourceFiles = await glob.glob(sourcePatterns, {
+        cwd: process.cwd(),
+        absolute: true,
+        ignore: ['**/node_modules/**', '**/*.d.ts', '**/*.test.*', '**/*.spec.*']
+      })
+
+      // 检查每个源文件的修改时间
+      for (const file of sourceFiles) {
+        try {
+          const stat = await fs.stat(file)
+          if (stat.mtimeMs > cacheTime) {
+            this.logger.debug(`源文件已修改: ${path.relative(process.cwd(), file)}`)
+            return true
+          }
+        }
+        catch (err) {
+          // 文件可能被删除，认为已修改
+          return true
+        }
+      }
+
+      // 所有源文件都未修改
+      return false
+    }
+    catch (error) {
+      this.logger.warn(`检查源文件修改时出错: ${(error as Error).message}`)
+      // 出错时保守处理，认为已修改
+      return true
     }
   }
 }

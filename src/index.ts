@@ -55,14 +55,14 @@ export * from './constants'
 
 // 工具函数导出
 export * from './utils'
-export { MemoryOptimizer, getGlobalMemoryOptimizer } from './utils/memory-optimizer'
-export type { MemoryStats, MemoryConfig } from './utils/memory-optimizer'
-export { createIncrementalBuildManager, IncrementalBuildManager } from './utils/incremental-build-manager'
-export { createParallelProcessor, ParallelProcessor } from './utils/parallel-processor'
-export { createBuildReportGenerator, BuildReportGenerator } from './utils/build-report-generator'
-export { createBundleAnalyzer, BundleAnalyzer } from './utils/bundle-analyzer'
-export { createSmartWatcher, SmartWatcher } from './utils/smart-watcher'
-export { createOutputNormalizer, OutputNormalizer } from './utils/output-normalizer'
+export { MemoryOptimizer, getGlobalMemoryOptimizer } from './utils/memory/MemoryOptimizer'
+export type { MemoryStats, MemoryConfig } from './utils/memory/MemoryOptimizer'
+export { createIncrementalBuildManager, IncrementalBuildManager } from './utils/build/IncrementalBuildManager'
+export { createParallelProcessor, ParallelProcessor } from './utils/parallel/ParallelProcessor'
+export { createBuildReportGenerator, BuildReportGenerator } from './utils/build/BuildReportGenerator'
+export { createBundleAnalyzer, BundleAnalyzer } from './utils/optimization/BundleAnalyzer'
+export { createSmartWatcher, SmartWatcher } from './utils/misc/SmartWatcher'
+export { createOutputNormalizer, OutputNormalizer } from './utils/formatters/OutputNormalizer'
 // 错误处理器已合并到 error-handler/ 目录
 export { tailwindPlugin } from './plugins/tailwind'
 export { cssInJSPlugin } from './plugins/css-in-js'
@@ -72,7 +72,7 @@ export { createInteractiveConfigGenerator, InteractiveConfigGenerator } from './
 
 // 便捷函数
 export { defineAsyncConfig } from './utils/config'
-export { createBuilder } from './utils/factory'
+export { createBuilder } from './utils/misc/factory'
 
 // 极简配置系统
 export { defineConfig, autoConfig, SmartConfigGenerator } from './config/minimal-config'
@@ -90,24 +90,20 @@ export { ConfigNormalizer, createConfigNormalizer, normalizeConfig } from './con
 export type { NormalizationWarning, NormalizationResult } from './config/config-normalizer'
 
 // 配置检查工具导出
-export { ConfigLinter, createConfigLinter, lintConfigs } from './utils/config-linter'
-export type { LintResult, LintSummary } from './utils/config-linter'
+export { ConfigLinter, createConfigLinter, lintConfigs } from './utils/misc/ConfigLinter'
+export type { LintResult, LintSummary } from './utils/misc/ConfigLinter'
 
 // Zod Schema 验证导出
 export { BuilderConfigSchema, validateConfig, formatZodErrors, getConfigDefaults, mergeConfigWithValidation } from './config/zod-schema'
 export type { InferredBuilderConfig } from './config/zod-schema'
 
 // 缓存管理器导出
-export { MultilayerCache, createMultilayerCache } from './utils/cache-manager'
-export type { CacheEntry, CacheStats, MultilayerCacheOptions } from './utils/cache-manager'
-
-// 并行执行器导出
-export { AdvancedParallelExecutor as ParallelExecutor, createAdvancedParallelExecutor as createParallelExecutor } from './utils/parallel-executor'
-export type { TaskNode, TaskExecutionResult, SchedulingStrategy, AdvancedParallelExecutorOptions as ParallelExecutorOptions } from './utils/parallel-executor'
+export { BuildCacheManager } from './utils/cache/BuildCacheManager'
+export type { CacheEntry, CacheStats, CacheConfig, CacheOperationResult } from './utils/cache/BuildCacheManager'
 
 // 内存泄漏检测器导出
-export { MemoryLeakDetector, createMemoryLeakDetector } from './utils/memory-leak-detector'
-export type { MemorySnapshot, MemoryLeakDetection, MemoryLeakDetectorOptions } from './utils/memory-leak-detector'
+export { MemoryLeakDetector, createMemoryLeakDetector } from './utils/memory/MemoryLeakDetector'
+export type { MemorySnapshot, MemoryLeakDetection, MemoryLeakDetectorOptions } from './utils/memory/MemoryLeakDetector'
 
 // 新框架策略导出
 export { AstroStrategy } from './strategies/astro/AstroStrategy'

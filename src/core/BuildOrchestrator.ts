@@ -28,8 +28,8 @@ import type { IBundlerAdapter } from '../types/adapter'
 import { Logger } from '../utils/logger'
 import { ErrorHandler } from '../utils/error-handler'
 import { ErrorCode } from '../constants/errors'
-import { PackageUpdater } from '../utils/package-updater'
-import { getOutputDirs } from '../utils/glob'
+import { PackageUpdater } from '../utils/misc/PackageUpdater'
+import { getOutputDirs } from '../utils/file-system/glob'
 import fs from 'fs-extra'
 
 /**
@@ -38,22 +38,22 @@ import fs from 'fs-extra'
 export interface BuildOrchestratorOptions {
   /** 日志记录器 */
   logger?: Logger
-  
+
   /** 错误处理器 */
   errorHandler?: ErrorHandler
-  
+
   /** 默认打包器 */
   defaultBundler?: BundlerType
-  
+
   /** 配置解析器 */
   configResolver?: ConfigResolver
-  
+
   /** 策略管理器 */
   strategyManager?: StrategyManager
-  
+
   /** 性能监控器 */
   performanceMonitor?: PerformanceMonitor
-  
+
   /** 构建后验证器 */
   postBuildValidator?: PostBuildValidator
 
@@ -173,21 +173,21 @@ export class BuildOrchestrator {
     try {
       // 1. 解析配置
       const resolvedConfig = await this.resolveConfig(config)
-      
+
       // 2. 切换打包器 (如果需要)
       if (resolvedConfig.bundler && resolvedConfig.bundler !== this.bundlerAdapter.name) {
         this.switchBundler(resolvedConfig.bundler)
       }
-      
+
       // 3. 应用构建策略
       const strategyConfig = await this.applyStrategy(resolvedConfig)
-      
+
       // 4. 启动监听
       const watcher = await this.bundlerAdapter.watch(strategyConfig)
-      
+
       this.logger.info('监听模式已启动')
       return watcher
-      
+
     } catch (error) {
       throw this.errorHandler.createError(
         ErrorCode.BUILD_FAILED,
@@ -228,13 +228,13 @@ export class BuildOrchestrator {
   ): Promise<BuildResult> {
     // 开始性能监控
     this.performanceMonitor.startBuild(context.getBuildId())
-    
+
     // 执行打包
     const result = await this.bundlerAdapter.build(strategyConfig)
-    
+
     // 结束性能监控
     const metrics = this.performanceMonitor.endBuild(context.getBuildId())
-    
+
     // 保存性能指标和统计信息
     context.setMetrics(metrics)
     context.setStats(result.stats)
@@ -259,7 +259,7 @@ export class BuildOrchestrator {
     try {
       const dirs = getOutputDirs(config)
       this.logger.info(`清理输出目录: ${dirs.join(', ')}`)
-      
+
       for (const dir of dirs) {
         if (await fs.pathExists(dir)) {
           await fs.remove(dir)
@@ -343,7 +343,7 @@ export class BuildOrchestrator {
    */
   private handleBuildError(error: Error, buildId: string): Error {
     this.logger.error(`构建失败 [${buildId}]:`, error)
-    
+
     return this.errorHandler.createError(
       ErrorCode.BUILD_FAILED,
       '构建失败',

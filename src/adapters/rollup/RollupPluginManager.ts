@@ -8,7 +8,7 @@
 
 import type { BundlerSpecificPlugin } from '../../types/adapter'
 import type { Logger } from '../../utils/logger'
-import { wrapTypeScriptPlugin } from '../../utils/typescript-silent-plugin'
+import { wrapTypeScriptPlugin } from '../../utils/misc/TypeScriptSilentPlugin'
 
 /**
  * Rollup 插件管理器
@@ -102,18 +102,40 @@ export class RollupPluginManager {
     const typescript = await import('@rollup/plugin-typescript')
     const originalOptions = (plugin as any).options || {}
 
+    // 检查 originalOptions 的格式
+    // 如果有 compilerOptions 字段,说明是嵌套格式: { compilerOptions: {...}, ...rest }
+    // 如果没有,说明是扁平格式: { target: 'ES2020', module: 'ESNext', ... }
+    let compilerOpts: any
+    let otherOpts: any
+
+    if ('compilerOptions' in originalOptions) {
+      // 嵌套格式
+      const { compilerOptions, ...rest } = originalOptions
+      compilerOpts = compilerOptions || {}
+      otherOpts = rest
+    }
+    else {
+      // 扁平格式 - 所有选项都是 compiler options
+      compilerOpts = originalOptions
+      otherOpts = {}
+    }
+
     // 清理不支持的字段
-    const { tsconfigOverride: _ignored, compilerOptions: origCO = {}, tsconfig: _tsconfig, ...rest } = originalOptions as any
-    const { outDir: _outDir, ...cleanedCO } = origCO as any
+    const { outDir: _outDir, composite: _composite, incremental: _incremental, noEmit: _noEmit, tsconfigOverride: _ignored, ...cleanedCO } = compilerOpts as any
 
     const basePlugin = typescript.default({
-      ...rest,
+      ...otherOpts,
+      // 完全禁用 tsconfig 读取，只使用 compilerOptions
+      tsconfig: false,
       compilerOptions: {
         ...cleanedCO,
         declaration: emitDts,
         declarationMap: false,
         declarationDir: emitDts ? outputDir : undefined,
         outDir: undefined,
+        // 禁用 composite 和 incremental，因为 Rollup 不需要这些
+        composite: false,
+        incremental: false,
         rootDir: cleanedCO?.rootDir ?? 'src',
         skipLibCheck: true,
         isolatedModules: !emitDts,

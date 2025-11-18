@@ -15,7 +15,7 @@ import type { ILibraryStrategy } from '../../types/strategy'
 import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
-import { shouldMinify } from '../../utils/minify-processor'
+import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
 
 /**
  * TypeScript 库构建策略
