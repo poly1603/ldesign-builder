@@ -2,5 +2,5 @@
  * 插件统一导出
  */
 
-// 暂时为空，后续添加插件时在这里导出
-export { }
+export { vueStyleEntryGenerator } from './vue-style-entry-generator'
+export type { VueStyleEntryOptions } from './vue-style-entry-generator'

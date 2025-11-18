@@ -17,6 +17,7 @@ import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
 import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
+import { vueStyleEntryGenerator } from '../../plugins/vue-style-entry-generator'
 
 /**
  * Vue 3 组件库构建策略
@@ -373,6 +374,15 @@ export class Vue3Strategy implements ILibraryStrategy {
 
     // 添加 DTS 复制插件
     plugins.push(this.createDtsCopyPlugin(config))
+
+    // 添加 Vue 样式入口生成器插件
+    plugins.push(vueStyleEntryGenerator({
+      enabled: true,
+      outputDirs: ['cjs', 'esm', 'es'],
+      cssPattern: 'index.css',
+      generateDts: true,
+      verbose: config.logLevel !== 'silent',
+    }))
 
     return plugins
   }
