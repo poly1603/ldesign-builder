@@ -9,7 +9,7 @@
  */
 
 // 核心类导出
-export { LibraryBuilder, createLibraryBuilder } from './core/LibraryBuilder'
+export { LibraryBuilder } from './core/LibraryBuilder'
 export { MonorepoBuilder, createMonorepoBuilder } from './core/MonorepoBuilder'
 export { ConfigManager } from './core/ConfigManager'
 export { StrategyManager } from './core/StrategyManager'
@@ -66,7 +66,7 @@ export { createOutputNormalizer, OutputNormalizer } from './utils/formatters/Out
 // 错误处理器已合并到 error-handler/ 目录
 export { tailwindPlugin } from './plugins/tailwind'
 export { cssInJSPlugin } from './plugins/css-in-js'
-export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules-advanced'
+export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css-modules'
 export { createConfigSchemaValidator, ConfigSchemaValidator } from './config/schema-validator'
 export { createInteractiveConfigGenerator, InteractiveConfigGenerator } from './cli/interactive-init'
 
@@ -179,14 +179,14 @@ export type {
   OrchestrationConfig
 } from './optimizers/plugin-orchestrator/PluginOrchestrator'
 
-// 增强混合策略导出
+// 混合框架策略导出
 export {
-  EnhancedMixedStrategy,
-  createEnhancedMixedStrategy
-} from './strategies/mixed/EnhancedMixedStrategy'
+  MixedFrameworkStrategy,
+  createMixedFrameworkStrategy
+} from './strategies/mixed/MixedFrameworkStrategy'
 export type {
   MixedFrameworkConfig
-} from './strategies/mixed/EnhancedMixedStrategy'
+} from './strategies/mixed/MixedFrameworkStrategy'
 
 /**
  * 默认导出 - LibraryBuilder 类

@@ -8,15 +8,16 @@ import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
 import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
+import { BaseStrategy } from '../base/BaseStrategy'
 
-export class ReactStrategy implements ILibraryStrategy {
+export class ReactStrategy extends BaseStrategy implements ILibraryStrategy {
   readonly name = 'react'
   readonly supportedTypes = [LibraryType.REACT]
   readonly priority = 10
 
-  async applyStrategy(config: BuilderConfig): Promise<UnifiedConfig> {
-    // 解析入口配置
-    const resolvedInput = await this.resolveInputEntries(config)
+  override async applyStrategy(config: BuilderConfig): Promise<UnifiedConfig> {
+    // 使用基类的入口解析方法
+    const resolvedInput = await this.resolveInputEntriesEnhanced(config)
 
     return {
       input: resolvedInput,
@@ -28,11 +29,11 @@ export class ReactStrategy implements ILibraryStrategy {
     }
   }
 
-  isApplicable(config: BuilderConfig): boolean {
+  override isApplicable(config: BuilderConfig): boolean {
     return config.libraryType === LibraryType.REACT
   }
 
-  getDefaultConfig(): Partial<BuilderConfig> {
+  override getDefaultConfig(): Partial<BuilderConfig> {
     return {
       libraryType: LibraryType.REACT,
       output: { format: ['esm', 'cjs'], sourcemap: true },
@@ -40,8 +41,8 @@ export class ReactStrategy implements ILibraryStrategy {
     }
   }
 
-  getRecommendedPlugins(_config: BuilderConfig): any[] { return [] }
-  validateConfig(_config: BuilderConfig): any { return { valid: true, errors: [], warnings: [], suggestions: [] } }
+  override getRecommendedPlugins(_config: BuilderConfig): any[] { return [] }
+  override validateConfig(_config: BuilderConfig): any { return { valid: true, errors: [], warnings: [], suggestions: [] } }
 
   private async buildPlugins(config: BuilderConfig): Promise<any[]> {
     const plugins: any[] = []
@@ -101,83 +102,22 @@ export class ReactStrategy implements ILibraryStrategy {
     return { dir: out.dir || 'dist', format: formats, sourcemap: out.sourcemap !== false, exports: 'auto' }
   }
 
-  private createWarningHandler() {
+  protected override createWarningHandler() {
     return (warning: any) => { if (warning.code === 'THIS_IS_UNDEFINED' || warning.code === 'CIRCULAR_DEPENDENCY') return; console.warn(`Warning: ${warning.message}`) }
   }
 
   /**
-   * 解析入口配置
-   * - 若用户未传入 input，则将 src 下所有源文件作为入口（排除测试与声明文件）
-   * - 若用户传入 glob 模式的数组，则解析为多入口
-   * - 若用户传入单个文件或对象，则直接返回
+   * 获取默认入口文件
    */
-  private async resolveInputEntries(config: BuilderConfig): Promise<string | string[] | Record<string, string>> {
-    // 如果没有提供input，自动扫描src目录
-    if (!config.input) {
-      return this.autoDiscoverEntries()
-    }
-
-    // 如果是字符串数组且包含glob模式，解析为多入口
-    if (Array.isArray(config.input)) {
-      return this.resolveGlobEntries(config.input)
-    }
-
-    // 其他情况直接返回用户配置
-    return config.input
+  protected override getDefaultEntry(): string {
+    return 'src/index.ts'
   }
 
   /**
-   * 自动发现入口文件
+   * 获取默认扫描模式
    */
-  private async autoDiscoverEntries(): Promise<string | Record<string, string>> {
-    const { findFiles } = await import('../../utils/file-system')
-    const { relative, extname } = await import('path')
-
-    const files = await findFiles([
-      'src/**/*.{ts,tsx,js,jsx,json}'
-    ], {
-      cwd: process.cwd(),
-      ignore: ['**/*.d.ts', '**/*.test.*', '**/*.spec.*', '**/__tests__/**']
-    })
-
-    if (files.length === 0) return 'src/index.ts'
-
-    const entryMap: Record<string, string> = {}
-    for (const abs of files) {
-      const rel = relative(process.cwd(), abs)
-      const relFromSrc = rel.replace(/^src[\\/]/, '')
-      const noExt = relFromSrc.slice(0, relFromSrc.length - extname(relFromSrc).length)
-      const key = noExt.replace(/\\/g, '/')
-      entryMap[key] = abs
-    }
-    return entryMap
-  }
-
-  /**
-   * 解析glob模式的入口配置
-   */
-  private async resolveGlobEntries(patterns: string[]): Promise<Record<string, string>> {
-    const { findFiles } = await import('../../utils/file-system')
-    const { relative, extname } = await import('path')
-
-    const files = await findFiles(patterns, {
-      cwd: process.cwd(),
-      ignore: ['**/*.d.ts', '**/*.test.*', '**/*.spec.*', '**/__tests__/**']
-    })
-
-    if (files.length === 0) {
-      throw new Error(`No files found matching patterns: ${patterns.join(', ')}`)
-    }
-
-    const entryMap: Record<string, string> = {}
-    for (const abs of files) {
-      const rel = relative(process.cwd(), abs)
-      const relFromSrc = rel.replace(/^src[\\/]/, '')
-      const noExt = relFromSrc.slice(0, relFromSrc.length - extname(relFromSrc).length)
-      const key = noExt.replace(/\\/g, '/')
-      entryMap[key] = abs
-    }
-    return entryMap
+  protected override getDefaultPatterns(): string[] {
+    return ['src/**/*.{ts,tsx,js,jsx,json}']
   }
 
   /**

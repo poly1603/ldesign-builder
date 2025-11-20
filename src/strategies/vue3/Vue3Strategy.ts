@@ -16,29 +16,46 @@ import type { ILibraryStrategy } from '../../types/strategy'
 import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
-import { shouldMinify } from '../../utils/optimization/MinifyProcessor'
-import { vueStyleEntryGenerator } from '../../plugins/vue-style-entry-generator'
+import { BaseStrategy } from '../base/BaseStrategy'
+import { Vue3PluginBuilder } from './Vue3PluginBuilder'
+import { Vue3ConfigBuilder } from './Vue3ConfigBuilder'
+import { Vue3DtsGenerator } from './Vue3DtsGenerator'
 
 /**
  * Vue 3 组件库构建策略
  */
-export class Vue3Strategy implements ILibraryStrategy {
+export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
   readonly name = 'vue3'
   readonly supportedTypes: LibraryType[] = [LibraryType.VUE3]
   readonly priority = 10
 
+  // 模块化组件
+  private pluginBuilder: Vue3PluginBuilder
+  private configBuilder: Vue3ConfigBuilder
+  private dtsGenerator: Vue3DtsGenerator
+
+  constructor() {
+    super()
+    this.pluginBuilder = new Vue3PluginBuilder()
+    this.configBuilder = new Vue3ConfigBuilder()
+    this.dtsGenerator = new Vue3DtsGenerator()
+  }
+
   /**
    * 应用 Vue 3 策略
    */
-  async applyStrategy(config: BuilderConfig): Promise<UnifiedConfig> {
+  override async applyStrategy(config: BuilderConfig): Promise<UnifiedConfig> {
     // 解析入口配置
-    const resolvedInput = await this.resolveInputEntries(config)
+    const resolvedInput = await this.resolveInputEntriesEnhanced(config)
+
+    // 使用模块化构建器
+    const dtsCopyPlugin = this.dtsGenerator.createDtsCopyPlugin(config)
 
     const unifiedConfig: UnifiedConfig = {
       input: resolvedInput,
-      output: this.buildOutputConfig(config),
-      plugins: await this.buildPlugins(config),
-      external: this.buildExternals(config),
+      output: this.configBuilder.buildOutputConfig(config),
+      plugins: await this.pluginBuilder.buildPlugins(config, dtsCopyPlugin),
+      external: this.configBuilder.buildExternals(config),
       treeshake: config.performance?.treeshaking !== false,
       onwarn: this.createWarningHandler()
     }
@@ -49,14 +66,14 @@ export class Vue3Strategy implements ILibraryStrategy {
   /**
    * 检查策略是否适用
    */
-  isApplicable(config: BuilderConfig): boolean {
+  override isApplicable(config: BuilderConfig): boolean {
     return config.libraryType === LibraryType.VUE3
   }
 
   /**
    * 获取默认配置
    */
-  getDefaultConfig(): Partial<BuilderConfig> {
+  override getDefaultConfig(): Partial<BuilderConfig> {
     return {
       libraryType: LibraryType.VUE3,
       output: {
@@ -182,87 +199,6 @@ export class Vue3Strategy implements ILibraryStrategy {
       errors,
       warnings,
       suggestions
-    }
-  }
-
-  /**
-   * 构建输出配置
-   */
-  private buildOutputConfig(config: BuilderConfig): any {
-    const outputConfig = config.output || {}
-
-    // 如果使用格式特定配置（output.es, output.esm, output.cjs, output.umd），直接返回
-    if (outputConfig.es || outputConfig.esm || outputConfig.cjs || outputConfig.umd) {
-      const result = { ...outputConfig }
-
-      // 为每个输出格式添加 assetFileNames 配置
-      if (result.es && typeof result.es === 'object') {
-        result.es = {
-          ...result.es,
-          assetFileNames: '[name].[ext]',
-          globals: {
-            vue: 'Vue',
-            ...result.es.globals
-          }
-        }
-      }
-
-      if (result.esm && typeof result.esm === 'object') {
-        result.esm = {
-          ...result.esm,
-          assetFileNames: '[name].[ext]',
-          globals: {
-            vue: 'Vue',
-            ...result.esm.globals
-          }
-        }
-      }
-
-      if (result.cjs && typeof result.cjs === 'object') {
-        result.cjs = {
-          ...result.cjs,
-          assetFileNames: '[name].[ext]',
-          globals: {
-            vue: 'Vue',
-            ...result.cjs.globals
-          }
-        }
-      }
-
-      if (result.umd && typeof result.umd === 'object') {
-        result.umd = {
-          ...result.umd,
-          assetFileNames: '[name].[ext]',
-          globals: {
-            vue: 'Vue',
-            ...result.umd.globals
-          }
-        }
-      }
-
-      // 确保全局变量包含 Vue
-      result.globals = {
-        vue: 'Vue',
-        ...result.globals
-      }
-
-      return result
-    }
-
-    // 否则使用传统的 format 数组配置
-    const formats = Array.isArray(outputConfig.format)
-      ? outputConfig.format
-      : [outputConfig.format || 'esm']
-
-    return {
-      dir: outputConfig.dir || 'dist',
-      format: formats,
-      sourcemap: outputConfig.sourcemap !== false,
-      exports: 'named',
-      globals: {
-        vue: 'Vue',
-        ...outputConfig.globals
-      }
     }
   }
 
@@ -738,123 +674,16 @@ export class Vue3Strategy implements ILibraryStrategy {
   }
 
   /**
-   * 解析入口配置
-   * - 若用户未传入 input，则将 src 下所有源文件作为入口（排除测试与声明文件）
-   * - 若用户传入 glob 模式的数组，则解析为多入口
-   * - 若用户传入单个文件或对象，则直接返回
+   * 获取默认入口文件
    */
-  private async resolveInputEntries(config: BuilderConfig): Promise<string | string[] | Record<string, string>> {
-    // 如果没有提供input，自动扫描src目录
-    if (!config.input) {
-      return this.autoDiscoverEntries(config)
-    }
-
-    // 如果是字符串数组且包含glob模式，解析为多入口
-    if (Array.isArray(config.input)) {
-      return this.resolveGlobEntries(config.input, config)
-    }
-
-    // 其他情况直接返回用户配置
-    return config.input
+  protected override getDefaultEntry(): string {
+    return 'src/index.ts'
   }
 
   /**
-   * 自动发现入口文件
+   * 获取默认扫描模式
    */
-  private async autoDiscoverEntries(config?: BuilderConfig): Promise<string | Record<string, string>> {
-    const { findFiles } = await import('../../utils/file-system')
-    const { relative, extname } = await import('path')
-
-    // 构建排除模式 - 合并默认排除和配置排除
-    const defaultIgnore = [
-      '**/*.d.ts',
-      '**/*.test.*',
-      '**/*.spec.*',
-      '**/__tests__/**',
-      '**/examples/**',
-      '**/example/**',
-      '**/demo/**',
-      '**/demos/**',
-      '**/docs/**',
-      '**/dev/**',
-      '**/.vitepress/**',
-      '**/scripts/**',
-      '**/e2e/**',
-      '**/benchmark/**'
-    ]
-
-    const ignorePatterns = [
-      ...defaultIgnore,
-      ...(config?.exclude || [])
-    ]
-
-    const files = await findFiles([
-      'src/**/*.{ts,tsx,js,jsx,vue,json}'
-    ], {
-      cwd: process.cwd(),
-      ignore: ignorePatterns
-    })
-
-    if (files.length === 0) return 'src/index.ts'
-
-    const entryMap: Record<string, string> = {}
-    for (const abs of files) {
-      const rel = relative(process.cwd(), abs)
-      const relFromSrc = rel.replace(/^src[\\/]/, '')
-      const noExt = relFromSrc.slice(0, relFromSrc.length - extname(relFromSrc).length)
-      const key = noExt.replace(/\\/g, '/')
-      entryMap[key] = abs
-    }
-    return entryMap
-  }
-
-  /**
-   * 解析glob模式的入口配置
-   */
-  private async resolveGlobEntries(patterns: string[], config?: BuilderConfig): Promise<Record<string, string>> {
-    const { findFiles } = await import('../../utils/file-system')
-    const { relative, extname } = await import('path')
-
-    // 构建排除模式 - 合并默认排除和配置排除
-    const defaultIgnore = [
-      '**/*.d.ts',
-      '**/*.test.*',
-      '**/*.spec.*',
-      '**/__tests__/**',
-      '**/examples/**',
-      '**/example/**',
-      '**/demo/**',
-      '**/demos/**',
-      '**/docs/**',
-      '**/dev/**',
-      '**/.vitepress/**',
-      '**/scripts/**',
-      '**/e2e/**',
-      '**/benchmark/**'
-    ]
-
-    const ignorePatterns = [
-      ...defaultIgnore,
-      ...(config?.exclude || [])
-    ]
-
-    const files = await findFiles(patterns, {
-      cwd: process.cwd(),
-      ignore: ignorePatterns
-    })
-
-    if (files.length === 0) {
-      throw new Error(`No files found matching patterns: ${patterns.join(', ')}`)
-    }
-
-    const entryMap: Record<string, string> = {}
-    for (const abs of files) {
-      const rel = relative(process.cwd(), abs)
-      const relFromSrc = rel.replace(/^src[\\/]/, '')
-      const noExt = relFromSrc.slice(0, relFromSrc.length - extname(relFromSrc).length)
-      const key = noExt.replace(/\\/g, '/')
-      entryMap[key] = abs
-    }
-    return entryMap
+  protected override getDefaultPatterns(): string[] {
+    return ['src/**/*.{ts,tsx,js,jsx,vue,json}']
   }
 }

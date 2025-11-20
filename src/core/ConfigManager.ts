@@ -86,12 +86,6 @@ export class ConfigManager extends EventEmitter {
         }
       }
 
-      // 自动增强配置（已禁用，功能已删除）
-      // if (loadOptions.autoEnhance !== false) {
-      //   const enhancer = createAutoConfigEnhancer(process.cwd(), this.logger)
-      //   mergedConfig = await enhancer.enhanceConfig(mergedConfig)
-      // }
-
       // 验证配置
       if (loadOptions.validate !== false && this.options.validateOnLoad) {
         const validation = this.validateConfig(mergedConfig)

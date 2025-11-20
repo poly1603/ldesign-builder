@@ -36,6 +36,7 @@ import { ConfigLoader } from '../../../utils/config/config-loader'
 import type { BuilderConfig } from '../../../types/config'
 import path from 'path'
 import { writeFile } from '../../../utils/file-system'
+import { showBuildInfo, showBuildResult, analyzeBuildResult } from '../../shared'
 
 /**
  * 构建命令选项接口
@@ -183,7 +184,7 @@ export async function executeBuild(
     timings['配置加载'] = Date.now() - phaseStart
 
     // ========== 显示简化的配置信息 ==========
-    showBuildInfo(config)
+    showBuildInfo(config, logger)
 
     // ========== 执行构建 ==========
     let result
@@ -198,7 +199,7 @@ export async function executeBuild(
       })
 
       watcher.on('build', (result) => {
-        showBuildResult(result, startTime, timings)
+        showBuildResult(result, startTime, logger, timings)
       })
 
       // 保持进程运行
@@ -289,12 +290,12 @@ export async function executeBuild(
     }
 
     // ========== 显示构建结果 ==========
-    showBuildResult(result, startTime, timings)
+    showBuildResult(result, startTime, logger, timings)
 
     // ========== 分析打包结果 ==========
     if (options.analyze) {
       phaseStart = Date.now()
-      await analyzeBuildResult(result)
+      await analyzeBuildResult(result, logger)
       timings['分析'] = Date.now() - phaseStart
     }
 
@@ -440,163 +441,6 @@ async function buildConfig(options: BuildOptions, globalOptions: any): Promise<B
 }
 
 /**
- * 显示构建信息（简化版）
- * 
- * @param config - 构建配置
- */
-function showBuildInfo(config: BuilderConfig): void {
-  const configItems: string[] = []
-
-  if (config.input) {
-    const inputStr = typeof config.input === 'string'
-      ? config.input
-      : Array.isArray(config.input)
-        ? `${config.input.length} files`
-        : 'multiple entries'
-    configItems.push(highlight.dim(`入口: ${inputStr}`))
-  }
-
-  if (config.output?.format) {
-    const formats = Array.isArray(config.output.format)
-      ? config.output.format.join('+')
-      : config.output.format
-    configItems.push(`格式: ${highlight.important(formats)}`)
-  }
-
-  if (config.mode) {
-    configItems.push(highlight.dim(`模式: ${config.mode}`))
-  }
-
-  // 一行显示所有配置项
-  console.log(`📦 ${configItems.join(' | ')}`)
-}
-
-/**
- * 显示构建结果
- * 
- * @param result - 构建结果
- * @param startTime - 开始时间
- * @param timings - 阶段耗时
- */
-function showBuildResult(result: any, startTime: number, timings?: Record<string, number>): void {
-  const duration = Date.now() - startTime
-
-  if (result.outputs && result.outputs.length > 0) {
-    // ========== 计算统计信息 ==========
-    const stats = {
-      total: result.outputs.length,
-      js: 0,
-      map: 0,
-      dts: 0,
-      other: 0,
-      totalSize: 0,
-      totalGzipSize: 0
-    }
-
-    for (const output of result.outputs) {
-      stats.totalSize += output.size || 0
-      stats.totalGzipSize += output.gzipSize || 0
-
-      if (output.fileName.endsWith('.d.ts') || output.fileName.endsWith('.d.cts')) {
-        stats.dts++
-      } else if (output.fileName.endsWith('.map')) {
-        stats.map++
-      } else if (output.fileName.endsWith('.js') || output.fileName.endsWith('.cjs')) {
-        stats.js++
-      } else {
-        stats.other++
-      }
-    }
-
-    // ========== 使用增强的构建摘要显示 ==========
-    logger.showBuildSummary({
-      duration,
-      fileCount: stats.total,
-      totalSize: stats.totalSize,
-      status: result.success ? 'success' : 'failed',
-      warnings: result.warnings?.length || 0,
-      errors: result.errors?.length || 0
-    })
-
-    // ========== 根据日志级别显示不同详细程度的信息 ==========
-    const logLevel = logger.getLevel()
-
-    if (logLevel === 'debug' || logLevel === 'verbose') {
-      // Debug 模式: 显示所有文件
-      logger.info('输出文件:')
-      for (const output of result.outputs) {
-        const size = formatFileSize(output.size)
-        const gzipSize = output.gzipSize ? ` ${highlight.dim(`(gzip: ${formatFileSize(output.gzipSize)})`)}` : ''
-        logger.info(`  ${highlight.path(output.fileName)} ${highlight.dim(size)}${gzipSize}`)
-      }
-      logger.newLine()
-    }
-
-    // ========== 显示详细信息 ==========
-    logger.info('📋 文件详情:')
-    logger.info(`  JS 文件: ${highlight.number(stats.js)} 个`)
-    logger.info(`  DTS 文件: ${highlight.number(stats.dts)} 个`)
-    logger.info(`  Source Map: ${highlight.number(stats.map)} 个`)
-    if (stats.other > 0) {
-      logger.info(`  其他文件: ${highlight.number(stats.other)} 个`)
-    }
-
-    if (stats.totalGzipSize > 0) {
-      const compressionRatio = Math.round((1 - stats.totalGzipSize / stats.totalSize) * 100)
-      logger.info(`  Gzip 后: ${highlight.size(formatFileSize(stats.totalGzipSize))} ${highlight.dim(`(压缩 ${compressionRatio}%)`)}`)
-    }
-
-    logger.newLine()
-  }
-
-  // ========== 缓存摘要 ==========
-  if (result.cache) {
-    logger.newLine()
-    const parts: string[] = []
-    const enabledStr = result.cache.enabled ? '启用' : '禁用'
-    parts.push(`状态 ${enabledStr}`)
-    if (result.cache.enabled && typeof result.cache.hit === 'boolean') {
-      parts.push(result.cache.hit ? '命中' : '未命中')
-    }
-    if (typeof result.cache.lookupMs === 'number') {
-      parts.push(`查询 ${highlight.time(formatDuration(result.cache.lookupMs))}`)
-    }
-    if (result.cache.hit && typeof result.cache.savedMs === 'number' && result.cache.savedMs > 0) {
-      parts.push(`节省 ${highlight.time(formatDuration(result.cache.savedMs))}`)
-    }
-    logger.info(`💾 缓存: ${parts.join('， ')}`)
-  }
-
-  // ========== 显示警告 ==========
-  if (result.warnings && result.warnings.length > 0) {
-    logger.newLine()
-    logger.warn(`⚠️  发现 ${highlight.number(result.warnings.length)} 个警告:`)
-    for (const warning of result.warnings) {
-      logger.warn(`  ${warning.message}`)
-    }
-  }
-
-  // ========== 显示阶段耗时统计 ==========
-  if (timings && Object.keys(timings).length > 0) {
-    logger.newLine()
-    logger.info('⏱️  阶段耗时:')
-
-    const sortedTimings = Object.entries(timings).sort((a, b) => b[1] - a[1])
-    const maxTime = Math.max(...sortedTimings.map(([, time]) => time))
-
-    for (const [phase, time] of sortedTimings) {
-      const percentage = Math.round((time / duration) * 100)
-      const barLength = Math.round((time / maxTime) * 20)
-      const bar = '█'.repeat(barLength) + '░'.repeat(20 - barLength)
-
-      logger.info(`  ${phase.padEnd(12)} ${highlight.dim(bar)} ${highlight.time(formatDuration(time).padStart(8))} ${highlight.dim(`(${percentage}%)`)}`)
-    }
-  }
-
-  logger.newLine()
-}
-
-/**
  * 写出构建报告 JSON
  * 
  * @param result - 构建结果
@@ -686,54 +530,4 @@ function parseSizeLimit(input: string): number {
   return Math.round(n * factor)
 }
 
-/**
- * 分析打包结果
- * 
- * @param result - 构建结果
- */
-async function analyzeBuildResult(result: any): Promise<void> {
-  const { createBundleAnalyzer } = await import('../../../utils/optimization/BundleAnalyzer')
-
-  logger.newLine()
-  logger.info('📊 正在分析打包结果...')
-
-  const analyzer = createBundleAnalyzer(logger)
-  const report = await analyzer.generateReport(result.outputs || [])
-
-  // ========== 显示体积分析 ==========
-  logger.newLine()
-  logger.info('📦 体积分析:')
-  logger.info(`  总大小: ${(report.sizeAnalysis.total / 1024).toFixed(2)} KB`)
-
-  if (report.sizeAnalysis.byModule.length > 0) {
-    logger.info('  最大模块:')
-    report.sizeAnalysis.byModule.slice(0, 5).forEach(m => {
-      logger.info(`    ${m.module}: ${(m.size / 1024).toFixed(2)} KB (${m.percentage.toFixed(1)}%)`)
-    })
-  }
-
-  // ========== 显示重复依赖 ==========
-  if (report.duplicates.length > 0) {
-    logger.newLine()
-    logger.warn(`⚠️  发现 ${report.duplicates.length} 个重复依赖:`)
-    report.duplicates.forEach(dup => {
-      logger.warn(`  ${dup.name}: ${dup.versions.length} 个版本`)
-    })
-  }
-
-  // ========== 显示优化建议 ==========
-  if (report.suggestions.length > 0) {
-    logger.newLine()
-    logger.info('💡 优化建议:')
-    report.suggestions.forEach((sug) => {
-      const icon = sug.severity === 'high' ? '🔴' : sug.severity === 'medium' ? '🟡' : '🟢'
-      logger.info(`  ${icon} ${sug.title}`)
-      logger.info(`     ${sug.description}`)
-      logger.info(`     建议: ${sug.solution}`)
-    })
-  }
-
-  logger.newLine()
-  logger.success('✅ 分析完成')
-}
 

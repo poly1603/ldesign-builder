@@ -334,5 +334,128 @@ export abstract class BaseStrategy implements ILibraryStrategy {
   protected shouldMinify(config: BuilderConfig): boolean {
     return shouldMinify(config)
   }
+
+  // ==================== 入口解析通用方法 ====================
+
+  /**
+   * 自动发现入口文件（新版）
+   * 扫描 src 目录下的所有源文件，返回入口映射表
+   */
+  protected async autoDiscoverEntries(
+    patterns: string[],
+    config?: BuilderConfig
+  ): Promise<string | Record<string, string>> {
+    const defaultIgnore = [
+      '**/*.d.ts',
+      '**/*.test.*',
+      '**/*.spec.*',
+      '**/__tests__/**',
+      '**/examples/**',
+      '**/example/**',
+      '**/demo/**',
+      '**/demos/**',
+      '**/docs/**',
+      '**/dev/**',
+      '**/.vitepress/**',
+      '**/scripts/**',
+      '**/e2e/**',
+      '**/benchmark/**'
+    ]
+
+    const ignorePatterns = [
+      ...defaultIgnore,
+      ...(config?.exclude || [])
+    ]
+
+    const files = await findFiles(patterns, {
+      cwd: process.cwd(),
+      ignore: ignorePatterns
+    })
+
+    if (files.length === 0) {
+      // 返回默认入口
+      return this.getDefaultEntry()
+    }
+
+    return this.filesToEntryMap(files)
+  }
+
+  /**
+   * 解析 glob 模式入口
+   */
+  protected async resolveGlobEntries(
+    patterns: string[],
+    config?: BuilderConfig
+  ): Promise<Record<string, string>> {
+    const defaultIgnore = [
+      '**/*.d.ts',
+      '**/*.test.*',
+      '**/*.spec.*',
+      '**/__tests__/**'
+    ]
+
+    const ignorePatterns = [
+      ...defaultIgnore,
+      ...(config?.exclude || [])
+    ]
+
+    const files = await findFiles(patterns, {
+      cwd: process.cwd(),
+      ignore: ignorePatterns
+    })
+
+    if (files.length === 0) {
+      throw new Error(`No files found matching patterns: ${patterns.join(', ')}`)
+    }
+
+    return this.filesToEntryMap(files)
+  }
+
+  /**
+   * 将文件列表转换为入口映射表
+   */
+  private filesToEntryMap(files: string[]): Record<string, string> {
+    const entries: Record<string, string> = {}
+
+    for (const abs of files) {
+      const rel = path.relative(process.cwd(), abs)
+      const relFromSrc = rel.replace(/^src[\\/]/, '')
+      const noExt = relFromSrc.slice(0, -path.extname(relFromSrc).length)
+      const key = noExt.replace(/\\/g, '/')
+      entries[key] = abs
+    }
+
+    return entries
+  }
+
+  /**
+   * 获取默认入口文件 - 子类可以覆盖
+   */
+  protected getDefaultEntry(): string {
+    return 'src/index.ts'
+  }
+
+  /**
+   * 获取默认扫描模式 - 子类可以覆盖
+   */
+  protected getDefaultPatterns(): string[] {
+    return ['src/**/*.{ts,tsx,js,jsx,json}']
+  }
+
+  /**
+   * 解析入口配置（增强版）
+   * 支持自动发现和 glob 模式
+   */
+  protected async resolveInputEntriesEnhanced(config: BuilderConfig): Promise<string | string[] | Record<string, string>> {
+    if (!config.input) {
+      return this.autoDiscoverEntries(this.getDefaultPatterns(), config)
+    }
+
+    if (Array.isArray(config.input)) {
+      return this.resolveGlobEntries(config.input, config)
+    }
+
+    return config.input
+  }
 }
 

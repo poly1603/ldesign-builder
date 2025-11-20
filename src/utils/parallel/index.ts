@@ -41,7 +41,14 @@ export {
 // ========== 默认导出 ==========
 
 /**
- * 默认导出并行处理器
+ * 并行处理模块
+ * 
+ * 提供并行构建、任务调度等功能
+ * 
+ * @author LDesign Team
+ * @version 1.0.0
  */
-export { ParallelProcessor as default } from './ParallelProcessor'
 
+export * from './ParallelProcessor'
+export * from './TaskQueue'
+export * from './WorkerPool'

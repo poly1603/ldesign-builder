@@ -9,7 +9,7 @@ import { fileURLToPath } from 'url'
 import { FrameworkDetector } from '../detectors/FrameworkDetector'
 import { DualJSXTransformer } from '../transformers/DualJSXTransformer'
 import { PluginOrchestrator } from '../optimizers/plugin-orchestrator/PluginOrchestrator'
-import { EnhancedMixedStrategy } from '../strategies/mixed/EnhancedMixedStrategy'
+import { MixedFrameworkStrategy } from '../strategies/mixed/MixedFrameworkStrategy'
 import type { FrameworkInfo } from '../detectors/FrameworkDetector'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -307,11 +307,11 @@ describe('PluginOrchestrator', () => {
   })
 })
 
-describe('EnhancedMixedStrategy', () => {
-  let strategy: EnhancedMixedStrategy
+describe('MixedFrameworkStrategy', () => {
+  let strategy: MixedFrameworkStrategy
 
   beforeEach(() => {
-    strategy = new EnhancedMixedStrategy({
+    strategy = new MixedFrameworkStrategy({
       mode: 'separated',
       jsx: {
         autoDetect: true,
@@ -325,12 +325,12 @@ describe('EnhancedMixedStrategy', () => {
   })
 
   it('应该验证策略名称', () => {
-    expect(strategy.name).toBe('enhanced-mixed')
+    expect(strategy.name).toBe('mixed-framework')
     expect(strategy.validate()).toBe(true)
   })
 
   it('应该应用统一模式配置', async () => {
-    const unifiedStrategy = new EnhancedMixedStrategy({
+    const unifiedStrategy = new MixedFrameworkStrategy({
       mode: 'unified'
     })
 
@@ -349,7 +349,7 @@ describe('EnhancedMixedStrategy', () => {
   })
 
   it('应该应用分离模式配置', async () => {
-    const separatedStrategy = new EnhancedMixedStrategy({
+    const separatedStrategy = new MixedFrameworkStrategy({
       mode: 'separated',
       output: {
         separateFrameworks: true,
@@ -375,7 +375,7 @@ describe('EnhancedMixedStrategy', () => {
   })
 
   it('应该支持组件模式', async () => {
-    const componentStrategy = new EnhancedMixedStrategy({
+    const componentStrategy = new MixedFrameworkStrategy({
       mode: 'component',
       output: {
         preserveModules: true,
@@ -399,7 +399,7 @@ describe('EnhancedMixedStrategy', () => {
   })
 
   it('应该支持自定义分组', async () => {
-    const customStrategy = new EnhancedMixedStrategy({
+    const customStrategy = new MixedFrameworkStrategy({
       mode: 'custom',
       groups: {
         'vue-components': {
@@ -428,7 +428,7 @@ describe('EnhancedMixedStrategy', () => {
   })
 
   it('应该支持智能外部化', async () => {
-    const strategy = new EnhancedMixedStrategy({
+    const strategy = new MixedFrameworkStrategy({
       mode: 'unified',
       advanced: {
         smartExternals: true

@@ -15,11 +15,12 @@ import type { ILibraryStrategy } from '../../types/strategy'
 import { LibraryType } from '../../types/library'
 import type { BuilderConfig } from '../../types/config'
 import type { UnifiedConfig } from '../../types/adapter'
+import { BaseStrategy } from '../base/BaseStrategy'
 
 /**
  * 样式库构建策略
  */
-export class StyleStrategy implements ILibraryStrategy {
+export class StyleStrategy extends BaseStrategy implements ILibraryStrategy {
   readonly name = 'style'
   readonly supportedTypes: LibraryType[] = [LibraryType.STYLE]
   readonly priority = 8
@@ -27,9 +28,9 @@ export class StyleStrategy implements ILibraryStrategy {
   /**
    * 应用样式策略
    */
-  async applyStrategy(config: BuilderConfig): Promise<UnifiedConfig> {
-    // 解析入口配置
-    const resolvedInput = await this.resolveInputEntries(config)
+  override async applyStrategy(config: BuilderConfig): Promise<UnifiedConfig> {
+    // 使用基类的入口解析方法
+    const resolvedInput = await this.resolveInputEntriesEnhanced(config)
 
     const unifiedConfig: UnifiedConfig = {
       input: resolvedInput,
@@ -46,14 +47,14 @@ export class StyleStrategy implements ILibraryStrategy {
   /**
    * 检查策略是否适用
    */
-  isApplicable(config: BuilderConfig): boolean {
+  override isApplicable(config: BuilderConfig): boolean {
     return config.libraryType === LibraryType.STYLE
   }
 
   /**
    * 获取默认配置
    */
-  getDefaultConfig(): Partial<BuilderConfig> {
+  override getDefaultConfig(): Partial<BuilderConfig> {
     return {
       libraryType: LibraryType.STYLE,
       output: {
@@ -92,7 +93,7 @@ export class StyleStrategy implements ILibraryStrategy {
   /**
    * 获取推荐插件
    */
-  getRecommendedPlugins(config: BuilderConfig): any[] {
+  override getRecommendedPlugins(config: BuilderConfig): any[] {
     const plugins = []
 
     // TypeScript 插件 - 如果项目包含 TypeScript 文件，也要生成类型声明
@@ -140,7 +141,7 @@ export class StyleStrategy implements ILibraryStrategy {
   /**
    * 验证配置
    */
-  validateConfig(config: BuilderConfig): any {
+  override validateConfig(config: BuilderConfig): any {
     const errors: string[] = []
     const warnings: string[] = []
     const suggestions: string[] = []
@@ -343,7 +344,7 @@ export class StyleStrategy implements ILibraryStrategy {
   /**
    * 创建警告处理器
    */
-  private createWarningHandler() {
+  protected override createWarningHandler() {
     return (warning: any) => {
       // 忽略一些常见的无害警告
       if (warning.code === 'EMPTY_BUNDLE') {
@@ -355,77 +356,16 @@ export class StyleStrategy implements ILibraryStrategy {
   }
 
   /**
-   * 解析入口配置
-   * - 若用户未传入 input，则将 src 下所有样式文件作为入口
-   * - 若用户传入 glob 模式的数组，则解析为多入口
-   * - 若用户传入单个文件或对象，则直接返回
+   * 获取默认入口文件
    */
-  private async resolveInputEntries(config: BuilderConfig): Promise<string | string[] | Record<string, string>> {
-    // 如果没有提供input，自动扫描src目录
-    if (!config.input) {
-      return this.autoDiscoverEntries()
-    }
-
-    // 如果是字符串数组且包含glob模式，解析为多入口
-    if (Array.isArray(config.input)) {
-      return this.resolveGlobEntries(config.input)
-    }
-
-    // 其他情况直接返回用户配置
-    return config.input
+  protected override getDefaultEntry(): string {
+    return 'src/index.less'
   }
 
   /**
-   * 自动发现入口文件
+   * 获取默认扫描模式
    */
-  private async autoDiscoverEntries(): Promise<string | Record<string, string>> {
-    const { findFiles } = await import('../../utils/file-system')
-    const { relative, extname } = await import('path')
-
-    const files = await findFiles([
-      'src/**/*.{css,less,scss,sass,styl}'
-    ], {
-      cwd: process.cwd(),
-      ignore: ['**/*.test.*', '**/*.spec.*', '**/__tests__/**']
-    })
-
-    if (files.length === 0) return 'src/index.less'
-
-    const entryMap: Record<string, string> = {}
-    for (const abs of files) {
-      const rel = relative(process.cwd(), abs)
-      const relFromSrc = rel.replace(/^src[\\/]/, '')
-      const noExt = relFromSrc.slice(0, relFromSrc.length - extname(relFromSrc).length)
-      const key = noExt.replace(/\\/g, '/')
-      entryMap[key] = abs
-    }
-    return entryMap
-  }
-
-  /**
-   * 解析glob模式的入口配置
-   */
-  private async resolveGlobEntries(patterns: string[]): Promise<Record<string, string>> {
-    const { findFiles } = await import('../../utils/file-system')
-    const { relative, extname } = await import('path')
-
-    const files = await findFiles(patterns, {
-      cwd: process.cwd(),
-      ignore: ['**/*.test.*', '**/*.spec.*', '**/__tests__/**']
-    })
-
-    if (files.length === 0) {
-      throw new Error(`No files found matching patterns: ${patterns.join(', ')}`)
-    }
-
-    const entryMap: Record<string, string> = {}
-    for (const abs of files) {
-      const rel = relative(process.cwd(), abs)
-      const relFromSrc = rel.replace(/^src[\\/]/, '')
-      const noExt = relFromSrc.slice(0, relFromSrc.length - extname(relFromSrc).length)
-      const key = noExt.replace(/\\/g, '/')
-      entryMap[key] = abs
-    }
-    return entryMap
+  protected override getDefaultPatterns(): string[] {
+    return ['src/**/*.{css,less,scss,sass,styl}']
   }
 }

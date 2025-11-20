@@ -31,7 +31,7 @@ import { PreactStrategy } from '../strategies/preact/PreactStrategy'
 import { LitStrategy } from '../strategies/lit/LitStrategy'
 import { AngularStrategy } from '../strategies/angular/AngularStrategy'
 import { MixedStrategy } from '../strategies/mixed/MixedStrategy'
-import { EnhancedMixedStrategyAdapter } from '../strategies/mixed/EnhancedMixedStrategyAdapter'
+import { MixedFrameworkAdapter } from '../strategies/mixed/MixedFrameworkAdapter'
 
 
 /**
@@ -298,7 +298,7 @@ export class StrategyManager {
     // 混合策略
     this.registerStrategy(new MixedStrategy())
 
-    // 增强混合策略
-    this.registerStrategy(new EnhancedMixedStrategyAdapter())
+    // 增强混合策略（混合框架适配器）
+    this.registerStrategy(new MixedFrameworkAdapter())
   }
 }

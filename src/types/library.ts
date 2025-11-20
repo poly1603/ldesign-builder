@@ -125,6 +125,18 @@ export interface VueLibraryConfig {
   version?: 2 | 3
   /** 是否支持按需加载 */
   onDemand?: boolean
+  /** 构建目标环境 */
+  target?: 'browser' | 'node' | string
+  /** 是否暴露文件名 */
+  exposeFilename?: boolean
+  /** 是否预处理样式 */
+  preprocessStyles?: boolean
+  /** 自定义预处理器 require 函数 */
+  preprocessCustomRequire?: (id: string) => any
+  /** Vue 编译器实例 */
+  compiler?: any
+  /** 是否转换资源 URLs */
+  transformAssetUrls?: boolean | Record<string, string | string[]>
   /** 编译器选项 */
   compilerOptions?: {
     /** 自定义元素判断函数 */
@@ -165,6 +177,8 @@ export interface VueLibraryConfig {
   style?: {
     /** CSS 模块配置 */
     modules?: boolean
+    /** 预处理器选项 */
+    preprocessOptions?: Record<string, any>
     /** 其他样式选项 */
     [key: string]: any
   }
@@ -246,6 +260,8 @@ export interface StyleLibraryConfig {
   }
   /** PostCSS 插件 */
   postcssPlugins?: any[]
+  /** 样式处理插件列表 */
+  plugins?: any[]
   /** 变量文件路径 */
   variablesFile?: string
   /** 主题配置 */
