@@ -140,7 +140,9 @@ export class ConfigLoader {
 
       const configModule = await jiti(configPath)
 
-      return this.extractConfigFromModule(configModule)
+      const extractedConfig = this.extractConfigFromModule(configModule)
+
+      return extractedConfig
     } catch (error) {
       throw new BuilderError(
         ErrorCode.CONFIG_PARSE_ERROR,
