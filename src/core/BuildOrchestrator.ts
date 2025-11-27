@@ -104,6 +104,7 @@ export class BuildOrchestrator {
     // 创建构建上下文
     const context = new BuildContext(config, this.bundlerAdapter.name, this.logger)
     this.currentContext = context
+    const startTime = Date.now()
 
     try {
       // 开始构建
@@ -111,6 +112,9 @@ export class BuildOrchestrator {
 
       // 1. 解析配置
       let resolvedConfig = await this.resolveConfig(config)
+      
+      // 打印美化的构建开始信息
+      this.printBuildStart(resolvedConfig)
 
       // 2. 应用构建优化 (可选)
       // if (resolvedConfig.performance?.optimization !== false) {
@@ -151,6 +155,9 @@ export class BuildOrchestrator {
 
       // 9. 更新 package.json (如果启用)
       await this.updatePackageJsonIfEnabled(resolvedConfig)
+
+      // 打印美化的构建成功信息
+      this.printBuildSuccess(buildResult, startTime)
 
       // 结束构建
       context.endBuild(true)
@@ -390,6 +397,90 @@ export class BuildOrchestrator {
       this.currentContext.cleanup()
     }
     this.configResolver.cleanup()
+  }
+
+  /**
+   * 打印美化的构建开始信息
+   */
+  private printBuildStart(config: BuilderConfig): void {
+    const bundler = config.bundler || 'rollup'
+    const mode = config.mode || 'production'
+    const libraryType = config.libraryType || 'unknown'
+    
+    const modeColor = mode === 'production' ? '\x1b[33m' : '\x1b[36m'
+    const reset = '\x1b[0m'
+    const blue = '\x1b[34m'
+    const cyan = '\x1b[36m'
+    const dim = '\x1b[2m'
+    const bold = '\x1b[1m'
+    
+    console.log('')
+    console.log(`${cyan}${'─'.repeat(50)}${reset}`)
+    console.log(`${blue}${bold}🚀 @ldesign/builder${reset}`)
+    console.log(`${cyan}${'─'.repeat(50)}${reset}`)
+    console.log(`  ${dim}打包器:${reset} ${cyan}${bundler}${reset}`)
+    console.log(`  ${dim}模式:${reset}   ${modeColor}${mode}${reset}`)
+    console.log(`  ${dim}类型:${reset}   ${cyan}${libraryType}${reset}`)
+    console.log(`${cyan}${'─'.repeat(50)}${reset}`)
+    console.log('')
+  }
+
+  /**
+   * 打印美化的构建成功信息
+   */
+  private printBuildSuccess(result: BuildResult, startTime: number): void {
+    const duration = Date.now() - startTime
+    const green = '\x1b[32m'
+    const yellow = '\x1b[33m'
+    const cyan = '\x1b[36m'
+    const dim = '\x1b[2m'
+    const reset = '\x1b[0m'
+    const bold = '\x1b[1m'
+    
+    // 计算文件数量和总大小
+    const fileCount = result.outputs?.length || 0
+    const totalSize = result.stats?.totalSize
+    const formatSize = (bytes: number): string => {
+      if (bytes < 1024) return `${bytes} B`
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`
+      return `${(bytes / (1024 * 1024)).toFixed(2)} MB`
+    }
+    
+    const formatDuration = (ms: number): string => {
+      if (ms < 1000) return `${ms}ms`
+      return `${(ms / 1000).toFixed(2)}s`
+    }
+    
+    // 辅助函数：填充空格到指定长度
+    const pad = (text: string, length: number): string => {
+      const spaces = length - text.length
+      return spaces > 0 ? ' '.repeat(spaces) : ''
+    }
+    
+    // 获取总大小的数值
+    const totalSizeBytes = typeof totalSize === 'number' ? totalSize : (totalSize as any)?.raw || 0
+    
+    const durationText = formatDuration(duration)
+    const bundlerText = result.bundler
+    const fileCountText = fileCount + ' 个'
+    const totalSizeText = totalSizeBytes > 0 ? formatSize(totalSizeBytes) : ''
+    const warningText = result.warnings ? result.warnings.length + ' 个' : ''
+    
+    console.log('')
+    console.log(`${green}╭${'─'.repeat(48)}╮${reset}`)
+    console.log(`${green}│${reset} ${green}${bold}✓ 构建成功${reset}${' '.repeat(37)}${green}│${reset}`)
+    console.log(`${green}├${'─'.repeat(48)}┤${reset}`)
+    console.log(`${green}│${reset}  ${dim}⏱  耗时:${reset}    ${yellow}${durationText}${reset}${pad(durationText, 28)} ${green}│${reset}`)
+    console.log(`${green}│${reset}  ${dim}📦 打包器:${reset}  ${cyan}${bundlerText}${reset}${pad(bundlerText, 28)} ${green}│${reset}`)
+    console.log(`${green}│${reset}  ${dim}📄 文件数:${reset}  ${cyan}${fileCountText}${reset}${pad(fileCountText, 28)} ${green}│${reset}`)
+    if (totalSizeBytes > 0) {
+      console.log(`${green}│${reset}  ${dim}💾 总大小:${reset}  ${cyan}${totalSizeText}${reset}${pad(totalSizeText, 28)} ${green}│${reset}`)
+    }
+    if (result.warnings && result.warnings.length > 0) {
+      console.log(`${green}│${reset}  ${dim}⚠  警告:${reset}    ${yellow}${warningText}${reset}${pad(warningText, 28)} ${green}│${reset}`)
+    }
+    console.log(`${green}╰${'─'.repeat(48)}╯${reset}`)
+    console.log('')
   }
 }
 

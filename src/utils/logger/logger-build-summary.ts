@@ -16,9 +16,9 @@ import type { Logger } from './Logger'
 
 /** 状态图标映射 */
 const STATUS_ICONS: Record<BuildSummaryData['status'], string> = {
-  success: LOG_ICONS.SUCCESS,
-  failed: LOG_ICONS.ERROR,
-  warning: LOG_ICONS.WARNING,
+  success: '✓',
+  failed: '✗',
+  warning: '⚠',
 }
 
 /** 状态颜色映射 */
@@ -35,35 +35,30 @@ const STATUS_COLORS: Record<BuildSummaryData['status'], typeof chalk.green> = {
  * @param data - 构建摘要数据
  */
 export function renderBuildSummary(logger: Logger, data: BuildSummaryData): void {
-  const { STATUS_LABELS, FIELD_LABELS } = BUILD_SUMMARY_FORMAT
-
-  logger.newLine()
-  logger.divider('═', 60)
-
-  // ========== 显示构建状态 ==========
   const statusIcon = STATUS_ICONS[data.status]
   const statusColor = STATUS_COLORS[data.status]
-  const statusLabel = STATUS_LABELS[data.status]
-  const statusText = statusColor.bold(`${statusIcon} 构建${statusLabel}`)
-
-  console.log(statusText)
-  logger.divider('─', 60)
-
-  // ========== 显示构建信息 ==========
-  console.log(`  ${FIELD_LABELS.duration}:   ${chalk.yellow(formatDuration(data.duration))}`)
-  console.log(`  ${FIELD_LABELS.fileCount}: ${chalk.cyan(data.fileCount)} 个`)
-  console.log(`  ${FIELD_LABELS.totalSize}: ${chalk.cyan(formatBytes(data.totalSize))}`)
-
-  // ========== 显示警告和错误 ==========
+  
+  // 美化后的构建摘要
+  console.log('')
+  console.log(chalk.green('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+  console.log(`${statusColor.bold(statusIcon)} ${chalk.blue.bold('构建完成')}`)
+  console.log(chalk.green('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+  
+  // 构建信息
+  console.log(`  ${chalk.dim('耗时:')}     ${chalk.yellow(formatDuration(data.duration))}`)
+  console.log(`  ${chalk.dim('文件数:')}   ${chalk.cyan(data.fileCount)} 个`)
+  console.log(`  ${chalk.dim('总大小:')}   ${chalk.cyan(formatBytes(data.totalSize))}`)
+  
+  // 警告和错误
   if (data.warnings && data.warnings > 0) {
-    console.log(`  ${FIELD_LABELS.warnings}:   ${chalk.yellow(data.warnings)} 个`)
+    console.log(`  ${chalk.dim('警告:')}     ${chalk.yellow(data.warnings)} 个`)
   }
-
+  
   if (data.errors && data.errors > 0) {
-    console.log(`  ${FIELD_LABELS.errors}:   ${chalk.red(data.errors)} 个`)
+    console.log(`  ${chalk.dim('错误:')}     ${chalk.red(data.errors)} 个`)
   }
-
-  logger.divider('═', 60)
-  logger.newLine()
+  
+  console.log(chalk.green('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'))
+  console.log('')
 }
 

@@ -147,7 +147,12 @@ export class Logger {
    */
   error(message: string, ...args: any[]): void {
     if (this.shouldLog(LogLevelEnum.ERROR)) {
-      this.log('ERROR', message, chalk.red, ...args)
+      // 美化错误输出 - 使用 this.colors 检查
+      if (this.colors) {
+        console.log(`${chalk.red('✗')} ${chalk.red(message)}`, ...args)
+      } else {
+        console.log(`✗ ${message}`, ...args)
+      }
     }
   }
 
@@ -159,7 +164,12 @@ export class Logger {
    */
   warn(message: string, ...args: any[]): void {
     if (this.shouldLog(LogLevelEnum.WARN)) {
-      this.log('WARN', message, chalk.yellow, ...args)
+      // 美化警告输出 - 使用 this.colors 检查
+      if (this.colors) {
+        console.log(`${chalk.yellow('⚠')} ${chalk.yellow(message)}`, ...args)
+      } else {
+        console.log(`⚠ ${message}`, ...args)
+      }
     }
   }
 
@@ -171,7 +181,12 @@ export class Logger {
    */
   info(message: string, ...args: any[]): void {
     if (this.shouldLog(LogLevelEnum.INFO)) {
-      this.log('INFO', message, chalk.blue, ...args)
+      // 简化info输出，去掉时间戳和标签
+      if (this.colors) {
+        console.log(`${chalk.blue('ℹ')} ${message}`, ...args)
+      } else {
+        console.log(`ℹ ${message}`, ...args)
+      }
     }
   }
 
@@ -207,7 +222,12 @@ export class Logger {
    */
   success(message: string, ...args: any[]): void {
     if (this.shouldLog(LogLevelEnum.INFO)) {
-      this.log('SUCCESS', message, chalk.green, ...args)
+      // 美化成功输出
+      if (this.colors) {
+        console.log(`${chalk.green('✓')} ${chalk.green(message)}`, ...args)
+      } else {
+        console.log(`✓ ${message}`, ...args)
+      }
     }
   }
 
