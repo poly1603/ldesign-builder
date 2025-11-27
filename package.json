@@ -118,11 +118,6 @@
       "types": "./dist/utils/*.d.ts",
       "import": "./dist/utils/*.js",
       "require": "./dist/utils/*.cjs"
-    },
-    "./__tests__/*": {
-      "types": "./dist/__tests__/*.d.ts",
-      "import": "./dist/__tests__/*.js",
-      "require": "./dist/__tests__/*.cjs"
     }
   },
   "main": "./dist/index.cjs",
@@ -137,21 +132,18 @@
     "dist"
   ],
   "scripts": {
-    "build": "set NODE_OPTIONS=--max-old-space-size=8192 && tsup",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 tsup",
+    "build:prod": "cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 tsup",
+    "build:types": "tsc --emitDeclarationOnly --outDir dist",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "test:build": "npm run build && npm run test:run",
-    "docs:dev": "vitepress dev docs",
-    "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs",
-    "docs:serve": "vitepress serve docs",
-    "lint": "eslint src/core src/utils src/index.ts",
-    "lint:fix": "eslint src/core src/utils src/index.ts --fix",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
     "type-check": "tsc --noEmit",
-    "clean": "rimraf dist esm cjs lib types",
-    "verify:build": "node -e \"console.log('Verifying build outputs...'); const fs = require('fs'); const files = ['dist/index.js', 'dist/index.cjs', 'dist/index.d.ts', 'dist/index.d.cts', 'dist/cli/index.js', 'dist/cli/index.cjs', 'dist/cli/index.d.ts', 'dist/cli/index.d.cts']; files.forEach(f => { if (fs.existsSync(f)) console.log('✓', f); else console.error('✗', f); });\""
+    "clean": "rimraf dist",
+    "prepublishOnly": "npm run clean && npm run build:prod"
   },
   "dependencies": {
     "@babel/preset-typescript": "^7.27.1",
@@ -215,6 +207,7 @@
   },
   "devDependencies": {
     "@antfu/eslint-config": "^6.0.0",
+    "cross-env": "^7.0.3",
     "@babel/core": "^7.28.4",
     "@babel/generator": "^7.28.5",
     "@babel/parser": "^7.23.9",

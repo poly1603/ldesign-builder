@@ -178,7 +178,7 @@ export class StyleStrategy extends BaseStrategy implements ILibraryStrategy {
   /**
    * 构建输出配置
    */
-  private buildOutputConfig(config: BuilderConfig): any {
+  protected override buildOutputConfig(config: BuilderConfig): any {
     const outputConfig = config.output || {}
     const formats = Array.isArray(outputConfig.format)
       ? outputConfig.format

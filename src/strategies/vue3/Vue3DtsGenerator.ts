@@ -8,11 +8,17 @@
  */
 
 import type { BuilderConfig } from '../../types/config'
+import { createLogger, type Logger } from '../../utils/logger'
 
 /**
  * Vue 3 DTS 生成器类
  */
 export class Vue3DtsGenerator {
+  private logger: Logger
+
+  constructor() {
+    this.logger = createLogger({ prefix: 'Vue3DTS' })
+  }
   /**
    * 创建 DTS 文件生成插件
    * 
@@ -29,7 +35,7 @@ export class Vue3DtsGenerator {
           const outputDir = options.dir
           if (!outputDir) {
             if (!isSilent) {
-              console.warn('⚠️ 输出目录未指定，跳过 DTS 生成')
+              this.logger.warn('输出目录未指定，跳过 DTS 生成')
             }
             return
           }
@@ -37,7 +43,7 @@ export class Vue3DtsGenerator {
           await this.generateDtsFiles(outputDir, config)
         } catch (error) {
           if (!isSilent) {
-            console.warn('⚠️ 处理 DTS 文件失败:', error instanceof Error ? error.message : String(error))
+            this.logger.warn('处理 DTS 文件失败:', error instanceof Error ? error.message : String(error))
           }
         }
       }
@@ -258,7 +264,7 @@ export class Vue3DtsGenerator {
   private async reportEmitResult(emitResult: any, outputDir: string, isSilent: boolean): Promise<void> {
     if (emitResult.emitSkipped) {
       if (!isSilent) {
-        console.warn('⚠️ TypeScript 声明文件生成失败')
+        this.logger.warn('TypeScript 声明文件生成失败')
       }
     } else {
       try {
@@ -269,7 +275,7 @@ export class Vue3DtsGenerator {
           absolute: false
         })
         if (!isSilent) {
-          console.log(`✅ 成功生成 ${generatedDtsFiles.length} 个声明文件`)
+          this.logger.success(`成功生成 ${generatedDtsFiles.length} 个声明文件`)
         }
       } catch (error) {
         // 忽略统计错误

@@ -8,9 +8,9 @@ import * as fs from 'fs-extra'
 import { glob } from 'glob'
 import { createLogger } from '../logger'
 import { normalizeConfig, type NormalizationWarning } from '../../config/config-normalizer'
-import type { BuilderConfig } from '../types/config'
+import type { BuilderConfig } from '../../types/config'
 
-const logger = createLogger('ConfigLinter')
+const logger = createLogger({ prefix: 'ConfigLinter' })
 
 export interface LintResult {
   package: string

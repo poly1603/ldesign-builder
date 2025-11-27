@@ -298,6 +298,16 @@ export class Logger {
     }
   }
 
+  /**
+   * 高亮输出
+   *
+   * @param message - 要高亮的消息
+   * @returns 高亮后的字符串（如果启用颜色）
+   */
+  highlight(message: string): string {
+    return this.colors ? chalk.cyan.bold(message) : message
+  }
+
   // ========== 辅助输出方法 ==========
 
   /**

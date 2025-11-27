@@ -16,6 +16,9 @@ export interface ProjectAnalysis {
   name: string
   type: 'library' | 'application' | 'component' | 'cli' | 'mixed'
 
+  // package.json 内容
+  packageJson?: Record<string, any>
+
   // 框架检测
   frameworks: {
     vue?: { version: 2 | 3, sfc: boolean }

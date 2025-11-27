@@ -12,7 +12,8 @@ import type {
   UnifiedConfig,
   AdapterOptions,
   BundlerSpecificConfig,
-  BundlerSpecificPlugin
+  BundlerSpecificPlugin,
+  UnifiedPlugin
 } from '../../types/adapter'
 import type { BuildResult, BuildWatcher } from '../../types/builder'
 import type { PerformanceMetrics } from '../../types/performance'
@@ -693,6 +694,13 @@ export class RollupAdapter implements IBundlerAdapter {
     }
 
     return rollupConfig
+  }
+
+  /**
+   * 转换统一插件格式为 Rollup 插件格式
+   */
+  async transformPlugins(plugins: UnifiedPlugin[]): Promise<BundlerSpecificPlugin[]> {
+    return this.pluginManager.transformPluginsForFormat(plugins, 'dist', { emitDts: false })
   }
 
   /**

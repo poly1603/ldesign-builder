@@ -184,6 +184,13 @@ export interface VueLibraryConfig {
   }
   /** 是否启用 CSS 模块 */
   cssModules?: boolean
+  /** SFC 配置 */
+  sfc?: {
+    /** 是否启用 */
+    enabled?: boolean
+    /** 自定义块处理 */
+    customBlocks?: Record<string, any>
+  }
 }
 
 /**

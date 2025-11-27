@@ -10,8 +10,23 @@
 
 import chalk from 'chalk'
 import { formatDuration, formatBytes } from './formatters'
+import { LOG_ICONS, BUILD_SUMMARY_FORMAT } from '../../constants/log-config'
 import type { BuildSummaryData } from './logger-types'
 import type { Logger } from './Logger'
+
+/** 状态图标映射 */
+const STATUS_ICONS: Record<BuildSummaryData['status'], string> = {
+  success: LOG_ICONS.SUCCESS,
+  failed: LOG_ICONS.ERROR,
+  warning: LOG_ICONS.WARNING,
+}
+
+/** 状态颜色映射 */
+const STATUS_COLORS: Record<BuildSummaryData['status'], typeof chalk.green> = {
+  success: chalk.green,
+  failed: chalk.red,
+  warning: chalk.yellow,
+}
 
 /**
  * 使用指定的 Logger 实例输出构建摘要信息
@@ -20,38 +35,35 @@ import type { Logger } from './Logger'
  * @param data - 构建摘要数据
  */
 export function renderBuildSummary(logger: Logger, data: BuildSummaryData): void {
+  const { STATUS_LABELS, FIELD_LABELS } = BUILD_SUMMARY_FORMAT
+
   logger.newLine()
-  logger.divider('=', 60)
+  logger.divider('═', 60)
 
   // ========== 显示构建状态 ==========
-  const statusIcon = data.status === 'success' ? '✓' : data.status === 'failed' ? '✗' : '⚠'
-  const statusColor = data.status === 'success'
-    ? chalk.green
-    : data.status === 'failed'
-      ? chalk.red
-      : chalk.yellow
-  const statusText = statusColor.bold(
-    `${statusIcon} 构建${data.status === 'success' ? '成功' : data.status === 'failed' ? '失败' : '完成（有警告）'}`
-  )
+  const statusIcon = STATUS_ICONS[data.status]
+  const statusColor = STATUS_COLORS[data.status]
+  const statusLabel = STATUS_LABELS[data.status]
+  const statusText = statusColor.bold(`${statusIcon} 构建${statusLabel}`)
 
   console.log(statusText)
-  logger.divider('-', 60)
+  logger.divider('─', 60)
 
   // ========== 显示构建信息 ==========
-  console.log(`⏱  耗时: ${chalk.yellow(formatDuration(data.duration))}`)
-  console.log(`📦 文件: ${chalk.cyan(data.fileCount)} 个`)
-  console.log(`📊 总大小: ${chalk.cyan(formatBytes(data.totalSize))}`)
+  console.log(`  ${FIELD_LABELS.duration}:   ${chalk.yellow(formatDuration(data.duration))}`)
+  console.log(`  ${FIELD_LABELS.fileCount}: ${chalk.cyan(data.fileCount)} 个`)
+  console.log(`  ${FIELD_LABELS.totalSize}: ${chalk.cyan(formatBytes(data.totalSize))}`)
 
   // ========== 显示警告和错误 ==========
   if (data.warnings && data.warnings > 0) {
-    console.log(`⚠️  警告: ${chalk.yellow(data.warnings)} 个`)
+    console.log(`  ${FIELD_LABELS.warnings}:   ${chalk.yellow(data.warnings)} 个`)
   }
 
   if (data.errors && data.errors > 0) {
-    console.log(`❌ 错误: ${chalk.red(data.errors)} 个`)
+    console.log(`  ${FIELD_LABELS.errors}:   ${chalk.red(data.errors)} 个`)
   }
 
-  logger.divider('=', 60)
+  logger.divider('═', 60)
   logger.newLine()
 }
 

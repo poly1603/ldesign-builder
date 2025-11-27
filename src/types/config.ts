@@ -13,6 +13,7 @@ import type {
   EnvironmentVariables,
   KeyValueMap
 } from './common'
+import type { ExternalOption } from './adapter'
 import type {
   LibraryType,
   TypeScriptLibraryConfig,
@@ -26,14 +27,20 @@ import type { PerformanceConfig } from './performance'
 import type { UnifiedPlugin } from './plugin'
 import type { PostBuildValidationConfig } from './validation'
 import type { MinifyOptions } from './minify'
-import type { MixedFrameworkConfig } from '../strategies/mixed/EnhancedMixedStrategy'
+import type { MixedFrameworkConfig } from '../strategies/mixed/MixedFrameworkStrategy'
 
 /**
  * 构建器主配置接口
  */
 export interface BuilderConfig {
+  /** 项目/库名称 */
+  name?: string
+
   /** 入口文件（可选；未提供时将根据策略自动发现或使用默认值） */
   input?: string | string[] | Record<string, string>
+
+  /** 路径别名 */
+  alias?: Record<string, string>
 
   /** 输出配置 */
   output?: OutputConfig
@@ -57,7 +64,7 @@ export interface BuilderConfig {
   bundleless?: boolean
 
   /** 外部依赖 */
-  external?: string[] | ((id: string) => boolean)
+  external?: ExternalOption
 
   /** 全局变量映射 */
   globals?: Record<string, string>
@@ -119,6 +126,12 @@ export interface BuilderConfig {
   /** 工作目录 */
   cwd?: FilePath
 
+  /** 项目路径 */
+  projectPath?: FilePath
+
+  /** 目标平台 */
+  platform?: 'browser' | 'node' | 'neutral'
+
   /** 配置文件路径 */
   configFile?: FilePath
 
@@ -139,6 +152,25 @@ export interface BuilderConfig {
 
   /** 自动检测框架 */
   autoDetectFramework?: boolean
+
+  /** React 配置 */
+  react?: {
+    jsx?: 'classic' | 'automatic'
+    jsxImportSource?: string
+    runtime?: 'automatic' | 'classic'
+  }
+
+  /** 优化配置 */
+  optimization?: {
+    /** 代码分割 */
+    splitChunks?: boolean
+    /** 最小化体积 */
+    minimize?: boolean
+    /** Tree Shaking */
+    treeShaking?: boolean
+    /** 公共依赖提取 */
+    commonChunks?: boolean
+  }
 }
 
 /**

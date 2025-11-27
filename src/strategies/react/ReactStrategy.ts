@@ -89,7 +89,7 @@ export class ReactStrategy extends BaseStrategy implements ILibraryStrategy {
     return plugins
   }
 
-  private buildOutputConfig(config: BuilderConfig): any {
+  protected override buildOutputConfig(config: BuilderConfig): any {
     const out = config.output || {}
 
     // 如果使用格式特定配置（output.esm, output.cjs, output.umd），直接返回
@@ -123,7 +123,7 @@ export class ReactStrategy extends BaseStrategy implements ILibraryStrategy {
   /**
    * 合并 external 配置，确保 React 相关依赖被标记为外部
    */
-  private mergeExternal(external: any): any {
+  protected override mergeExternal(external: any): any {
     const reactPkgs = ['react', 'react-dom']
 
     if (!external) return reactPkgs

@@ -20,6 +20,7 @@ import { BaseStrategy } from '../base/BaseStrategy'
 import { Vue3PluginBuilder } from './Vue3PluginBuilder'
 import { Vue3ConfigBuilder } from './Vue3ConfigBuilder'
 import { Vue3DtsGenerator } from './Vue3DtsGenerator'
+import { vueStyleEntryGenerator } from '../../plugins/vue-style-entry-generator'
 
 /**
  * Vue 3 组件库构建策略
@@ -112,7 +113,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
   /**
    * 获取推荐插件
    */
-  getRecommendedPlugins(config: BuilderConfig): any[] {
+  override getRecommendedPlugins(config: BuilderConfig): any[] {
     const plugins = []
 
     // Vue SFC 插件
@@ -154,7 +155,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
     }
 
     // 代码压缩插件（生产模式）
-    if (shouldMinify(config)) {
+    if (this.shouldMinify(config)) {
       plugins.push({
         name: '@rollup/plugin-terser',
         options: {
@@ -174,7 +175,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
   /**
    * 验证配置
    */
-  validateConfig(config: BuilderConfig): any {
+  override validateConfig(config: BuilderConfig): any {
     const errors: string[] = []
     const warnings: string[] = []
     const suggestions: string[] = []
@@ -266,7 +267,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
         // 保留 JSX/TSX 以便后续由 Vue JSX 插件处理
         jsx: 'preserve',
         tsconfig: 'tsconfig.json',
-        minify: shouldMinify(config),
+        minify: this.shouldMinify(config),
         sourceMap: config.output?.sourcemap !== false
       }))
 
@@ -280,7 +281,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
         plugins.push(Styles.default({
           mode: 'extract',
           modules: false,
-          minimize: shouldMinify(config),
+          minimize: this.shouldMinify(config),
           namedExports: true,
           include: [
             '**/*.less',
@@ -457,7 +458,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
     return {
       // 样式提取配置
       extract: config.style?.extract !== false,
-      minimize: shouldMinify(config),
+      minimize: this.shouldMinify(config),
       sourceMap: config.output?.sourcemap !== false,
       modules: config.style?.modules || false,
       // 支持的文件扩展名
@@ -658,7 +659,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
   /**
    * 创建警告处理器
    */
-  private createWarningHandler() {
+  protected override createWarningHandler() {
     return (warning: any) => {
       // 忽略一些常见的无害警告
       if (warning.code === 'THIS_IS_UNDEFINED') {

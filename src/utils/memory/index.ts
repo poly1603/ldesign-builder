@@ -97,8 +97,9 @@ export {
 // ========== 内存泄漏检测器 ==========
 export {
   MemoryLeakDetector,
-  type LeakInfo,
-  type LeakReport
+  type MemorySnapshot,
+  type MemoryLeakDetection,
+  type MemoryLeakDetectorOptions
 } from './MemoryLeakDetector'
 
 // ========== 便捷工厂函数 ==========

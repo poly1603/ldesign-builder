@@ -35,6 +35,9 @@ export interface PerformanceConfig {
 
   /** 是否启用性能监控 */
   monitoring?: boolean | MonitoringConfig
+
+  /** 代码块大小警告限制（KB） */
+  chunkSizeWarningLimit?: number
 }
 
 /**

@@ -6,7 +6,7 @@
 
 import type { BuildResult } from '../../types/builder'
 import type { BuilderConfig } from '../../types/config'
-import { Logger } from '../../utils/logger'
+import { Logger, highlight } from '../../utils/logger'
 import { formatFileSize, formatDuration } from '../../utils/formatters/format-utils'
 
 /**
@@ -21,18 +21,18 @@ export function showBuildInfo(config: BuilderConfig, logger: Logger): void {
       : Array.isArray(config.input)
         ? `${config.input.length} files`
         : 'multiple entries'
-    configItems.push(logger.highlight?.dim(`入口: ${inputStr}`) || `入口: ${inputStr}`)
+    configItems.push(highlight.dim(`入口: ${inputStr}`))
   }
 
   if (config.output?.format) {
     const formats = Array.isArray(config.output.format)
       ? config.output.format.join('+')
       : config.output.format
-    configItems.push(`格式: ${logger.highlight?.important(formats) || formats}`)
+    configItems.push(`格式: ${highlight.important(formats)}`)
   }
 
   if (config.mode) {
-    configItems.push(logger.highlight?.dim(`模式: ${config.mode}`) || `模式: ${config.mode}`)
+    configItems.push(highlight.dim(`模式: ${config.mode}`))
   }
 
   // 一行显示所有配置项
@@ -158,11 +158,6 @@ function calculateBuildStats(result: BuildResult): BuildStats {
 function showFileDetails(stats: BuildStats, logger: Logger): void {
   logger.info('📋 文件详情:')
 
-  const highlight = logger.highlight || {
-    number: (n: any) => String(n),
-    dim: (s: string) => s
-  }
-
   logger.info(`  JS 文件: ${highlight.number(stats.js)} 个`)
   logger.info(`  DTS 文件: ${highlight.number(stats.dts)} 个`)
   logger.info(`  Source Map: ${highlight.number(stats.map)} 个`)
@@ -182,7 +177,6 @@ function showFileDetails(stats: BuildStats, logger: Logger): void {
 function showWarnings(result: BuildResult, logger: Logger): void {
   if (result.warnings && result.warnings.length > 0) {
     logger.newLine()
-    const highlight = logger.highlight || { number: (n: any) => String(n) }
     logger.warn(`⚠️  发现 ${highlight.number(result.warnings.length)} 个警告:`)
     for (const warning of result.warnings) {
       const warningMsg = typeof warning === 'string' ? warning : warning.message || String(warning)
@@ -201,11 +195,6 @@ function showTimings(
 
   const sortedTimings = Object.entries(timings).sort((a, b) => b[1] - a[1])
   const maxTime = Math.max(...sortedTimings.map(([, time]) => time))
-
-  const highlight = logger.highlight || {
-    time: (s: string) => s,
-    dim: (s: string) => s
-  }
 
   for (const [phase, time] of sortedTimings) {
     const percentage = Math.round((time / totalDuration) * 100)

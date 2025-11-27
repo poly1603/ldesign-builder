@@ -1,14 +1,87 @@
 /**
- * 文件系统操作工具
+ * 文件系统操作工具模块
  * 
- * TODO: 后期可以移到 @ldesign/kit 中统一管理
+ * 提供跨平台的文件系统操作封装，包括：
+ * - 文件/目录的增删改查
+ * - Glob 模式匹配
+ * - 临时文件/目录管理
+ * - 文件类型检测
+ * 
+ * @module utils/file-system/FileSystem
+ * @author LDesign Team
+ * @version 1.0.0
  */
 
 import path from 'path'
 import os from 'os'
 import fs from 'fs-extra'
 import fastGlob from 'fast-glob'
-import type { FileInfo } from '../types/common'
+import type { FileInfo } from '../../types/common'
+
+/** 支持的文件扩展名到类型的映射表 */
+const FILE_TYPE_MAP: Readonly<Record<string, string>> = {
+  // JavaScript/TypeScript
+  '.js': 'javascript',
+  '.mjs': 'javascript',
+  '.cjs': 'javascript',
+  '.ts': 'typescript',
+  '.mts': 'typescript',
+  '.cts': 'typescript',
+  '.jsx': 'jsx',
+  '.tsx': 'tsx',
+  '.d.ts': 'declaration',
+
+  // 框架文件
+  '.vue': 'vue',
+  '.svelte': 'svelte',
+  '.astro': 'astro',
+
+  // 样式
+  '.css': 'css',
+  '.less': 'less',
+  '.scss': 'scss',
+  '.sass': 'sass',
+  '.styl': 'stylus',
+  '.stylus': 'stylus',
+  '.pcss': 'postcss',
+
+  // 数据格式
+  '.json': 'json',
+  '.json5': 'json5',
+  '.yaml': 'yaml',
+  '.yml': 'yaml',
+  '.toml': 'toml',
+
+  // 文档
+  '.md': 'markdown',
+  '.mdx': 'mdx',
+  '.html': 'html',
+  '.htm': 'html',
+  '.xml': 'xml',
+
+  // 图片
+  '.svg': 'svg',
+  '.png': 'image',
+  '.jpg': 'image',
+  '.jpeg': 'image',
+  '.gif': 'image',
+  '.webp': 'image',
+  '.ico': 'image',
+  '.bmp': 'image',
+  '.avif': 'image',
+
+  // 字体
+  '.woff': 'font',
+  '.woff2': 'font',
+  '.ttf': 'font',
+  '.otf': 'font',
+  '.eot': 'font',
+
+  // 其他
+  '.txt': 'text',
+  '.log': 'log',
+  '.map': 'sourcemap',
+} as const
 
 /**
  * 文件系统工具类
@@ -31,9 +104,7 @@ export class FileSystem {
    */
   static existsSync(filePath: string): boolean {
     try {
-      // 使用显式导入而不是 require
-      const { accessSync } = require('fs')
-      accessSync(filePath)
+      fs.accessSync(filePath)
       return true
     } catch {
       return false
@@ -318,31 +389,52 @@ export class FileSystem {
 
   /**
    * 获取文件类型
+   * 
+   * @param extension - 文件扩展名（包含点号）
+   * @returns 文件类型字符串
    */
   private static getFileType(extension: string): string {
-    const typeMap: Record<string, string> = {
-      '.js': 'javascript',
-      '.ts': 'typescript',
-      '.jsx': 'jsx',
-      '.tsx': 'tsx',
-      '.vue': 'vue',
-      '.css': 'css',
-      '.less': 'less',
-      '.scss': 'scss',
-      '.sass': 'sass',
-      '.json': 'json',
-      '.md': 'markdown',
-      '.html': 'html',
-      '.xml': 'xml',
-      '.svg': 'svg',
-      '.png': 'image',
-      '.jpg': 'image',
-      '.jpeg': 'image',
-      '.gif': 'image',
-      '.webp': 'image'
-    }
+    const ext = extension.toLowerCase()
+    return FILE_TYPE_MAP[ext] || 'unknown'
+  }
 
-    return typeMap[extension.toLowerCase()] || 'unknown'
+  /**
+   * 判断是否为源代码文件
+   * 
+   * @param filePath - 文件路径
+   * @returns 是否为源代码文件
+   */
+  static isSourceFile(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase()
+    const sourceTypes = ['javascript', 'typescript', 'jsx', 'tsx', 'vue', 'svelte', 'astro']
+    const type = FILE_TYPE_MAP[ext]
+    return sourceTypes.includes(type || '')
+  }
+
+  /**
+   * 判断是否为样式文件
+   * 
+   * @param filePath - 文件路径
+   * @returns 是否为样式文件
+   */
+  static isStyleFile(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase()
+    const styleTypes = ['css', 'less', 'scss', 'sass', 'stylus', 'postcss']
+    const type = FILE_TYPE_MAP[ext]
+    return styleTypes.includes(type || '')
+  }
+
+  /**
+   * 判断是否为资源文件（图片、字体等）
+   * 
+   * @param filePath - 文件路径
+   * @returns 是否为资源文件
+   */
+  static isAssetFile(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase()
+    const assetTypes = ['image', 'svg', 'font']
+    const type = FILE_TYPE_MAP[ext]
+    return assetTypes.includes(type || '')
   }
 }
 
@@ -368,8 +460,14 @@ export const {
   getModifiedTime,
   isNewer,
   createTempFile,
-  createTempDir
+  createTempDir,
+  isSourceFile,
+  isStyleFile,
+  isAssetFile
 } = FileSystem
 
 // 单独导出 findFiles 以保持正确的 this 上下文
 export const findFiles = FileSystem.findFiles.bind(FileSystem)
+
+// 导出文件类型映射表供外部使用
+export { FILE_TYPE_MAP }

@@ -570,3 +570,28 @@ export type { PluginPerformanceStats } from './performance'
 
 // HookPerformance 已在 performance.ts 中定义，这里导入
 export type { HookPerformance } from './performance'
+
+/**
+ * Builder 插件接口（兼容旧版本）
+ */
+export interface BuilderPlugin extends UnifiedPlugin {
+  /** 插件实例（可选） */
+  plugin?: any
+}
+
+/**
+ * Builder 插件集合
+ */
+export type BuilderPlugins = BuilderPlugin[]
+
+/**
+ * 懒加载插件
+ */
+export interface LazyPlugin {
+  /** 插件名称 */
+  name: string
+  /** 懒加载函数 */
+  load: () => Promise<UnifiedPlugin | BuilderPlugin>
+  /** 加载条件 */
+  condition?: (context: PluginContext) => boolean
+}

@@ -238,7 +238,7 @@ export async function createBuilderFromPackage(
   options: Omit<BuilderOptions, 'config'> = {}
 ): Promise<LibraryBuilder> {
   try {
-    const { readFile } = await import('./file-system')
+    const { readFile } = await import('../file-system')
     const packageContent = await readFile(packageJsonPath, 'utf-8')
     const packageJson = JSON.parse(packageContent)
 

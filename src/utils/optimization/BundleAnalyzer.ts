@@ -6,7 +6,7 @@
  * @version 1.0.0
  */
 
-import type { Logger } from './logger'
+import type { Logger } from '../logger'
 
 /**
  * 依赖树节点

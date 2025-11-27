@@ -53,8 +53,8 @@ export * from './types'
 // 常量导出
 export * from './constants'
 
-// 工具函数导出
-export * from './utils'
+// 工具函数导出 - 使用命名空间避免与 types 冲突
+export * as utils from './utils'
 export { MemoryOptimizer, getGlobalMemoryOptimizer } from './utils/memory/MemoryOptimizer'
 export type { MemoryStats, MemoryConfig } from './utils/memory/MemoryOptimizer'
 export { createIncrementalBuildManager, IncrementalBuildManager } from './utils/build/IncrementalBuildManager'
@@ -70,8 +70,8 @@ export { cssModulesAdvancedPlugin, cssScopeIsolationPlugin } from './plugins/css
 export { createConfigSchemaValidator, ConfigSchemaValidator } from './config/schema-validator'
 export { createInteractiveConfigGenerator, InteractiveConfigGenerator } from './cli/interactive-init'
 
-// 便捷函数
-export { defineAsyncConfig } from './utils/config'
+// 便捷函数（已通过 ./utils 导出）
+// defineAsyncConfig 从 ./utils/config 自动导出
 export { createBuilder } from './utils/misc/factory'
 
 // 极简配置系统

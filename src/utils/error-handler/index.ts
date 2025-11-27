@@ -50,8 +50,10 @@ export {
   createErrorHandler,
   errorHandler,
   setupGlobalErrorHandling,
-  type ErrorHandlerOptions
 } from './ErrorHandler'
+
+// ========== 导出类型定义 ==========
+export type { ErrorHandlerOptions } from './error-handler-types'
 
 // ========== 导出错误恢复 ==========
 export {

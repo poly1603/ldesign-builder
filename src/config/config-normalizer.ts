@@ -6,7 +6,7 @@
 import type { BuilderConfig } from '../types/config'
 import { createLogger } from '../utils/logger'
 
-const logger = createLogger('ConfigNormalizer')
+const logger = createLogger({ prefix: 'ConfigNormalizer' })
 
 export interface NormalizationWarning {
   type: 'duplicate' | 'redundant' | 'deprecated' | 'conflict'
@@ -99,7 +99,8 @@ export class ConfigNormalizer {
    * Check for conflicting entry points
    */
   private checkConflictingEntryPoints(config: BuilderConfig): void {
-    const umdOutputEntry = config.output?.umd?.entry
+    const umdOutput = config.output?.umd
+    const umdOutputEntry = typeof umdOutput === 'object' && umdOutput ? (umdOutput as any).entry : undefined
     const topLevelUmdEntry = (config as any).umd?.entry
 
     if (umdOutputEntry && topLevelUmdEntry && umdOutputEntry !== topLevelUmdEntry) {
@@ -119,19 +120,19 @@ export class ConfigNormalizer {
     let fixed = false
 
     // Merge duplicate UMD configs
-    if (config.output?.umd && (config as any).umd) {
+    const outputUmd = config.output?.umd
+    if (typeof outputUmd === 'object' && outputUmd && (config as any).umd) {
       const topLevelUmd = (config as any).umd
-      const outputUmd = config.output.umd
 
       // Merge properties from top-level to output if not already set
-      if (topLevelUmd.entry && !outputUmd.entry) {
-        outputUmd.entry = topLevelUmd.entry
+      if (topLevelUmd.entry && !(outputUmd as any).entry) {
+        (outputUmd as any).entry = topLevelUmd.entry
       }
       if (topLevelUmd.name && !outputUmd.name) {
-        outputUmd.name = topLevelUmd.name
+        (outputUmd as any).name = topLevelUmd.name
       }
-      if (topLevelUmd.enabled !== undefined && outputUmd.enabled === undefined) {
-        outputUmd.enabled = topLevelUmd.enabled
+      if (topLevelUmd.enabled !== undefined && (outputUmd as any).enabled === undefined) {
+        (outputUmd as any).enabled = topLevelUmd.enabled
       }
 
       // Remove top-level UMD config

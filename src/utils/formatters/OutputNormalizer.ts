@@ -7,8 +7,8 @@
  * @version 1.0.0
  */
 
-import type { BuildResult } from '../types/builder'
-import type { OutputFile } from '../types/output'
+import type { BuildResult } from '../../types/builder'
+import type { OutputFile } from '../../types/output'
 import * as path from 'path'
 import * as fs from 'fs-extra'
 import { Logger } from '../logger'

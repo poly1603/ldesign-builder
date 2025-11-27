@@ -35,6 +35,16 @@ export enum BundlerFeature {
 export type FeatureSupportMap = Record<BundlerFeature, boolean>
 
 /**
+ * 外部依赖类型
+ * 支持字符串数组、正则表达式数组、混合数组或判断函数
+ */
+export type ExternalOption =
+  | string[]
+  | RegExp[]
+  | (string | RegExp)[]
+  | ((id: string, parentId?: string) => boolean)
+
+/**
  * 统一配置接口
  */
 export interface UnifiedConfig {
@@ -43,7 +53,7 @@ export interface UnifiedConfig {
   output: UnifiedOutputConfig
 
   // 外部依赖
-  external?: string[] | ((id: string) => boolean)
+  external?: ExternalOption
   globals?: Record<string, string>
 
   // 插件配置
@@ -197,7 +207,7 @@ export type BundlerSpecificConfig = RollupOptions | RolldownOptions
 export interface RollupOptions {
   input: string | string[] | Record<string, string>
   output?: RollupOutputOptions | RollupOutputOptions[]
-  external?: string[] | ((id: string) => boolean)
+  external?: ExternalOption
   plugins?: RollupPlugin[]
   treeshake?: boolean | TreeshakeOptions
   watch?: RollupWatchOptions
@@ -262,7 +272,7 @@ export interface RollupPlugin {
 export interface RolldownOptions {
   input: string | string[] | Record<string, string>
   output?: RolldownOutputOptions
-  external?: string[] | ((id: string) => boolean)
+  external?: ExternalOption
   plugins?: RolldownPlugin[]
   treeshake?: boolean | TreeshakeOptions
   platform?: 'browser' | 'node' | 'neutral'

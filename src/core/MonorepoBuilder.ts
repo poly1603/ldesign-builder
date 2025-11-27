@@ -13,8 +13,7 @@ import { LibraryBuilder } from './LibraryBuilder'
 import type { BuilderConfig } from '../types/config'
 import type { BuildResult } from '../types/builder'
 import { Logger } from '../utils/logger'
-import { createParallelProcessor } from '../utils/parallel/ParallelProcessor'
-import type { ParallelProcessor } from '../utils/parallel-processor'
+import { createParallelProcessor, type ParallelProcessor } from '../utils/parallel/ParallelProcessor'
 
 /**
  * 包信息

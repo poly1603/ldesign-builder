@@ -29,7 +29,25 @@
 export * from './config'
 
 // 日志系统
-export * from './logger'
+export {
+  // 核心类和方法
+  Logger,
+  createLogger,
+  logger,
+  setLogLevel,
+  setSilent,
+  LogLevelEnum,
+  // 类型导出
+  type LoggerOptions,
+  type BuildSummaryData,
+  // 格式化工具
+  formatDuration,
+  formatBytes,
+  createProgressBar,
+  createAdvancedProgressBar,
+  createSpinner,
+  highlight
+} from './logger'
 
 // 错误处理
 export * from './error-handler'
@@ -54,11 +72,11 @@ export * from './build'
 // 优化工具
 export * from './optimization'
 
-// 分析工具
-export * from './analysis'
+// 分析工具 - 使用命名空间导出避免冲突
+export * as analysis from './analysis'
 
-// 格式化工具
-export * from './formatters'
+// 格式化工具 - 使用命名空间导出避免冲突
+export * as formatters from './formatters'
 
-// 其他工具
-export * from './misc'
+// 其他工具 - 使用命名空间导出避免冲突
+export * as misc from './misc'

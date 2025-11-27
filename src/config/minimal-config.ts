@@ -7,6 +7,7 @@ import * as path from 'path'
 import { ProjectAnalyzer, ProjectAnalysis } from '../analyzers/project-analyzer'
 import { Logger } from '../utils/logger'
 import type { BuilderConfig } from '../types/config'
+import { LibraryType } from '../types/library'
 
 /**
  * 极简用户配置
@@ -96,7 +97,7 @@ export class SmartConfigGenerator {
     // Convert kebab-case to PascalCase
     return name
       .split('-')
-      .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+      .map((part: string) => part.charAt(0).toUpperCase() + part.slice(1))
       .join('')
       .replace(/^/, parts.length > 1 ? this.toPascalCase(parts[0].replace('@', '')) : '')
   }
@@ -147,7 +148,7 @@ export class SmartConfigGenerator {
       name: userConfig.name || this.inferUmdNameFromPackage(analysis) || this.inferProjectName(analysis),
 
       // 库类型
-      libraryType: this.inferLibraryType(analysis),
+      libraryType: this.inferLibraryType(analysis) as LibraryType | undefined,
 
       // 输入配置
       input: this.generateInputConfig(analysis, userConfig),
@@ -162,7 +163,7 @@ export class SmartConfigGenerator {
       alias: this.generateAliasConfig(analysis),
 
       // TypeScript
-      typescript: analysis.requirements.typescript,
+      typescript: analysis.requirements.typescript ? { declaration: true } : undefined,
 
       // 源码映射
       sourcemap: true,
@@ -256,15 +257,14 @@ export class SmartConfigGenerator {
     if (analysis.frameworks.vue) {
       config.vue = {
         version: analysis.frameworks.vue.version,
-        sfc: analysis.frameworks.vue.sfc
+        sfc: analysis.frameworks.vue.sfc ? { enabled: true } : undefined
       }
     }
 
     // React 配置
     if (analysis.frameworks.react) {
       config.react = {
-        jsx: analysis.frameworks.react.jsx,
-        typescript: analysis.frameworks.react.typescript
+        jsx: analysis.frameworks.react.jsx
       }
     }
 
@@ -290,14 +290,14 @@ export class SmartConfigGenerator {
       // 压缩
       minify: analysis.output.minify,
 
-      // Tree shaking
-      treeShaking: true,
-
       // 性能优化
       performance: {
-        chunkSizeWarningLimit: 500,
-        maxEntrypointSize: 1000,
-        maxAssetSize: 1000
+        chunkSizeWarningLimit: 500
+      },
+
+      // 基础优化
+      optimization: {
+        treeShaking: true
       }
     }
 
@@ -305,8 +305,7 @@ export class SmartConfigGenerator {
     if (analysis.type === 'application' || analysis.type === 'mixed') {
       config.optimization = {
         splitChunks: true,
-        concatenateModules: true,
-        sideEffects: false
+        treeShaking: true
       }
     }
 
