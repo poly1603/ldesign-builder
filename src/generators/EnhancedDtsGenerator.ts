@@ -1,17 +1,23 @@
 /**
- * TypeScript 声明文件生成器
+ * 增强版 TypeScript 声明文件生成器
  *
- * 使用 TypeScript Compiler API 直接生成 d.ts 文件
- * 不依赖 rollup-plugin-dts 或其他插件，避免版本兼容问题
+ * @deprecated 此文件已废弃，所有功能已合并到 DtsGenerator.ts
+ * 请使用 DtsGenerator 代替 EnhancedDtsGenerator
  *
- * 功能特性：
- * - 自动重试机制
- * - 增量编译支持
- * - 生成文件验证
- * - 详细的错误处理
+ * @example
+ * ```typescript
+ * // 旧代码（不推荐）
+ * import { EnhancedDtsGenerator } from './EnhancedDtsGenerator'
+ *
+ * // 新代码（推荐）
+ * import { DtsGenerator } from './DtsGenerator'
+ * // 或使用向后兼容的别名
+ * import { EnhancedDtsGenerator } from '@ldesign/builder'
+ * ```
  *
  * @author LDesign Team
- * @version 2.0.0
+ * @version 1.0.0
+ * @see DtsGenerator
  */
 
 import * as ts from 'typescript'
@@ -21,57 +27,32 @@ import * as fse from 'fs-extra'
 import { glob } from 'glob'
 import type { Logger } from '../utils/logger'
 import { createLogger } from '../utils/logger'
+import type { DtsGeneratorOptions, DtsGenerationResult } from './DtsGenerator'
 
 /**
- * DTS 生成选项
+ * 增强版 DTS 生成选项
  */
-export interface DtsGeneratorOptions {
-  /** 源码目录 */
-  srcDir: string
-  /** 输出目录 */
-  outDir: string
-  /** tsconfig 文件路径 */
-  tsconfig?: string
-  /** 是否保持源码目录结构 */
-  preserveStructure?: boolean
-  /** 是否生成 declarationMap */
-  declarationMap?: boolean
-  /** 项目根目录 */
-  rootDir?: string
-  /** 要处理的文件模式 */
-  include?: string[]
-  /** 要排除的文件模式 */
-  exclude?: string[]
-  /** 日志记录器 */
-  logger?: Logger
-  /** 最大重试次数（默认 3） */
+export interface EnhancedDtsOptions extends DtsGeneratorOptions {
+  /** 最大重试次数 */
   maxRetries?: number
-  /** 重试延迟（毫秒，默认 1000） */
+  /** 重试延迟（毫秒） */
   retryDelay?: number
-  /** 是否启用增量生成（默认 true） */
+  /** 是否启用增量生成 */
   incremental?: boolean
-  /** 是否验证生成的文件（默认 true） */
+  /** 是否验证生成的文件 */
   validate?: boolean
-  /** 失败时是否继续（默认 true） */
+  /** 是否生成 Vue 组件类型 */
+  vueTypes?: boolean
+  /** 失败时是否继续 */
   continueOnError?: boolean
 }
 
 /**
- * 生成结果
+ * 增强版 DTS 生成结果
  */
-export interface DtsGenerationResult {
-  /** 是否成功 */
-  success: boolean
-  /** 生成的文件列表 */
-  files: string[]
-  /** 错误信息 */
-  errors?: string[]
-  /** 警告信息 */
-  warnings?: string[]
-  /** 耗时（毫秒） */
-  duration: number
+export interface EnhancedDtsResult extends DtsGenerationResult {
   /** 重试次数 */
-  retries?: number
+  retries: number
   /** 跳过的文件 */
   skipped?: string[]
   /** 验证结果 */
@@ -82,30 +63,14 @@ export interface DtsGenerationResult {
 }
 
 /**
- * TypeScript 声明文件生成器
- *
- * @example
- * ```typescript
- * const generator = new DtsGenerator({
- *   srcDir: 'src',
- *   outDir: 'dist/types',
- *   incremental: true,
- *   maxRetries: 3
- * })
- * const result = await generator.generate()
- * ```
+ * 增强版 TypeScript 声明文件生成器
  */
-export class DtsGenerator {
+export class EnhancedDtsGenerator {
   private logger: Logger
-  private options: Required<DtsGeneratorOptions>
+  private options: Required<EnhancedDtsOptions>
 
-  /**
-   * 创建 DTS 生成器实例
-   *
-   * @param options - 生成器配置选项
-   */
-  constructor(options: DtsGeneratorOptions) {
-    this.logger = options.logger || createLogger()
+  constructor(options: EnhancedDtsOptions) {
+    this.logger = options.logger || createLogger({ prefix: 'EnhancedDTS' })
     this.options = {
       srcDir: options.srcDir,
       outDir: options.outDir,
@@ -113,23 +78,22 @@ export class DtsGenerator {
       preserveStructure: options.preserveStructure ?? true,
       declarationMap: options.declarationMap ?? false,
       rootDir: options.rootDir || process.cwd(),
-      include: options.include || ['**/*.ts', '**/*.tsx', '**/*.vue'],
+      include: options.include || ['**/*.ts', '**/*.tsx'],
       exclude: options.exclude || ['**/*.test.ts', '**/*.spec.ts', '**/__tests__/**', '**/node_modules/**'],
       logger: this.logger,
       maxRetries: options.maxRetries ?? 3,
       retryDelay: options.retryDelay ?? 1000,
       incremental: options.incremental ?? true,
       validate: options.validate ?? true,
+      vueTypes: options.vueTypes ?? false,
       continueOnError: options.continueOnError ?? true,
     }
   }
 
   /**
    * 生成声明文件（带重试机制）
-   *
-   * @returns 生成结果
    */
-  async generate(): Promise<DtsGenerationResult> {
+  async generate(): Promise<EnhancedDtsResult> {
     let lastError: Error | null = null
     let retries = 0
 
@@ -140,7 +104,11 @@ export class DtsGenerator {
         // 验证生成的文件
         if (this.options.validate && result.success) {
           const validation = await this.validateGeneratedFiles(result.files)
-          return { ...result, retries, validation }
+          return {
+            ...result,
+            retries,
+            validation,
+          }
         }
 
         return { ...result, retries }
@@ -169,139 +137,156 @@ export class DtsGenerator {
   /**
    * 实际生成逻辑
    */
-  private async doGenerate(): Promise<DtsGenerationResult> {
+  private async doGenerate(): Promise<EnhancedDtsResult> {
     const startTime = Date.now()
     const generatedFiles: string[] = []
     const skippedFiles: string[] = []
     const errors: string[] = []
     const warnings: string[] = []
 
-    this.logger.debug('开始生成 TypeScript 声明文件...')
-    this.logger.debug(`源码目录: ${this.options.srcDir}`)
-    this.logger.debug(`输出目录: ${this.options.outDir}`)
+    try {
+      this.logger.info('🔧 开始生成 TypeScript 声明文件...')
 
-    // 确保输出目录存在
-    await fse.ensureDir(this.options.outDir)
+      // 确保输出目录存在
+      await fse.ensureDir(this.options.outDir)
 
-    // 读取并解析 tsconfig
-    const tsconfig = await this.loadTsConfig()
+      // 读取并解析 tsconfig
+      const tsconfig = await this.loadTsConfig()
 
-    // 获取要处理的文件列表
-    const allFiles = await this.getSourceFiles()
-    this.logger.debug(`找到 ${allFiles.length} 个源文件`)
+      // 获取要处理的文件列表
+      const files = await this.getSourceFiles()
+      this.logger.debug(`找到 ${files.length} 个源文件`)
 
-    if (allFiles.length === 0) {
-      this.logger.warn('没有找到需要处理的 TypeScript 文件')
-      return {
-        success: true,
-        files: [],
-        warnings: ['没有找到需要处理的 TypeScript 文件'],
-        duration: Date.now() - startTime,
-        retries: 0,
+      if (files.length === 0) {
+        this.logger.warn('没有找到需要处理的 TypeScript 文件')
+        return {
+          success: true,
+          files: [],
+          warnings: ['没有找到需要处理的 TypeScript 文件'],
+          duration: Date.now() - startTime,
+          retries: 0,
+        }
       }
-    }
 
-    // 检查增量编译缓存
-    const files = this.options.incremental
-      ? await this.filterChangedFiles(allFiles)
-      : allFiles
+      // 检查增量编译缓存
+      const filesToProcess = this.options.incremental
+        ? await this.filterChangedFiles(files)
+        : files
 
-    if (files.length === 0) {
-      this.logger.info('✅ 所有文件都是最新的，无需重新生成')
-      return {
-        success: true,
-        files: [],
-        duration: Date.now() - startTime,
-        retries: 0,
+      if (filesToProcess.length === 0) {
+        this.logger.info('✅ 所有文件都是最新的，无需重新生成')
+        return {
+          success: true,
+          files: [],
+          duration: Date.now() - startTime,
+          retries: 0,
+        }
       }
-    }
 
-    this.logger.debug(`需要处理 ${files.length} 个文件`)
+      this.logger.debug(`需要处理 ${filesToProcess.length} 个文件`)
 
-    // 创建编译器配置
-    const compilerOptions = this.createCompilerOptions(tsconfig)
+      // 创建编译器配置
+      const compilerOptions = this.createCompilerOptions(tsconfig)
 
-    // 创建编译器主机
-    const host = this.createCompilerHost(compilerOptions)
+      // 创建编译器主机
+      const host = ts.createCompilerHost(compilerOptions)
 
-    // 创建程序
-    const program = ts.createProgram({
-      rootNames: files,
-      options: compilerOptions,
-      host,
-    })
+      // 创建程序
+      const program = ts.createProgram({
+        rootNames: filesToProcess,
+        options: compilerOptions,
+        host,
+      })
 
-    // 获取诊断信息
-    const diagnostics = ts.getPreEmitDiagnostics(program)
-    const filteredDiagnostics = this.filterDiagnostics(diagnostics)
+      // 获取诊断信息
+      const diagnostics = ts.getPreEmitDiagnostics(program)
 
-    // 记录诊断信息
-    for (const diagnostic of filteredDiagnostics) {
-      const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
-      if (diagnostic.category === ts.DiagnosticCategory.Error) {
-        if (this.options.continueOnError) {
-          warnings.push(`[跳过] ${message}`)
-          if (diagnostic.file) {
-            skippedFiles.push(diagnostic.file.fileName)
+      // 过滤诊断信息
+      const filteredDiagnostics = this.filterDiagnostics(diagnostics)
+
+      // 记录诊断信息
+      for (const diagnostic of filteredDiagnostics) {
+        const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')
+        if (diagnostic.category === ts.DiagnosticCategory.Error) {
+          if (this.options.continueOnError) {
+            warnings.push(`[跳过] ${message}`)
+            if (diagnostic.file) {
+              skippedFiles.push(diagnostic.file.fileName)
+            }
+          }
+          else {
+            errors.push(message)
           }
         }
         else {
-          errors.push(message)
+          warnings.push(message)
         }
       }
-      else {
-        warnings.push(message)
+
+      // 如果有严重错误且不允许继续，则抛出
+      if (errors.length > 0 && !this.options.continueOnError) {
+        throw new Error(`TypeScript 编译错误:\n${errors.join('\n')}`)
       }
-    }
 
-    // 如果有严重错误且不允许继续，则抛出
-    if (errors.length > 0 && !this.options.continueOnError) {
-      throw new Error(`TypeScript 编译错误:\n${errors.join('\n')}`)
-    }
+      // 生成声明文件
+      const emitResult = program.emit(
+        undefined,
+        (fileName, data) => {
+          if (fileName.endsWith('.d.ts') || fileName.endsWith('.d.ts.map')) {
+            const relativePath = path.relative(compilerOptions.outDir!, fileName)
+            const targetPath = path.join(this.options.outDir, relativePath)
 
-    // 生成声明文件
-    const emitResult = program.emit(
-      undefined,
-      (fileName, data) => {
-        if (fileName.endsWith('.d.ts') || fileName.endsWith('.d.ts.map')) {
-          const relativePath = path.relative(compilerOptions.outDir!, fileName)
-          const targetPath = path.join(this.options.outDir, relativePath)
+            fse.ensureDirSync(path.dirname(targetPath))
+            fs.writeFileSync(targetPath, data, 'utf-8')
 
-          fse.ensureDirSync(path.dirname(targetPath))
-          fs.writeFileSync(targetPath, data, 'utf-8')
-
-          if (fileName.endsWith('.d.ts')) {
-            generatedFiles.push(targetPath)
-            this.logger.debug(`生成: ${relativePath}`)
+            if (fileName.endsWith('.d.ts')) {
+              generatedFiles.push(targetPath)
+              this.logger.debug(`✓ ${relativePath}`)
+            }
           }
-        }
-      },
-      undefined,
-      true,
-      undefined,
-    )
+        },
+        undefined,
+        true,
+        undefined,
+      )
 
-    // 处理生成错误
-    if (emitResult.emitSkipped && generatedFiles.length === 0) {
-      throw new Error('声明文件生成被跳过')
+      // 处理生成错误
+      if (emitResult.emitSkipped && generatedFiles.length === 0) {
+        throw new Error('声明文件生成被跳过')
+      }
+
+      // 更新增量编译缓存
+      if (this.options.incremental) {
+        await this.updateFileCache(filesToProcess)
+      }
+
+      const duration = Date.now() - startTime
+      this.logger.success(`✅ 生成了 ${generatedFiles.length} 个声明文件 (${duration}ms)`)
+
+      return {
+        success: true,
+        files: generatedFiles,
+        skipped: skippedFiles.length > 0 ? skippedFiles : undefined,
+        errors: errors.length > 0 ? errors : undefined,
+        warnings: warnings.length > 0 ? warnings : undefined,
+        duration,
+        retries: 0,
+      }
     }
+    catch (error) {
+      const duration = Date.now() - startTime
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      this.logger.error('生成声明文件失败:', errorMessage)
 
-    // 更新增量编译缓存
-    if (this.options.incremental) {
-      await this.updateFileCache(files)
-    }
-
-    const duration = Date.now() - startTime
-    this.logger.info(`✅ 生成了 ${generatedFiles.length} 个声明文件 (${duration}ms)`)
-
-    return {
-      success: true,
-      files: generatedFiles,
-      skipped: skippedFiles.length > 0 ? skippedFiles : undefined,
-      errors: errors.length > 0 ? errors : undefined,
-      warnings: warnings.length > 0 ? warnings : undefined,
-      duration,
-      retries: 0,
+      return {
+        success: false,
+        files: generatedFiles,
+        skipped: skippedFiles.length > 0 ? skippedFiles : undefined,
+        errors: [errorMessage, ...errors],
+        warnings: warnings.length > 0 ? warnings : undefined,
+        duration,
+        retries: 0,
+      }
     }
   }
 
@@ -327,7 +312,7 @@ export class DtsGenerator {
         7016, // Could not find declaration file
         2304, // Cannot find name
         2339, // Property does not exist
-        2345, // Argument type mismatch
+        2345, // Argument type mismatch (常见于泛型)
         2322, // Type is not assignable
         1259, // Module can only be default-imported
         1192, // Module has no default export
@@ -410,31 +395,6 @@ export class DtsGenerator {
         ? path.join(this.options.outDir, '.tsbuildinfo')
         : undefined,
     }
-  }
-
-  /**
-   * 创建编译器主机
-   */
-  private createCompilerHost(options: ts.CompilerOptions): ts.CompilerHost {
-    const host = ts.createCompilerHost(options)
-
-    const originalWriteFile = host.writeFile
-    if (originalWriteFile) {
-      host.writeFile = (fileName, data, writeByteOrderMark, onError, sourceFiles) => {
-        if (this.options.preserveStructure) {
-          const relativePath = path.relative(
-            options.rootDir || this.options.srcDir,
-            fileName,
-          )
-          const targetPath = path.join(this.options.outDir, relativePath)
-          fileName = targetPath
-        }
-
-        originalWriteFile(fileName, data, writeByteOrderMark, onError, sourceFiles)
-      }
-    }
-
-    return host
   }
 
   /**
@@ -538,11 +498,13 @@ export class DtsGenerator {
 
         const content = await fse.readFile(file, 'utf-8')
 
+        // 检查文件是否为空
         if (content.trim().length === 0) {
           issues.push(`文件为空: ${file}`)
           continue
         }
 
+        // 检查是否包含有效的类型声明
         if (!content.includes('export') && !content.includes('declare')) {
           issues.push(`文件可能无效（无导出或声明）: ${file}`)
         }
@@ -582,25 +544,16 @@ export class DtsGenerator {
 }
 
 /**
- * 创建 DTS 生成器
+ * 创建增强版 DTS 生成器
  */
-export function createDtsGenerator(options: DtsGeneratorOptions): DtsGenerator {
-  return new DtsGenerator(options)
-}
-
-/**
- * 快捷生成函数
- */
-export async function generateDts(options: DtsGeneratorOptions): Promise<DtsGenerationResult> {
-  const generator = createDtsGenerator(options)
-  return await generator.generate()
+export function createEnhancedDtsGenerator(options: EnhancedDtsOptions): EnhancedDtsGenerator {
+  return new EnhancedDtsGenerator(options)
 }
 
 /**
  * 快捷生成函数（带重试）
- *
- * @deprecated 使用 generateDts 代替，已内置重试机制
  */
-export async function generateDtsWithRetry(options: DtsGeneratorOptions): Promise<DtsGenerationResult> {
-  return generateDts(options)
+export async function generateDtsWithRetry(options: EnhancedDtsOptions): Promise<EnhancedDtsResult> {
+  const generator = createEnhancedDtsGenerator(options)
+  return await generator.generate()
 }

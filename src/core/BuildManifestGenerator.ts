@@ -61,7 +61,7 @@ export interface BuildManifest {
     /** 是否成功 */
     success: boolean
   }
-  
+
   /** 项目信息 */
   project: {
     /** 项目名称 */
@@ -73,7 +73,7 @@ export interface BuildManifest {
     /** 项目作者 */
     author?: string
   }
-  
+
   /** 构建配置 */
   config: {
     /** 入口文件 */
@@ -89,10 +89,10 @@ export interface BuildManifest {
     /** 外部依赖 */
     external: string[]
   }
-  
+
   /** 文件列表 */
   files: ManifestFile[]
-  
+
   /** 统计信息 */
   stats: {
     /** 总文件数 */
@@ -133,10 +133,10 @@ export class BuildManifestGenerator {
 
     // 获取项目信息
     const projectInfo = await this.getProjectInfo()
-    
+
     // 扫描输出文件
     const files = await this.scanOutputFiles(outputDir)
-    
+
     // 生成统计信息
     const stats = this.generateStats(files)
 
@@ -156,12 +156,14 @@ export class BuildManifestGenerator {
       config: {
         input: (config.input ?? 'src/index.ts') as string | string[] | Record<string, string>,
         outputDir: config.output?.dir || 'dist',
-        formats: Array.isArray(config.output?.format) 
-          ? config.output.format 
-          : config.output?.format ? [config.output.format] : ['esm'],
+        formats: Array.isArray(config.output?.format)
+          ? config.output.format as string[]
+          : config.output?.format ? [config.output.format as string] : ['esm'],
         sourcemap: Boolean(config.output?.sourcemap),
         minify: Boolean(config.minify),
-        external: Array.isArray(config.external) ? config.external : []
+        external: Array.isArray(config.external)
+          ? (config.external.filter((e): e is string => typeof e === 'string') as string[])
+          : []
       },
       files,
       stats
@@ -183,7 +185,7 @@ export class BuildManifestGenerator {
       const content = this.formatManifest(manifest, format)
       const filename = `build-manifest.${format}`
       const filepath = path.join(outputDir, filename)
-      
+
       await fs.promises.writeFile(filepath, content, 'utf-8')
       this.logger.info(`清单已保存: ${filename}`)
     }
@@ -247,23 +249,23 @@ ${project.author ? `- **项目作者**: ${project.author}` : ''}
 
 ### 按类型分组
 
-${Object.entries(stats.byType).map(([type, stat]) => 
-  `- **${type.toUpperCase()}**: ${stat.count} 个文件, ${stat.formattedSize}`
-).join('\n')}
+${Object.entries(stats.byType).map(([type, stat]) =>
+      `- **${type.toUpperCase()}**: ${stat.count} 个文件, ${stat.formattedSize}`
+    ).join('\n')}
 
 ### 按格式分组
 
-${Object.entries(stats.byFormat).map(([format, stat]) => 
-  `- **${format.toUpperCase()}**: ${stat.count} 个文件, ${stat.formattedSize}`
-).join('\n')}
+${Object.entries(stats.byFormat).map(([format, stat]) =>
+      `- **${format.toUpperCase()}**: ${stat.count} 个文件, ${stat.formattedSize}`
+    ).join('\n')}
 
 ## 📁 文件列表
 
 | 文件名 | 大小 | 类型 | 格式 | 哈希 |
 |--------|------|------|------|------|
-${files.map(file => 
-  `| ${file.name} | ${file.formattedSize} | ${file.type} | ${file.format || '-'} | ${file.hash.substring(0, 8)} |`
-).join('\n')}
+${files.map(file =>
+      `| ${file.name} | ${file.formattedSize} | ${file.type} | ${file.format || '-'} | ${file.hash.substring(0, 8)} |`
+    ).join('\n')}
 
 ---
 *生成时间: ${new Date().toISOString()}*
@@ -362,25 +364,26 @@ ${files.map(file =>
    */
   private async scanOutputFiles(outputDir: string): Promise<ManifestFile[]> {
     const files: ManifestFile[] = []
-    
+
     if (!fs.existsSync(outputDir)) {
       return files
     }
 
     const scanDir = async (dir: string, basePath = ''): Promise<void> => {
       const entries = await fs.promises.readdir(dir, { withFileTypes: true })
-      
+
       for (const entry of entries) {
         const fullPath = path.join(dir, entry.name)
         const relativePath = path.join(basePath, entry.name)
-        
+
         if (entry.isDirectory()) {
           await scanDir(fullPath, relativePath)
         } else if (entry.isFile()) {
           const stats = await fs.promises.stat(fullPath)
           const content = await fs.promises.readFile(fullPath)
-          const hash = createHash('md5').update(content).digest('hex')
-          
+          // 使用 Uint8Array 转换以兼容 TypeScript 类型
+          const hash = createHash('md5').update(new Uint8Array(content)).digest('hex')
+
           files.push({
             path: relativePath,
             name: entry.name,
@@ -474,7 +477,7 @@ ${files.map(file =>
     try {
       const packageJsonPath = path.resolve(process.cwd(), 'package.json')
       const packageJson = JSON.parse(await fs.promises.readFile(packageJsonPath, 'utf-8'))
-      
+
       return {
         name: packageJson.name || 'unknown',
         version: packageJson.version || '0.0.0',

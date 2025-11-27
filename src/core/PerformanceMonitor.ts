@@ -406,13 +406,17 @@ export class PerformanceMonitor extends EventEmitter {
 
   /**
    * 获取文件大小
+   *
+   * @param filePath - 文件路径
+   * @returns 文件大小（字节），如果文件不存在返回 0
    */
   private getFileSize(filePath: string): number {
     try {
-      const fs = require('fs')
+      const fs = require('fs') as typeof import('fs')
       const stats = fs.statSync(filePath)
       return stats.size
-    } catch {
+    }
+    catch {
       return 0
     }
   }

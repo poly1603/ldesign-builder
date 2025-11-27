@@ -131,7 +131,10 @@ export class QwikStrategy implements ILibraryStrategy {
 
     if (config.external) {
       if (Array.isArray(config.external)) {
-        return [...defaults, ...config.external]
+        // 过滤出字符串类型的外部依赖，使用类型断言确保返回 string[]
+        const stringExternals = (config.external as (string | RegExp)[])
+          .filter((e): e is string => typeof e === 'string')
+        return [...defaults, ...stringExternals] as string[]
       }
     }
 

@@ -249,11 +249,12 @@ export abstract class BaseStrategy implements ILibraryStrategy {
    */
   protected async buildNodeResolvePlugin(config: BuilderConfig): Promise<BuilderPlugin> {
     const nodeResolve = await import('@rollup/plugin-node-resolve')
+    // 使用类型断言，因为 Rollup 插件类型与 BuilderPlugin 结构略有差异
     return nodeResolve.default({
       browser: config.platform !== 'node',
       extensions: this.getSupportedExtensions(config),
       preferBuiltins: config.platform === 'node'
-    })
+    }) as unknown as BuilderPlugin
   }
 
   /**
@@ -261,7 +262,8 @@ export abstract class BaseStrategy implements ILibraryStrategy {
    */
   protected async buildCommonJSPlugin(_config: BuilderConfig): Promise<BuilderPlugin> {
     const commonjs = await import('@rollup/plugin-commonjs')
-    return commonjs.default()
+    // 使用类型断言，因为 Rollup 插件类型与 BuilderPlugin 结构略有差异
+    return commonjs.default() as unknown as BuilderPlugin
   }
 
   /**
@@ -272,12 +274,12 @@ export abstract class BaseStrategy implements ILibraryStrategy {
     const ts = await import('@rollup/plugin-typescript')
     return {
       name: 'typescript',
-      plugin: async () => ts.default({
+      load: async () => ts.default({
         tsconfig: config.typescript?.tsconfig || 'tsconfig.json',
         declaration: config.typescript?.declaration !== false,
         emitDeclarationOnly: true,
         declarationDir: config.typescript?.declarationDir
-      } as any)
+      } as any) as unknown as BuilderPlugin
     }
   }
 
@@ -285,18 +287,21 @@ export abstract class BaseStrategy implements ILibraryStrategy {
    * 构建样式插件（使用 rollup-plugin-styles 替代 postcss）
    */
   protected async buildPostCSSPlugin(config: BuilderConfig): Promise<BuilderPlugin | null> {
-    if (config.style?.extract === false) {
+    // 检查是否禁用样式提取
+    const extractDisabled = config.style?.extract === false
+    if (extractDisabled) {
       return null
     }
 
     const styles = await import('rollup-plugin-styles')
 
+    // 使用类型断言，因为 Rollup 插件类型与 BuilderPlugin 结构略有差异
     return styles.default({
-      mode: config.style?.extract !== false ? 'extract' : 'inject',
+      mode: config.style?.extract === true || config.style?.extract === undefined ? 'extract' : 'inject',
       minimize: config.style?.minimize !== false,
       sourceMap: config.output?.sourcemap !== false,
       modules: config.style?.modules || false
-    })
+    }) as unknown as BuilderPlugin
   }
 
   /**
@@ -306,7 +311,10 @@ export abstract class BaseStrategy implements ILibraryStrategy {
     const preprocessors: string[] = []
 
     if (config.style?.preprocessor) {
-      preprocessors.push(config.style.preprocessor)
+      // preprocessor 可能是字符串或对象配置
+      if (typeof config.style.preprocessor === 'string') {
+        preprocessors.push(config.style.preprocessor)
+      }
     }
 
     return preprocessors
@@ -317,6 +325,7 @@ export abstract class BaseStrategy implements ILibraryStrategy {
    */
   protected async buildEsbuildPlugin(config: BuilderConfig, options: any = {}): Promise<BuilderPlugin> {
     const esbuild = await import('rollup-plugin-esbuild')
+    // 使用类型断言，因为 Rollup 插件类型与 BuilderPlugin 结构略有差异
     return esbuild.default({
       include: /\.(tsx?|jsx?)$/,
       exclude: [/node_modules/],
@@ -325,7 +334,7 @@ export abstract class BaseStrategy implements ILibraryStrategy {
       sourceMap: config.output?.sourcemap !== false,
       minify: shouldMinify(config),
       ...options
-    })
+    }) as unknown as BuilderPlugin
   }
 
   /**

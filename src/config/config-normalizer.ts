@@ -1,33 +1,73 @@
 /**
- * Configuration Normalizer
- * Detects and fixes common configuration issues
+ * 配置冲突解析器
+ *
+ * 检测并修复常见的配置问题：
+ * - 重复的 UMD 配置
+ * - 冗余的 libraryType 声明
+ * - 冗余的 TypeScript 声明设置
+ * - 冲突的入口点配置
+ *
+ * 与 normalizer.ts 的区别：
+ * - normalizer.ts: 处理配置格式兼容性问题（旧版 -> 新版）
+ * - 本文件: 处理配置冲突和重复问题
+ *
+ * @author LDesign Team
+ * @version 1.0.0
  */
 
 import type { BuilderConfig } from '../types/config'
 import { createLogger } from '../utils/logger'
 
-const logger = createLogger({ prefix: 'ConfigNormalizer' })
+const logger = createLogger({ prefix: 'ConflictResolver' })
 
-export interface NormalizationWarning {
+/**
+ * 冲突警告类型
+ */
+export interface ConflictWarning {
+  /** 警告类型 */
   type: 'duplicate' | 'redundant' | 'deprecated' | 'conflict'
+  /** 相关字段 */
   field: string
+  /** 警告消息 */
   message: string
+  /** 修复建议 */
   suggestion?: string
 }
 
-export interface NormalizationResult {
+/**
+ * 冲突解析结果
+ */
+export interface ConflictResolutionResult {
+  /** 解析后的配置 */
   config: BuilderConfig
-  warnings: NormalizationWarning[]
+  /** 警告列表 */
+  warnings: ConflictWarning[]
+  /** 是否进行了修复 */
   fixed: boolean
 }
 
-export class ConfigNormalizer {
-  private warnings: NormalizationWarning[] = []
+/**
+ * 配置冲突解析器
+ *
+ * @example
+ * ```typescript
+ * const resolver = new ConfigConflictResolver()
+ * const result = resolver.resolve(config)
+ * if (result.warnings.length > 0) {
+ *   resolver.printWarnings()
+ * }
+ * ```
+ */
+export class ConfigConflictResolver {
+  private warnings: ConflictWarning[] = []
 
   /**
-   * Normalize configuration and detect issues
+   * 解析配置冲突
+   *
+   * @param config - 原始配置
+   * @returns 解析结果
    */
-  normalize(config: BuilderConfig): NormalizationResult {
+  resolve(config: BuilderConfig): ConflictResolutionResult {
     this.warnings = []
     const normalized = { ...config }
 
@@ -165,24 +205,38 @@ export class ConfigNormalizer {
 }
 
 /**
- * Factory function to create a ConfigNormalizer
+ * 创建配置冲突解析器
  */
-export function createConfigNormalizer(): ConfigNormalizer {
-  return new ConfigNormalizer()
+export function createConflictResolver(): ConfigConflictResolver {
+  return new ConfigConflictResolver()
 }
 
 /**
- * Normalize a configuration and return the result
+ * 解析配置冲突
+ *
+ * @param config - 原始配置
+ * @param verbose - 是否输出警告信息
+ * @returns 解析结果
  */
-export function normalizeConfig(config: BuilderConfig, verbose = true): NormalizationResult {
-  const normalizer = createConfigNormalizer()
-  const result = normalizer.normalize(config)
+export function resolveConfigConflicts(config: BuilderConfig, verbose = true): ConflictResolutionResult {
+  const resolver = createConflictResolver()
+  const result = resolver.resolve(config)
 
   if (verbose && result.warnings.length > 0) {
-    normalizer.printWarnings()
+    resolver.printWarnings()
   }
 
   return result
 }
 
-
+// 向后兼容的别名
+/** @deprecated 使用 ConfigConflictResolver 代替 */
+export { ConfigConflictResolver as ConfigNormalizer }
+/** @deprecated 使用 createConflictResolver 代替 */
+export { createConflictResolver as createConfigNormalizer }
+/** @deprecated 使用 resolveConfigConflicts 代替 */
+export { resolveConfigConflicts as normalizeConfig }
+/** @deprecated 使用 ConflictWarning 代替 */
+export type { ConflictWarning as NormalizationWarning }
+/** @deprecated 使用 ConflictResolutionResult 代替 */
+export type { ConflictResolutionResult as NormalizationResult }

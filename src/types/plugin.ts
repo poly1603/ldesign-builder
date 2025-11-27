@@ -543,6 +543,9 @@ export interface PluginManagerOptions {
 
   /** 插件黑名单 */
   blacklist?: string[]
+
+  /** 日志记录器 */
+  logger?: import('../utils/logger').Logger
 }
 
 /**

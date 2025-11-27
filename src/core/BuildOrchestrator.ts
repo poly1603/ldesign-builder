@@ -281,10 +281,34 @@ export class BuildOrchestrator {
   ): Promise<PostBuildValidationResult> {
     this.logger.info('执行构建后验证...')
 
-    const validationResult = await this.postBuildValidator.validate(
-      config.postBuildValidation || {},
-      result
-    )
+    const cwd = (config as any).cwd || process.cwd()
+    const cacheDir = (config as any).cacheDir || 'node_modules/.cache/@ldesign/builder'
+    const tempDir = '.validation-temp'
+
+    // 创建验证上下文，使用类型断言以兼容 ValidationContext 类型
+    const validationContext = {
+      buildContext: {
+        buildId,
+        startTime: Date.now(),
+        config,
+        cwd,
+        cacheDir,
+        tempDir,
+        watch: false,
+        env: process.env as Record<string, string>,
+        logger: this.logger,
+        performanceMonitor: null
+      },
+      buildResult: result,
+      config: config.postBuildValidation || {},
+      tempDir,
+      startTime: Date.now(),
+      validationId: buildId,
+      projectRoot: cwd,
+      outputDir: config.output?.dir || 'dist'
+    } as any
+
+    const validationResult = await this.postBuildValidator.validate(validationContext)
 
     if (!validationResult.success) {
       this.logger.warn('构建后验证发现问题:')
@@ -346,8 +370,8 @@ export class BuildOrchestrator {
 
     return this.errorHandler.createError(
       ErrorCode.BUILD_FAILED,
-      '构建失败',
-      { cause: error, buildId }
+      `构建失败 [${buildId}]`,
+      { cause: error, details: { buildId } }
     )
   }
 

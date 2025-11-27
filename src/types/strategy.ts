@@ -352,6 +352,9 @@ export interface StrategyManagerOptions {
 
   /** 缓存目录 */
   cacheDir?: string
+
+  /** 日志记录器 */
+  logger?: import('../utils/logger').Logger
 }
 
 /**

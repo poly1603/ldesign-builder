@@ -79,10 +79,13 @@ export class StrategyManager {
 
   /**
    * 检测最佳策略
+   *
+   * @param projectPath - 项目路径
+   * @returns 策略检测结果
    */
   async detectStrategy(projectPath: string): Promise<StrategyDetectionResult> {
-    const fs = require('fs-extra')
-    const path = require('path')
+    const fs = await import('fs-extra')
+    const path = await import('path')
     const evidence: string[] = []
     const alternatives: LibraryType[] = []
     let detectedStrategy: LibraryType = LibraryType.TYPESCRIPT
@@ -156,8 +159,9 @@ export class StrategyManager {
       // 检查文件扩展名
       const srcPath = path.join(projectPath, 'src')
       if (await fs.pathExists(srcPath)) {
-        const glob = require('fast-glob')
-        const files = await glob('**/*.{vue,jsx,tsx,svelte}', {
+        const fastGlob = await import('fast-glob')
+        const glob = fastGlob.default || fastGlob
+        const files = await glob.async('**/*.{vue,jsx,tsx,svelte}', {
           cwd: srcPath,
           absolute: false
         })

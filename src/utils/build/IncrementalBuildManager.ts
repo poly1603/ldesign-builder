@@ -162,7 +162,8 @@ export class IncrementalBuildManager {
    */
   private async calculateFileHash(filePath: string): Promise<string> {
     const content = await fs.readFile(filePath)
-    return createHash(this.hashAlgorithm).update(content).digest('hex')
+    // 使用 Uint8Array 转换以兼容 TypeScript 类型
+    return createHash(this.hashAlgorithm).update(new Uint8Array(content)).digest('hex')
   }
 
   /**

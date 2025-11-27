@@ -296,11 +296,11 @@ export class MixedFrameworkStrategy implements BuildStrategy {
     if (stats.vue > 0) {
       try {
         const { default: vue } = await import('rollup-plugin-vue')
+        // 使用类型断言，因为 rollup-plugin-vue 类型定义可能不完整
         plugins.push(vue({
-          css: false,
           compileTemplate: true,
           preprocessStyles: true
-        }) as any)
+        } as any) as any)
 
         // PostCSS 插件（处理样式）
         const { default: postcss } = await import('rollup-plugin-postcss')

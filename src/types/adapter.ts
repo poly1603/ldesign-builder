@@ -205,7 +205,7 @@ export type BundlerSpecificConfig = RollupOptions | RolldownOptions
  * Rollup 配置选项
  */
 export interface RollupOptions {
-  input: string | string[] | Record<string, string>
+  input?: string | string[] | Record<string, string>
   output?: RollupOutputOptions | RollupOutputOptions[]
   external?: ExternalOption
   plugins?: RollupPlugin[]
@@ -270,7 +270,7 @@ export interface RollupPlugin {
  * Rolldown 配置选项
  */
 export interface RolldownOptions {
-  input: string | string[] | Record<string, string>
+  input?: string | string[] | Record<string, string>
   output?: RolldownOutputOptions
   external?: ExternalOption
   plugins?: RolldownPlugin[]

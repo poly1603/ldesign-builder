@@ -147,7 +147,6 @@
   },
   "dependencies": {
     "@babel/preset-typescript": "^7.27.1",
-    "@ldesign/kit": "workspace:*",
     "@rollup/plugin-babel": "^6.0.4",
     "@rollup/plugin-commonjs": "^25.0.7",
     "@rollup/plugin-json": "^6.1.0",

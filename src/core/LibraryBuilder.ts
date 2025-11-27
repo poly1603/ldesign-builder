@@ -771,12 +771,12 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
           stats: buildResult.stats,
           performance: this.currentMetrics || {
             buildTime: 0,
-            bundleTime: 0,
-            transformTime: 0,
-            pluginTime: 0,
-            memory: { used: 0, total: 0, peak: 0 },
-            cpu: { usage: 0, cores: 0 },
-            io: { read: 0, write: 0 }
+            memoryUsage: { heapUsed: 0, heapTotal: 0, external: 0, rss: 0, peak: 0, trend: [] },
+            cacheStats: { hits: 0, misses: 0, hitRate: 0, size: 0, entries: 0, timeSaved: 0 },
+            fileStats: { totalFiles: 0, filesByType: {}, averageProcessingTime: 0, slowestFiles: [], processingRate: 0 },
+            pluginPerformance: [],
+            systemResources: { cpuUsage: 0, availableMemory: 0, diskUsage: { total: 0, used: 0, available: 0, usagePercent: 0 } },
+            bundleSize: 0
           },
           warnings: buildResult.warnings || [],
           errors: [],

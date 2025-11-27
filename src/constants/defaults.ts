@@ -57,6 +57,8 @@ export const DEFAULT_BUILDER_CONFIG: Omit<
   // 基础配置
   input: 'src/index.ts', // 保留作为兼容，但优先使用 output 中的配置
   libraryType: LibraryType.TYPESCRIPT, // 默认为 TypeScript 库
+  // 路径别名
+  alias: {},
   // 顶层开关：dts 与 sourcemap（可被各格式覆盖）
   dts: true,
   sourcemap: true,
@@ -357,7 +359,31 @@ export const DEFAULT_BUILDER_CONFIG: Omit<
   mixedFramework: undefined as any,
 
   // 自动检测框架（默认不启用）
-  autoDetectFramework: false
+  autoDetectFramework: false,
+
+  // 项目名称
+  name: '',
+
+  // 目标平台
+  platform: 'browser' as const,
+
+  // React 配置
+  react: {
+    jsx: 'automatic' as const,
+    jsxImportSource: 'react',
+    runtime: 'automatic' as const
+  },
+
+  // 优化配置
+  optimization: {
+    splitChunks: false,
+    minimize: false,
+    treeShaking: true,
+    commonChunks: false
+  },
+
+  // 项目路径
+  projectPath: process.cwd()
 }
 
 /**

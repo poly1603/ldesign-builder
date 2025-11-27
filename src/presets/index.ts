@@ -13,7 +13,7 @@ import { LibraryType } from '../types/library'
 /**
  * 预设配置类型
  */
-export type PresetName = 
+export type PresetName =
   | 'typescript'
   | 'react'
   | 'vue3'
@@ -479,3 +479,14 @@ export function hasPreset(name: string): name is PresetName {
   return name in presets
 }
 
+// 导出新的库类型预设
+export {
+  nodeLibrary,
+  webLibrary,
+  universalLibrary,
+  cliTool,
+  getPresetConfig,
+  isValidPreset,
+  LIBRARY_PRESETS,
+  type PresetName as LibraryPresetName,
+} from './library-presets'

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 配置验证器
  * 
  * 验证和规范化构建配置
@@ -257,13 +257,13 @@ export class ConfigValidator {
     if (Array.isArray(config.external)) {
       config.external.forEach((dep, index) => {
         if (typeof dep !== 'string') {
-          errors.push(`external 鏁扮粍绗?${index + 1} 椤瑰繀椤绘槸瀛楃涓?`)
+          errors.push(`external 数组第 ${index + 1} 项必须是字符串`)
         }
       })
       return
     }
 
-    errors.push('external 閰嶇疆蹇呴』鏄暟缁勬垨鍑芥暟')
+    errors.push('external 配置必须是数组或函数')
   }
 
   /**

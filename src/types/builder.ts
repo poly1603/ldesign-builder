@@ -257,6 +257,8 @@ export interface BuildResult {
     dir?: string
     ttl?: number
     maxSize?: number
+    /** 缓存时间戳 */
+    timestamp?: number
   }
 
   /** 打包后验证结果 */

@@ -1,17 +1,23 @@
 /**
- * Package.json 自动更新工具
+ * 增强版 Package.json 自动更新工具
  *
- * 负责在构建完成后自动更新 package.json 的 exports、main、module、types、files 等字段
+ * @deprecated 此文件已废弃，所有功能已合并到 PackageUpdater.ts
+ * 请使用 PackageUpdater 代替 EnhancedPackageUpdater
  *
- * 功能特性：
- * - 自动生成 exports 配置
- * - 条件导出支持（node/browser/default）
- * - 平台特定入口点
- * - 智能 CSS 文件导出
- * - sideEffects 字段管理
+ * @example
+ * ```typescript
+ * // 旧代码（不推荐）
+ * import { EnhancedPackageUpdater } from './EnhancedPackageUpdater'
+ *
+ * // 新代码（推荐）
+ * import { PackageUpdater } from './PackageUpdater'
+ * // 或使用向后兼容的别名
+ * import { EnhancedPackageUpdater } from '@ldesign/builder'
+ * ```
  *
  * @author LDesign Team
- * @version 2.0.0
+ * @version 1.0.0
+ * @see PackageUpdater
  */
 
 import { promises as fs, existsSync } from 'node:fs'
@@ -41,9 +47,9 @@ export interface ConditionalExportConfig {
 }
 
 /**
- * Package.json 更新配置
+ * 增强版 Package.json 更新配置
  */
-export interface PackageUpdaterConfig {
+export interface EnhancedPackageUpdaterConfig {
   /** 项目根目录 */
   projectRoot: string
   /** 源码目录，默认为 'src' */
@@ -94,25 +100,13 @@ interface ExportEntry {
 }
 
 /**
- * Package.json 更新器
- *
- * @example
- * ```typescript
- * const updater = new PackageUpdater({
- *   projectRoot: process.cwd(),
- *   conditionalExports: {
- *     platform: 'universal',
- *     includeDefault: true
- *   }
- * })
- * await updater.update()
- * ```
+ * 增强版 Package.json 更新器
  */
-export class PackageUpdater {
-  private config: Required<PackageUpdaterConfig>
+export class EnhancedPackageUpdater {
+  private config: Required<EnhancedPackageUpdaterConfig>
   private logger: Logger
 
-  constructor(config: PackageUpdaterConfig) {
+  constructor(config: EnhancedPackageUpdaterConfig) {
     this.logger = config.logger || createLogger({ prefix: 'PackageUpdater' })
     this.config = {
       projectRoot: config.projectRoot,
@@ -233,7 +227,7 @@ export class PackageUpdater {
    */
   private createConditionalExportEntry(relativePath: string): ExportEntry {
     const { esm, cjs, types, node, browser } = this.config.outputDirs
-    const { platform, includeDefault } = this.config.conditionalExports
+    const { platform, enableDevProd, includeDefault } = this.config.conditionalExports
     const entry: ExportEntry = {}
 
     // 类型声明（始终放在最前面）
@@ -244,12 +238,14 @@ export class PackageUpdater {
     // 根据平台生成条件导出
     if (platform === 'node' || platform === 'universal') {
       if (node) {
+        // 有专门的 Node.js 输出目录
         entry.node = {
           import: `./${node}/${relativePath}.js`,
           require: `./${node}/${relativePath}.cjs`,
         }
       }
       else if (platform === 'node') {
+        // 纯 Node.js 库，使用标准目录
         if (esm) entry.import = `./${esm}/${relativePath}.js`
         if (cjs) entry.require = `./${cjs}/${relativePath}.cjs`
       }
@@ -257,12 +253,14 @@ export class PackageUpdater {
 
     if (platform === 'browser' || platform === 'universal') {
       if (browser) {
+        // 有专门的浏览器输出目录
         entry.browser = {
           import: `./${browser}/${relativePath}.js`,
           require: `./${browser}/${relativePath}.cjs`,
         }
       }
       else if (platform === 'browser') {
+        // 纯浏览器库，使用标准目录
         if (esm) entry.import = `./${esm}/${relativePath}.js`
         if (cjs) entry.require = `./${cjs}/${relativePath}.cjs`
       }
@@ -307,6 +305,81 @@ export class PackageUpdater {
     }
 
     return entry
+  }
+
+  /**
+   * 更新入口点字段
+   */
+  private updateEntryPoints(packageJson: any): void {
+    const { esm, cjs, umd, types, node, browser } = this.config.outputDirs
+    const { platform } = this.config.conditionalExports
+
+    // 主入口点 - CJS 格式
+    if (cjs) {
+      packageJson.main = `./${cjs}/index.cjs`
+    }
+
+    // ESM 入口点
+    if (esm) {
+      packageJson.module = `./${esm}/index.js`
+    }
+
+    // TypeScript 类型定义
+    if (types) {
+      packageJson.types = `./${types}/index.d.ts`
+      packageJson.typings = `./${types}/index.d.ts`
+    }
+
+    // 浏览器入口点
+    if (platform === 'browser' || platform === 'universal') {
+      if (browser) {
+        packageJson.browser = `./${browser}/index.js`
+      }
+      else if (umd) {
+        packageJson.browser = `./${umd}/index.js`
+      }
+    }
+
+    // UMD 格式 - 用于 CDN
+    if (umd) {
+      const minifiedPath = `./${umd}/index.min.js`
+      const regularPath = `./${umd}/index.js`
+
+      const minifiedFullPath = path.join(this.config.projectRoot, umd, 'index.min.js')
+
+      if (this.fileExistsSync(minifiedFullPath)) {
+        packageJson.unpkg = minifiedPath
+        packageJson.jsdelivr = minifiedPath
+      }
+      else {
+        packageJson.unpkg = regularPath
+        packageJson.jsdelivr = regularPath
+      }
+    }
+  }
+
+  /**
+   * 生成 files 字段
+   */
+  private async generateFiles(): Promise<string[]> {
+    const files = new Set(['README.md', 'LICENSE', 'CHANGELOG.md'])
+    const { esm, cjs, umd, types, node, browser } = this.config.outputDirs
+
+    // 检查输出目录是否存在
+    const dirsToCheck = [esm, cjs, umd, types, node, browser].filter(Boolean) as string[]
+
+    for (const dir of dirsToCheck) {
+      const dirPath = path.join(this.config.projectRoot, dir)
+      try {
+        await fs.access(dirPath)
+        files.add(dir)
+      }
+      catch {
+        // 目录不存在，跳过
+      }
+    }
+
+    return Array.from(files)
   }
 
   /**
@@ -370,181 +443,6 @@ export class PackageUpdater {
   }
 
   /**
-   * 更新入口点字段
-   */
-  private updateEntryPoints(packageJson: any): void {
-    const { esm, cjs, umd, types, node, browser } = this.config.outputDirs
-    const { platform } = this.config.conditionalExports
-
-    // 主入口点 - CJS 格式
-    if (cjs) {
-      packageJson.main = `./${cjs}/index.cjs`
-    }
-
-    // ESM 入口点
-    if (esm) {
-      packageJson.module = `./${esm}/index.js`
-    }
-
-    // TypeScript 类型定义
-    if (types) {
-      packageJson.types = `./${types}/index.d.ts`
-      packageJson.typings = `./${types}/index.d.ts`
-    }
-
-    // 浏览器入口点
-    if (platform === 'browser' || platform === 'universal') {
-      if (browser) {
-        packageJson.browser = `./${browser}/index.js`
-      }
-      else if (umd) {
-        packageJson.browser = `./${umd}/index.js`
-      }
-    }
-
-    // UMD 格式 - 用于 CDN
-    if (umd) {
-      const minifiedPath = `./${umd}/index.min.js`
-      const regularPath = `./${umd}/index.js`
-      const minifiedFullPath = path.join(this.config.projectRoot, umd, 'index.min.js')
-
-      if (this.fileExistsSync(minifiedFullPath)) {
-        packageJson.unpkg = minifiedPath
-        packageJson.jsdelivr = minifiedPath
-      }
-      else {
-        packageJson.unpkg = regularPath
-        packageJson.jsdelivr = regularPath
-      }
-    }
-  }
-
-  /**
-   * 生成 files 字段
-   */
-  private async generateFiles(): Promise<string[]> {
-    const files = new Set(['README.md', 'LICENSE', 'CHANGELOG.md'])
-    const { esm, cjs, umd, types, node, browser } = this.config.outputDirs
-
-    const dirsToCheck = [esm, cjs, umd, types, node, browser].filter(Boolean) as string[]
-
-    for (const dir of dirsToCheck) {
-      const dirPath = path.join(this.config.projectRoot, dir)
-      try {
-        await fs.access(dirPath)
-        files.add(dir)
-      }
-      catch {
-        // 目录不存在，跳过
-      }
-    }
-
-    return Array.from(files)
-  }
-
-  /**
-   * 读取 package.json
-   */
-  private async readPackageJson(packageJsonPath: string): Promise<any> {
-    try {
-      const content = await fs.readFile(packageJsonPath, 'utf-8')
-      return JSON.parse(content)
-    } catch (error) {
-      throw new Error(`读取 package.json 失败: ${error}`)
-    }
-  }
-
-  /**
-   * 检查文件是否存在（同步）
-   *
-   * @param filePath - 文件路径
-   * @returns 文件是否存在
-   */
-  private fileExistsSync(filePath: string): boolean {
-    return existsSync(filePath)
-  }
-
-  /**
-   * 写入 package.json
-   */
-  private async writePackageJson(packageJsonPath: string, packageJson: any): Promise<void> {
-    try {
-      const content = JSON.stringify(packageJson, null, 2)
-      await fs.writeFile(packageJsonPath, content, 'utf-8')
-    } catch (error) {
-      throw new Error(`写入 package.json 失败: ${error}`)
-    }
-  }
-
-  /**
-   * 按照最佳实践排序 package.json 字段
-   */
-  private sortPackageJsonFields(packageJson: any): any {
-    // 定义字段的优先级顺序
-    const fieldOrder = [
-      // 基本信息
-      'name',
-      'version',
-      'description',
-      'keywords',
-      'author',
-      'license',
-      'homepage',
-      'repository',
-      'bugs',
-
-      // 模块配置
-      'type',
-      'sideEffects',
-
-      // 入口点
-      'exports',
-      'main',
-      'module',
-      'types',
-      'unpkg',
-      'jsdelivr',
-
-      // 文件配置
-      'files',
-
-      // 脚本
-      'scripts',
-
-      // 依赖
-      'dependencies',
-      'peerDependencies',
-      'devDependencies',
-      'optionalDependencies',
-
-      // 其他配置
-      'engines',
-      'os',
-      'cpu',
-      'publishConfig',
-      'size-limit'
-    ]
-
-    const sorted: any = {}
-
-    // 按照定义的顺序添加字段
-    for (const field of fieldOrder) {
-      if (packageJson[field] !== undefined) {
-        sorted[field] = packageJson[field]
-      }
-    }
-
-    // 添加其他未在顺序中定义的字段
-    for (const [key, value] of Object.entries(packageJson)) {
-      if (!fieldOrder.includes(key)) {
-        sorted[key] = value
-      }
-    }
-
-    return sorted
-  }
-
-  /**
    * 添加 CSS 导出
    */
   private async addCssExports(exports: Record<string, any>): Promise<void> {
@@ -592,24 +490,78 @@ export class PackageUpdater {
       // 忽略错误
     }
   }
+
+  /**
+   * 读取 package.json
+   */
+  private async readPackageJson(packageJsonPath: string): Promise<any> {
+    const content = await fs.readFile(packageJsonPath, 'utf-8')
+    return JSON.parse(content)
+  }
+
+  /**
+   * 写入 package.json
+   */
+  private async writePackageJson(packageJsonPath: string, packageJson: any): Promise<void> {
+    const content = JSON.stringify(packageJson, null, 2) + '\n'
+    await fs.writeFile(packageJsonPath, content, 'utf-8')
+  }
+
+  /**
+   * 检查文件是否存在（同步）
+   *
+   * @param filePath - 文件路径
+   * @returns 文件是否存在
+   */
+  private fileExistsSync(filePath: string): boolean {
+    return existsSync(filePath)
+  }
+
+  /**
+   * 排序 package.json 字段
+   */
+  private sortPackageJsonFields(packageJson: any): any {
+    const fieldOrder = [
+      'name', 'version', 'description', 'keywords', 'author', 'license',
+      'homepage', 'repository', 'bugs',
+      'type', 'sideEffects',
+      'exports', 'main', 'module', 'browser', 'types', 'typings',
+      'unpkg', 'jsdelivr',
+      'files',
+      'scripts',
+      'dependencies', 'peerDependencies', 'devDependencies', 'optionalDependencies',
+      'engines', 'os', 'cpu', 'publishConfig',
+    ]
+
+    const sorted: any = {}
+
+    for (const field of fieldOrder) {
+      if (packageJson[field] !== undefined) {
+        sorted[field] = packageJson[field]
+      }
+    }
+
+    for (const [key, value] of Object.entries(packageJson)) {
+      if (!fieldOrder.includes(key)) {
+        sorted[key] = value
+      }
+    }
+
+    return sorted
+  }
 }
 
 /**
- * 创建 Package 更新器
+ * 创建增强版 Package 更新器
  */
-export function createPackageUpdater(config: PackageUpdaterConfig): PackageUpdater {
-  return new PackageUpdater(config)
+export function createEnhancedPackageUpdater(config: EnhancedPackageUpdaterConfig): EnhancedPackageUpdater {
+  return new EnhancedPackageUpdater(config)
 }
 
 /**
  * 快捷更新函数
  */
-export async function updatePackageJson(config: PackageUpdaterConfig): Promise<void> {
-  const updater = createPackageUpdater(config)
+export async function updatePackageJson(config: EnhancedPackageUpdaterConfig): Promise<void> {
+  const updater = createEnhancedPackageUpdater(config)
   await updater.update()
 }
-
-// 向后兼容的类型别名
-export type EnhancedPackageUpdaterConfig = PackageUpdaterConfig
-export { PackageUpdater as EnhancedPackageUpdater }
-export { createPackageUpdater as createEnhancedPackageUpdater }

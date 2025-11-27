@@ -159,7 +159,9 @@ export class Vue2Strategy implements ILibraryStrategy {
     }
 
     // 检查外部依赖
-    if (Array.isArray(config.external) && !config.external.includes('vue')) {
+    const hasVueExternal = Array.isArray(config.external)
+      && config.external.some(e => e === 'vue' || (e instanceof RegExp && e.test('vue')))
+    if (Array.isArray(config.external) && !hasVueExternal) {
       suggestions.push('建议将 Vue 添加到外部依赖中以减少包体积')
     }
 
@@ -313,7 +315,9 @@ export class Vue2Strategy implements ILibraryStrategy {
     let externals: string[] = []
 
     if (Array.isArray(config.external)) {
-      externals = [...config.external]
+      // 过滤出字符串类型的外部依赖，使用类型断言确保返回 string[]
+      externals = (config.external as (string | RegExp)[])
+        .filter((e): e is string => typeof e === 'string') as string[]
     } else if (typeof config.external === 'function') {
       return config.external
     } else {

@@ -11,9 +11,21 @@
 
 **零配置 · 极速构建 · 多引擎支持 · 智能检测**
 
-[特性](#-核心特性) • [快速开始](#-快速开始) • [文档](#-文档) • [配置](#-配置) • [CLI](#-cli-命令)
+[特性](#-核心特性) • [快速开始](#-快速开始) • [配置指南](#-配置指南) • [API 文档](#-api-文档) • [高级功能](#-高级功能)
 
 </div>
+
+---
+
+## 📖 项目简介
+
+`@ldesign/builder` 是一个为现代前端库开发而设计的智能打包工具。它解决了以下核心问题：
+
+- **配置复杂**：传统打包工具需要大量配置，`@ldesign/builder` 提供零配置开箱即用
+- **多框架支持**：自动检测 11 种主流框架，无需手动配置框架特定插件
+- **性能瓶颈**：支持 4 种打包引擎（Rollup/Rolldown/esbuild/SWC），按需选择最优方案
+- **类型生成**：内置增强型 DTS 生成器，自动生成完整的类型声明文件
+- **多格式输出**：一次构建生成 ESM/CJS/UMD 多种格式，满足不同使用场景
 
 ---
 
@@ -21,42 +33,49 @@
 
 ### 🎯 零配置，开箱即用
 
-- **智能检测**：自动识别 11 种主流框架（Vue、React、Svelte、Solid、Preact、Lit、Angular、Qwik等）
+- **智能检测**：自动识别 11 种主流框架（Vue、React、Svelte、Solid、Preact、Lit、Angular、Qwik 等）
 - **自动优化**：根据项目类型自动应用最佳构建策略
 - **约定优于配置**：遵循最佳实践，无需复杂配置
+- **预设配置**：内置 Node.js 库、Web 库、CLI 工具等预设
 
 ### ⚡️ 极致性能
 
 - **多引擎支持**：Rollup / Rolldown / esbuild / SWC，自由选择
 - **并行构建**：利用多核 CPU，构建速度提升 10 倍
-- **增量缓存**：三级缓存系统（L1内存 + L2磁盘 + L3远程），加速 3 倍
+- **增量缓存**：三级缓存系统（L1 内存 + L2 磁盘 + L3 远程），加速 3 倍
 - **智能分析**：自动优化 bundle 大小，提供优化建议
 
 ### 🎨 全能支持
 
 - **TypeScript**：完整的 TypeScript 支持，自动生成类型声明
-- **样式处理**：Less / Sass / Stylus / PostCSS / CSS Modules
+- **样式处理**：Less / Sass / Stylus / PostCSS / CSS Modules / Tailwind CSS
 - **资源优化**：图片压缩、SVG 优化、字体处理
 - **多产物**：ESM / CJS / UMD，一键生成多种格式
 
 ### 🔌 插件生态
 
-- **丰富插件**：内置多个常用插件
-- **可扩展**：支持自定义插件和策略
-- **热插拔**：灵活的插件系统
+- **丰富插件**：内置图片优化、SVG 优化、i18n 提取等插件
+- **可扩展**：支持自定义插件和构建策略
+- **热插拔**：灵活的插件系统，按需加载
+
+### 📦 Monorepo 支持
+
+- **工作空间感知**：自动识别 pnpm/npm/yarn 工作空间
+- **依赖分析**：智能处理内部包依赖
+- **并行构建**：多包并行构建，提升效率
 
 ---
 
 ## 📦 安装
 
 ```bash
-# npm
-npm install @ldesign/builder -D
-
-# pnpm
+# 使用 pnpm（推荐）
 pnpm add @ldesign/builder -D
 
-# yarn
+# 使用 npm
+npm install @ldesign/builder -D
+
+# 使用 yarn
 yarn add @ldesign/builder -D
 ```
 
@@ -64,7 +83,21 @@ yarn add @ldesign/builder -D
 
 ## 🚀 快速开始
 
-### 1. 零配置构建
+### 最简单的使用方式（3 行代码）
+
+```typescript
+// builder.config.ts
+import { defineConfig } from '@ldesign/builder'
+export default defineConfig('universal-library')
+```
+
+然后运行：
+
+```bash
+npx ldesign-builder build
+```
+
+### 零配置构建
 
 无需任何配置，直接开始构建：
 
@@ -73,81 +106,86 @@ npx ldesign-builder build
 ```
 
 Builder 会自动：
-- 🔍 检测项目类型（Vue/React/TypeScript等）
+- 🔍 检测项目类型（Vue/React/TypeScript 等）
 - ⚙️ 选择最佳构建策略
-- 📦 生成优化后的产物
+- 📦 生成优化后的产物（es/、lib/、dist/）
 - 📊 输出构建报告
 
-### 2. 使用配置文件
+### 常见使用场景示例
 
-创建 `ldesign.config.ts`：
+#### 1. Node.js 库
 
 ```typescript
-import { defineConfig } from '@ldesign/builder'
+import { defineConfig, nodeLibrary } from '@ldesign/builder'
 
-export default defineConfig({
-  // 入口文件
-  input: 'src/index.ts',
-  
-  // 输出配置
-  output: {
-    dir: 'dist',
-    format: ['esm', 'cjs'],
-    sourcemap: true
-  },
-  
-  // 库类型（可选，会自动检测）
-  libraryType: 'vue',
-  
-  // 构建模式
-  mode: 'production',
-  
-  // 打包引擎
-  bundler: 'rollup'
-})
+export default defineConfig(nodeLibrary({
+  name: 'my-node-lib',
+  // 只输出 ESM 和 CJS，不需要 UMD
+}))
 ```
 
-### 3. 编程式调用
+#### 2. Web 库（浏览器）
 
 ```typescript
-import { LibraryBuilder } from '@ldesign/builder'
+import { defineConfig, webLibrary } from '@ldesign/builder'
 
-const builder = new LibraryBuilder({
-  input: 'src/index.ts',
-  output: {
-    dir: 'dist',
-    format: ['esm', 'cjs']
-  }
-})
+export default defineConfig(webLibrary({
+  name: 'MyWebLib',
+  // 输出 ESM 和 UMD（压缩版）
+}))
+```
 
-// 执行构建
-const result = await builder.build()
-console.log('Build completed:', result)
+#### 3. 通用库（同时支持 Node.js 和浏览器）
 
-// 监听模式
-const watcher = await builder.buildWatch()
-watcher.on('change', (file) => {
-  console.log('File changed:', file)
-})
+```typescript
+import { defineConfig, universalLibrary } from '@ldesign/builder'
+
+export default defineConfig(universalLibrary({
+  name: 'MyUniversalLib',
+  // 输出 ESM、CJS 和 UMD 三种格式
+}))
+```
+
+#### 4. CLI 工具
+
+```typescript
+import { defineConfig, cliTool } from '@ldesign/builder'
+
+export default defineConfig(cliTool({
+  name: 'my-cli',
+  input: 'src/cli.ts',
+  // 输出压缩的 CJS 格式
+}))
+```
+
+#### 5. Vue 组件库
+
+```typescript
+import { defineConfig, vueLibrary } from '@ldesign/builder'
+
+export default defineConfig(vueLibrary({
+  name: 'MyVueComponents',
+  external: ['vue'],
+}))
 ```
 
 ---
 
 ## 🎯 支持的框架
 
-| 框架 | 自动检测 | 优化策略 | 类型生成 |
-|------|---------|---------|---------|
-| Vue 3 | ✅ | ✅ | ✅ |
-| Vue 2 | ✅ | ✅ | ✅ |
-| React | ✅ | ✅ | ✅ |
-| Svelte | ✅ | ✅ | ✅ |
-| Solid | ✅ | ✅ | ✅ |
-| Preact | ✅ | ✅ | ✅ |
-| Lit | ✅ | ✅ | ✅ |
-| Angular | ✅ | ✅ | ✅ |
-| Qwik | ✅ | ✅ | ✅ |
-| TypeScript | ✅ | ✅ | ✅ |
-| Vanilla JS | ✅ | ✅ | - |
+| 框架 | 自动检测 | 优化策略 | 类型生成 | 混合支持 |
+|------|:-------:|:-------:|:-------:|:-------:|
+| Vue 3 | ✅ | ✅ | ✅ | ✅ |
+| Vue 2 | ✅ | ✅ | ✅ | ✅ |
+| React | ✅ | ✅ | ✅ | ✅ |
+| Svelte | ✅ | ✅ | ✅ | ✅ |
+| Solid | ✅ | ✅ | ✅ | ✅ |
+| Preact | ✅ | ✅ | ✅ | ✅ |
+| Lit | ✅ | ✅ | ✅ | ✅ |
+| Angular | ✅ | ✅ | ✅ | ❌ |
+| Qwik | ✅ | ✅ | ✅ | ❌ |
+| TypeScript | ✅ | ✅ | ✅ | ✅ |
+| Vanilla JS | ✅ | ✅ | - | ✅ |
 
 ### 混合框架支持
 
@@ -159,10 +197,14 @@ import { defineConfig } from '@ldesign/builder'
 export default defineConfig({
   libraryType: 'mixed',
   mixedFramework: {
-    mode: 'unified', // 或 'separate'
+    mode: 'unified',  // 统一构建
+    // mode: 'separated', // 分离构建
     frameworks: {
       vue: true,
       react: true
+    },
+    jsx: {
+      autoDetect: true  // 自动检测 JSX 类型
     }
   }
 })
@@ -170,136 +212,173 @@ export default defineConfig({
 
 ---
 
-## ⚙️ 配置
+## ⚙️ 配置指南
 
-### 基础配置
+### 配置文件位置和命名
+
+`@ldesign/builder` 会按以下顺序查找配置文件：
+
+1. `.ldesign/builder.config.ts`
+2. `builder.config.ts`
+3. `ldesign.config.ts`
+4. `builder.config.js`
+5. `ldesign.config.js`
+
+推荐使用 TypeScript 配置文件以获得完整的类型提示。
+
+### 完整配置选项说明
+
+| 选项 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `name` | `string` | 从 package.json 推断 | 库名称（用于 UMD 全局变量） |
+| `input` | `string \| string[] \| Record<string, string>` | `'src/index.ts'` | 入口文件 |
+| `output` | `OutputConfig` | 见下方 | 输出配置 |
+| `libraryType` | `LibraryType` | 自动检测 | 库类型 |
+| `bundler` | `'rollup' \| 'rolldown'` | `'rollup'` | 打包引擎 |
+| `mode` | `'development' \| 'production'` | `'production'` | 构建模式 |
+| `external` | `(string \| RegExp)[]` | `[]` | 外部依赖 |
+| `globals` | `Record<string, string>` | `{}` | UMD 全局变量映射 |
+| `dts` | `boolean` | `true` | 是否生成类型声明 |
+| `sourcemap` | `boolean \| 'inline' \| 'hidden'` | `true` | Source Map 配置 |
+| `minify` | `boolean \| MinifyOptions` | `false` | 压缩配置 |
+| `clean` | `boolean` | `true` | 构建前清理输出目录 |
+| `typescript` | `TypeScriptConfig` | 见下方 | TypeScript 配置 |
+| `vue` | `VueConfig` | - | Vue 特定配置 |
+| `react` | `ReactConfig` | - | React 特定配置 |
+| `plugins` | `Plugin[]` | `[]` | 自定义插件 |
+| `exclude` | `string[]` | 测试文件等 | 排除的文件模式 |
+| `platform` | `'node' \| 'browser' \| 'neutral'` | `'neutral'` | 目标平台 |
+
+### 预设配置说明
+
+| 预设名称 | 适用场景 | 输出格式 | 特点 |
+|----------|----------|----------|------|
+| `node-library` | Node.js 库 | ESM + CJS | 不压缩、生成类型 |
+| `web-library` | 浏览器库 | ESM + UMD | UMD 压缩 |
+| `universal-library` | 通用库 | ESM + CJS + UMD | 全格式输出 |
+| `vue-library` | Vue 组件库 | ESM + CJS + UMD | Vue SFC 支持 |
+| `react-library` | React 组件库 | ESM + CJS + UMD | JSX 转换 |
+| `cli-tool` | CLI 工具 | CJS | 压缩、无类型 |
+| `monorepo-package` | Monorepo 子包 | ESM + CJS | 保持目录结构 |
+
+### 配置示例
+
+#### 示例 1：基础 TypeScript 库
 
 ```typescript
+import { defineConfig } from '@ldesign/builder'
+
 export default defineConfig({
-  // 入口文件
   input: 'src/index.ts',
-  // 或多入口
-  input: {
-    'index': 'src/index.ts',
-    'utils': 'src/utils.ts'
-  },
-  
-  // 输出配置
   output: {
-    dir: 'dist',
+    format: ['esm', 'cjs'],
+    esm: { dir: 'es' },
+    cjs: { dir: 'lib' },
+  },
+  dts: true,
+  sourcemap: true,
+})
+```
+
+#### 示例 2：Vue 组件库（多入口）
+
+```typescript
+import { defineConfig } from '@ldesign/builder'
+
+export default defineConfig({
+  input: {
+    index: 'src/index.ts',
+    button: 'src/components/button/index.ts',
+    input: 'src/components/input/index.ts',
+  },
+  output: {
     format: ['esm', 'cjs', 'umd'],
-    sourcemap: true,
-    minify: true
+    esm: {
+      dir: 'es',
+      preserveStructure: true,
+    },
+    cjs: {
+      dir: 'lib',
+      preserveStructure: true,
+    },
+    umd: {
+      dir: 'dist',
+      name: 'MyVueLib',
+      minify: true,
+    },
   },
-  
-  // 外部依赖
-  external: ['vue', 'react'],
-  
-  // 全局变量（UMD格式）
+  external: ['vue'],
+  globals: { vue: 'Vue' },
+  libraryType: 'vue',
+  vue: {
+    version: 3,
+    sfc: { enabled: true },
+  },
+})
+```
+
+#### 示例 3：React 组件库
+
+```typescript
+import { defineConfig } from '@ldesign/builder'
+
+export default defineConfig({
+  input: 'src/index.tsx',
+  output: {
+    format: ['esm', 'cjs'],
+    esm: { dir: 'es' },
+    cjs: { dir: 'lib' },
+  },
+  external: ['react', 'react-dom'],
   globals: {
-    vue: 'Vue',
-    react: 'React'
-  }
-})
-```
-
-### TypeScript 配置
-
-```typescript
-export default defineConfig({
-  typescript: {
-    // 是否生成类型声明
-    declaration: true,
-    // 类型声明输出目录
-    declarationDir: 'dist/types',
-    // 编译目标
-    target: 'ES2020',
-    // 模块系统
-    module: 'ESNext',
-    // 自定义 tsconfig
-    tsconfig: './tsconfig.build.json'
-  }
-})
-```
-
-### 样式配置
-
-```typescript
-export default defineConfig({
-  // CSS 处理
-  css: {
-    // CSS Modules
-    modules: true,
-    // PostCSS 插件
-    postcss: {
-      plugins: [
-        require('autoprefixer'),
-        require('cssnano')
-      ]
-    },
-    // Less 配置
-    less: {
-      javascriptEnabled: true,
-      modifyVars: {
-        '@primary-color': '#1890ff'
-      }
-    },
-    // Sass 配置
-    sass: {
-      // ...
-    }
-  }
-})
-```
-
-### 优化配置
-
-```typescript
-export default defineConfig({
-  // 压缩
-  minify: true,
-  // 或指定压缩器
-  minify: 'terser', // 'terser' | 'esbuild' | 'swc'
-  
-  // Tree-shaking
-  treeshake: true,
-  
-  // 代码分割
-  splitting: true,
-  
-  // 缓存
-  cache: {
-    enabled: true,
-    cacheDir: '.ldesign/cache'
+    react: 'React',
+    'react-dom': 'ReactDOM',
   },
-  
-  // 并行构建
-  parallel: {
-    enabled: true,
-    workers: 4
-  }
+  libraryType: 'react',
+  react: {
+    jsx: 'automatic',
+    runtime: 'automatic',
+  },
 })
 ```
 
-### 插件配置
+#### 示例 4：带样式处理的库
 
 ```typescript
-import { imageOptimizerPlugin, i18nExtractorPlugin } from '@ldesign/builder/plugins'
+import { defineConfig } from '@ldesign/builder'
 
 export default defineConfig({
-  plugins: [
-    // 图片优化
-    imageOptimizerPlugin({
-      quality: 80,
-      formats: ['webp', 'avif']
-    }),
-    
-    // 国际化提取
-    i18nExtractorPlugin({
-      output: 'locales'
-    })
-  ]
+  input: 'src/index.ts',
+  output: {
+    format: ['esm', 'cjs'],
+    esm: { dir: 'es' },
+    cjs: { dir: 'lib' },
+  },
+  style: {
+    extract: true,
+    preprocessor: 'less',
+    minimize: true,
+    autoprefixer: true,
+    modules: {
+      generateScopedName: '[name]__[local]__[hash:base64:5]',
+    },
+  },
 })
+```
+
+#### 示例 5：Monorepo 子包配置
+
+```typescript
+import { defineConfig, monorepoPackage } from '@ldesign/builder'
+
+export default defineConfig(monorepoPackage({
+  name: '@myorg/utils',
+  external: [/^@myorg\//],  // 排除所有内部包
+  packageUpdate: {
+    enabled: true,
+    autoExports: true,
+  },
+}))
 ```
 
 ---
@@ -600,6 +679,387 @@ export default defineConfig({
 
 ---
 
+## 📚 API 文档
+
+### defineConfig
+
+配置定义函数，提供完整的类型提示。
+
+```typescript
+import { defineConfig } from '@ldesign/builder'
+
+// 方式 1：使用预设名称
+export default defineConfig('vue-library')
+
+// 方式 2：使用预设函数
+export default defineConfig(vueLibrary({ name: 'MyLib' }))
+
+// 方式 3：完整配置对象
+export default defineConfig({
+  input: 'src/index.ts',
+  output: { format: ['esm', 'cjs'] }
+})
+
+// 方式 4：预设 + 覆盖
+export default defineConfig('vue-library', {
+  minify: true
+})
+```
+
+### LibraryBuilder
+
+主构建器类，提供完整的构建控制。
+
+```typescript
+import { LibraryBuilder } from '@ldesign/builder'
+
+const builder = new LibraryBuilder(config)
+
+// 执行构建
+const result = await builder.build()
+
+// 监听模式
+const watcher = await builder.buildWatch()
+
+// 切换打包引擎
+builder.setBundler('rolldown')
+
+// 检测库类型
+const type = await builder.detectLibraryType('./project')
+
+// 清理资源
+await builder.cleanup()
+```
+
+### 预设函数
+
+| 函数 | 说明 | 参数 |
+|------|------|------|
+| `nodeLibrary(options?)` | Node.js 库预设 | `{ name?, minify? }` |
+| `webLibrary(options?)` | Web 库预设 | `{ name?, minify? }` |
+| `universalLibrary(options?)` | 通用库预设 | `{ name?, minify? }` |
+| `cliTool(options?)` | CLI 工具预设 | `{ name?, input? }` |
+| `vueLibrary(options?)` | Vue 库预设 | `{ name?, external? }` |
+| `reactLibrary(options?)` | React 库预设 | `{ name?, external? }` |
+| `monorepoPackage(options?)` | Monorepo 包预设 | `{ name?, external? }` |
+
+### 工具函数
+
+```typescript
+import {
+  autoConfig,           // 零配置自动生成
+  getPresetConfig,      // 获取预设配置
+  isValidPreset,        // 验证预设名称
+  normalizeConfig,      // 规范化配置
+} from '@ldesign/builder'
+
+// 零配置
+const config = await autoConfig()
+
+// 获取预设
+const preset = getPresetConfig('vue-library')
+
+// 验证预设
+if (isValidPreset('my-preset')) { /* ... */ }
+```
+
+---
+
+## 🔧 高级功能
+
+### 自定义插件开发
+
+```typescript
+import type { Plugin } from 'rollup'
+import type { BuilderPlugin } from '@ldesign/builder'
+
+// Rollup 插件
+function myRollupPlugin(): Plugin {
+  return {
+    name: 'my-rollup-plugin',
+    transform(code, id) {
+      // 转换逻辑
+      return { code, map: null }
+    }
+  }
+}
+
+// Builder 插件（带生命周期）
+function myBuilderPlugin(): BuilderPlugin {
+  return {
+    name: 'my-builder-plugin',
+    // 构建开始前
+    buildStart(config) {
+      console.log('Build starting...')
+    },
+    // 构建完成后
+    buildEnd(result) {
+      console.log('Build completed:', result)
+    },
+    // 错误处理
+    onError(error) {
+      console.error('Build error:', error)
+    }
+  }
+}
+```
+
+### 条件导出配置
+
+自动更新 package.json 的 exports 字段：
+
+```typescript
+export default defineConfig({
+  packageUpdate: {
+    enabled: true,
+    autoExports: true,
+    exports: {
+      '.': {
+        import: './es/index.js',
+        require: './lib/index.js',
+        types: './types/index.d.ts'
+      },
+      './utils': {
+        import: './es/utils/index.js',
+        require: './lib/utils/index.js'
+      }
+    }
+  }
+})
+```
+
+### 多入口打包
+
+```typescript
+export default defineConfig({
+  input: {
+    index: 'src/index.ts',
+    utils: 'src/utils/index.ts',
+    hooks: 'src/hooks/index.ts',
+    components: 'src/components/index.ts'
+  },
+  output: {
+    format: ['esm', 'cjs'],
+    esm: {
+      dir: 'es',
+      preserveStructure: true,  // 保持目录结构
+    },
+    cjs: {
+      dir: 'lib',
+      preserveStructure: true,
+    }
+  }
+})
+```
+
+### Monorepo 支持
+
+```typescript
+// packages/core/builder.config.ts
+import { defineConfig, monorepoPackage } from '@ldesign/builder'
+
+export default defineConfig(monorepoPackage({
+  name: '@myorg/core',
+  // 排除工作空间内的其他包
+  external: [/^@myorg\//],
+  // 自动更新 package.json
+  packageUpdate: {
+    enabled: true,
+    autoExports: true
+  }
+}))
+```
+
+---
+
+## 🔄 迁移指南
+
+### 从 Rollup 迁移
+
+| Rollup 配置 | @ldesign/builder 配置 |
+|-------------|----------------------|
+| `input` | `input` |
+| `output.dir` | `output.esm.dir` / `output.cjs.dir` |
+| `output.format` | `output.format` |
+| `external` | `external` |
+| `plugins` | `plugins` |
+| `treeshake` | `treeshake` |
+
+```typescript
+// 旧 Rollup 配置
+export default {
+  input: 'src/index.ts',
+  output: { dir: 'dist', format: 'esm' },
+  external: ['vue'],
+  plugins: [typescript()]
+}
+
+// 新 @ldesign/builder 配置
+export default defineConfig({
+  input: 'src/index.ts',
+  output: { format: ['esm'], esm: { dir: 'dist' } },
+  external: ['vue'],
+  // TypeScript 自动处理，无需手动配置插件
+})
+```
+
+### 从 Vite 库模式迁移
+
+```typescript
+// 旧 Vite 配置
+export default defineConfig({
+  build: {
+    lib: {
+      entry: 'src/index.ts',
+      name: 'MyLib',
+      formats: ['es', 'cjs']
+    },
+    rollupOptions: {
+      external: ['vue']
+    }
+  }
+})
+
+// 新 @ldesign/builder 配置
+export default defineConfig({
+  input: 'src/index.ts',
+  name: 'MyLib',
+  output: { format: ['esm', 'cjs'] },
+  external: ['vue']
+})
+```
+
+---
+
+## 🔍 故障排查
+
+### 常见问题
+
+#### 1. 类型声明文件生成失败
+
+**问题**：构建成功但没有生成 `.d.ts` 文件
+
+**解决方案**：
+```typescript
+export default defineConfig({
+  dts: true,
+  typescript: {
+    declaration: true,
+    declarationDir: 'types'
+  }
+})
+```
+
+#### 2. 外部依赖被打包进 bundle
+
+**问题**：`vue` 或 `react` 等依赖被打包
+
+**解决方案**：
+```typescript
+export default defineConfig({
+  external: ['vue', 'react', 'react-dom'],
+  // 或使用正则
+  external: [/^vue/, /^react/]
+})
+```
+
+#### 3. 样式文件未正确处理
+
+**问题**：CSS/Less/Sass 文件未被处理
+
+**解决方案**：
+```typescript
+export default defineConfig({
+  style: {
+    extract: true,
+    preprocessor: 'less', // 或 'sass'
+  }
+})
+```
+
+#### 4. 构建缓存问题
+
+**问题**：修改代码后构建结果未更新
+
+**解决方案**：
+```bash
+# 清理缓存
+ldesign-builder build --clean
+
+# 或禁用缓存
+LDESIGN_CACHE=false ldesign-builder build
+```
+
+### 调试技巧
+
+```bash
+# 启用详细日志
+DEBUG=ldesign:* ldesign-builder build
+
+# 查看配置解析结果
+ldesign-builder build --debug-config
+
+# 生成构建分析报告
+ldesign-builder build --analyze
+```
+
+---
+
+## 🚀 性能优化建议
+
+### 1. 启用缓存
+
+```typescript
+export default defineConfig({
+  cache: {
+    enabled: true,
+    cacheDir: '.ldesign/cache'
+  }
+})
+```
+
+### 2. 使用更快的打包引擎
+
+```typescript
+// 使用 Rolldown（Rust 实现，更快）
+export default defineConfig({
+  bundler: 'rolldown'
+})
+```
+
+### 3. 并行构建
+
+```typescript
+export default defineConfig({
+  parallel: {
+    enabled: true,
+    workers: 4
+  }
+})
+```
+
+### 4. 优化外部依赖
+
+```typescript
+export default defineConfig({
+  // 将大型依赖标记为外部
+  external: ['lodash', 'moment', 'dayjs']
+})
+```
+
+### 5. 按需生成类型
+
+```typescript
+export default defineConfig({
+  dts: {
+    // 只为入口文件生成类型
+    entryOnly: true
+  }
+})
+```
+
+---
+
 ## 🧪 测试
 
 项目内置完整的测试套件：
@@ -732,9 +1192,9 @@ LDESIGN_LOG_LEVEL=verbose ldesign-builder build
 
 ---
 
-## 🤝 贡献
+## 🤝 贡献指南
 
-欢迎贡献代码！请查看 [CONTRIBUTING.md](./CONTRIBUTING.md)。
+欢迎贡献代码！
 
 ### 开发环境设置
 
@@ -756,29 +1216,57 @@ pnpm build
 pnpm dev
 ```
 
+### 贡献流程
+
+1. Fork 本仓库
+2. 创建特性分支：`git checkout -b feature/my-feature`
+3. 提交更改：`git commit -m 'feat: add my feature'`
+4. 推送分支：`git push origin feature/my-feature`
+5. 提交 Pull Request
+
+### 代码规范
+
+- 遵循 ESLint 配置（`pnpm lint:fix`）
+- 使用 TypeScript 严格模式
+- 添加完整的 JSDoc 注释（中文）
+- 为新功能编写测试用例
+
+### 提交规范
+
+使用 [Conventional Commits](https://www.conventionalcommits.org/) 规范：
+
+- `feat`: 新功能
+- `fix`: 修复 Bug
+- `docs`: 文档更新
+- `style`: 代码格式
+- `refactor`: 重构
+- `test`: 测试相关
+- `chore`: 构建/工具
+
 ---
 
-## 📄 License
+## 📄 许可证
 
 [MIT](./LICENSE) © LDesign Team
+
+本项目采用 MIT 许可证，您可以自由地：
+
+- ✅ 商业使用
+- ✅ 修改
+- ✅ 分发
+- ✅ 私人使用
 
 ---
 
 ## 🔗 相关资源
 
-- [官方文档](https://ldesign.github.io/builder)
-- [示例项目](./examples)
-- [更新日志](./CHANGELOG.md)
-- [问题反馈](https://github.com/ldesign/builder/issues)
-- [讨论区](https://github.com/ldesign/builder/discussions)
-
----
-
-## 💬 社区
-
-- **Discord**: [加入讨论](https://discord.gg/ldesign)
-- **Twitter**: [@ldesign_dev](https://twitter.com/ldesign_dev)
-- **邮件**: support@ldesign.dev
+- 📖 [详细使用指南](./docs/USAGE.md)
+- 📚 [API 参考文档](./docs/API.md)
+- 🔄 [配置迁移指南](./docs/MIGRATION.md)
+- 📝 [更多使用示例](./docs/EXAMPLES.md)
+- 📋 [更新日志](./CHANGELOG.md)
+- 🐛 [问题反馈](https://github.com/ldesign/builder/issues)
+- 💬 [讨论区](https://github.com/ldesign/builder/discussions)
 
 ---
 

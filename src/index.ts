@@ -85,9 +85,47 @@ export type { ProjectAnalysis } from './analyzers/project-analyzer'
 // 配置预设导出
 export { presets, monorepoPackage, libraryPackage, vueLibrary, reactLibrary, multiFrameworkLibrary, ldesignPackage } from './config/presets'
 
-// 配置规范化工具导出
-export { ConfigNormalizer, createConfigNormalizer, normalizeConfig } from './config/config-normalizer'
-export type { NormalizationWarning, NormalizationResult } from './config/config-normalizer'
+// 新增库类型预设导出
+export {
+  nodeLibrary,
+  webLibrary,
+  universalLibrary,
+  cliTool,
+  getPresetConfig,
+  isValidPreset,
+  LIBRARY_PRESETS,
+} from './presets/library-presets'
+export type { PresetName as LibraryPresetName } from './presets/library-presets'
+
+// 配置冲突解析器导出
+export {
+  ConfigConflictResolver,
+  createConflictResolver,
+  resolveConfigConflicts,
+  // 向后兼容的别名
+  ConfigNormalizer,
+  createConfigNormalizer,
+  normalizeConfig,
+} from './config/config-normalizer'
+export type {
+  ConflictWarning,
+  ConflictResolutionResult,
+  NormalizationWarning,
+  NormalizationResult,
+} from './config/config-normalizer'
+
+// 配置格式兼容层导出
+export {
+  ConfigNormalizer as LegacyConfigNormalizer,
+  configNormalizer,
+  normalizeConfig as normalizeLegacyConfig,
+  normalizeConfigWithWarnings,
+} from './config/normalizer'
+export type {
+  LegacyConfig,
+  NormalizationWarning as LegacyNormalizationWarning,
+  NormalizationResult as LegacyNormalizationResult,
+} from './config/normalizer'
 
 // 配置检查工具导出
 export { ConfigLinter, createConfigLinter, lintConfigs } from './utils/misc/ConfigLinter'
@@ -100,6 +138,37 @@ export type { InferredBuilderConfig } from './config/zod-schema'
 // 缓存管理器导出
 export { BuildCacheManager } from './utils/cache/BuildCacheManager'
 export type { CacheEntry, CacheStats, CacheConfig, CacheOperationResult } from './utils/cache/BuildCacheManager'
+
+// DTS 生成器导出（已合并增强版功能）
+export {
+  DtsGenerator,
+  createDtsGenerator,
+  generateDts,
+  generateDtsWithRetry,
+} from './generators/DtsGenerator'
+export type { DtsGeneratorOptions, DtsGenerationResult } from './generators/DtsGenerator'
+
+// 向后兼容的类型别名
+export { DtsGenerator as EnhancedDtsGenerator } from './generators/DtsGenerator'
+export { createDtsGenerator as createEnhancedDtsGenerator } from './generators/DtsGenerator'
+export type { DtsGeneratorOptions as EnhancedDtsOptions } from './generators/DtsGenerator'
+export type { DtsGenerationResult as EnhancedDtsResult } from './generators/DtsGenerator'
+
+// Package.json 更新器导出（已合并增强版功能）
+export {
+  PackageUpdater,
+  createPackageUpdater,
+  updatePackageJson,
+  // 向后兼容的别名
+  EnhancedPackageUpdater,
+  createEnhancedPackageUpdater,
+} from './utils/misc/PackageUpdater'
+export type {
+  PackageUpdaterConfig,
+  Platform,
+  ConditionalExportConfig,
+  EnhancedPackageUpdaterConfig,
+} from './utils/misc/PackageUpdater'
 
 // 内存泄漏检测器导出
 export { MemoryLeakDetector, createMemoryLeakDetector } from './utils/memory/MemoryLeakDetector'

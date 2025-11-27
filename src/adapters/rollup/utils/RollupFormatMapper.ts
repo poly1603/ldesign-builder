@@ -25,15 +25,17 @@ export class RollupFormatMapper {
    * mapper.mapFormat('cjs') // 返回 'cjs'
    * ```
    */
-  mapFormat(format: any): string {
+  mapFormat(format: any): 'es' | 'cjs' | 'umd' | 'iife' | 'amd' | 'system' {
     if (typeof format === 'string') {
-      const formatMap: Record<string, string> = {
+      const formatMap: Record<string, 'es' | 'cjs' | 'umd' | 'iife' | 'amd' | 'system'> = {
         esm: 'es',
         cjs: 'cjs',
         umd: 'umd',
-        iife: 'iife'
+        iife: 'iife',
+        amd: 'amd',
+        system: 'system'
       }
-      return formatMap[format] || format
+      return formatMap[format] || 'es'
     }
     return 'es'
   }

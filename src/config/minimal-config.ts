@@ -4,6 +4,7 @@
  */
 
 import * as path from 'path'
+import * as fs from 'fs'
 import { ProjectAnalyzer, ProjectAnalysis } from '../analyzers/project-analyzer'
 import { Logger } from '../utils/logger'
 import type { BuilderConfig } from '../types/config'
@@ -357,6 +358,11 @@ export class SmartConfigGenerator {
 
   /**
    * 生成别名配置
+   *
+   * 自动为常用目录创建路径别名，如 @components、@utils 等
+   *
+   * @param analysis - 项目分析结果
+   * @returns 别名配置对象
    */
   private generateAliasConfig(analysis: ProjectAnalysis): Record<string, string> {
     const alias: Record<string, string> = {}
@@ -364,11 +370,12 @@ export class SmartConfigGenerator {
     // 添加 @ 别名
     alias['@'] = path.join(analysis.root, 'src')
 
-    // 添加常见别名
+    // 添加常见别名（使用已导入的 fs 模块，避免 require）
     const dirs = ['components', 'utils', 'hooks', 'composables', 'services', 'stores']
     for (const dir of dirs) {
       const dirPath = path.join(analysis.root, 'src', dir)
-      if (require('fs').existsSync(dirPath)) {
+      // 使用模块顶部已导入的 fs
+      if (fs.existsSync(dirPath)) {
         alias[`@${dir}`] = dirPath
       }
     }
@@ -412,10 +419,84 @@ export class SmartConfigGenerator {
 }
 
 /**
- * defineConfig 函数 - 极简配置入口
+ * 增强版配置类型
+ * 支持 MinimalConfig、BuilderConfig 和预设名称
  */
-export function defineConfig(config: MinimalConfig = {}): MinimalConfig {
-  return config
+export type ConfigInput =
+  | MinimalConfig
+  | BuilderConfig
+  | PresetName
+
+/**
+ * 预设名称类型（从 library-presets 导入）
+ */
+type PresetName =
+  | 'node-library'
+  | 'web-library'
+  | 'universal-library'
+  | 'vue-library'
+  | 'react-library'
+  | 'cli-tool'
+  | 'monorepo-package'
+
+/**
+ * defineConfig 函数 - 增强版配置入口
+ *
+ * 支持多种配置格式：
+ * 1. 极简配置 (MinimalConfig)
+ * 2. 完整配置 (BuilderConfig)
+ * 3. 预设名称 (PresetName)
+ * 4. 预设 + 覆盖配置
+ *
+ * @example
+ * ```ts
+ * // 使用预设
+ * export default defineConfig('node-library')
+ *
+ * // 使用预设 + 覆盖
+ * export default defineConfig('universal-library', {
+ *   name: 'MyLibrary',
+ *   external: ['lodash']
+ * })
+ *
+ * // 使用完整配置
+ * export default defineConfig({
+ *   input: 'src/index.ts',
+ *   output: { format: ['esm', 'cjs'] }
+ * })
+ * ```
+ *
+ * @param configOrPreset - 配置对象或预设名称
+ * @param overrides - 当使用预设时的覆盖配置
+ * @returns 规范化后的配置
+ */
+export function defineConfig(configOrPreset?: ConfigInput): BuilderConfig
+export function defineConfig(preset: PresetName, overrides?: Partial<BuilderConfig>): BuilderConfig
+export function defineConfig(
+  configOrPreset: ConfigInput = {},
+  overrides?: Partial<BuilderConfig>,
+): BuilderConfig {
+  // 延迟导入避免循环依赖
+  const { normalizeConfig } = require('./normalizer')
+  const { getPresetConfig, isValidPreset } = require('../presets/library-presets')
+
+  // 如果是预设名称
+  if (typeof configOrPreset === 'string') {
+    if (isValidPreset(configOrPreset)) {
+      return getPresetConfig(configOrPreset, overrides)
+    }
+    throw new Error(`未知的预设名称: ${configOrPreset}`)
+  }
+
+  // 如果是配置对象，进行规范化处理
+  const normalizedConfig = normalizeConfig(configOrPreset)
+
+  // 合并覆盖配置
+  if (overrides) {
+    return { ...normalizedConfig, ...overrides }
+  }
+
+  return normalizedConfig
 }
 
 /**

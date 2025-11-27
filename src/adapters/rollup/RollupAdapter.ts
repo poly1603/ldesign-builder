@@ -191,9 +191,13 @@ export class RollupAdapter implements IBundlerAdapter {
 
           // 生成并记录输出（保留每个配置的 format）
           const { output } = await bundle.generate(singleConfig.output)
+          // 安全获取 format，处理 output 可能是数组的情况
+          const outputFormat = Array.isArray(singleConfig.output)
+            ? (singleConfig.output[0]?.format || 'es')
+            : (singleConfig.output?.format || 'es')
           const formatResults = output.map((item: any) => ({
             chunk: item,
-            format: String(singleConfig.output?.format || 'es')
+            format: String(outputFormat)
           }))
 
           // 写入文件
@@ -425,7 +429,8 @@ export class RollupAdapter implements IBundlerAdapter {
     // 注入 Acorn 插件以支持在转换前解析 TSX/JSX/TS 语法，避免早期解析错误
     const acornPlugins = await this.getAcornPlugins()
     if (acornPlugins.length > 0) {
-      rollupConfig.acorn = { ...(rollupConfig.acorn || {}), injectPlugins: acornPlugins }
+      // 使用类型断言，因为 acorn 是 Rollup 内部选项
+      ; (rollupConfig as any).acorn = { ...((rollupConfig as any).acorn || {}), injectPlugins: acornPlugins }
     }
 
     // 转换输出配置
@@ -572,13 +577,14 @@ export class RollupAdapter implements IBundlerAdapter {
           this.multiConfigs = configs
 
           // 为了兼容测试，返回包含output数组的配置
+          // 使用类型断言，因为 Rollup 内部类型与 BundlerSpecificConfig 略有差异
           if (configs.length > 1) {
             return {
               ...rollupConfig,
               output: configs.map(config => config.output).filter(Boolean)
-            }
+            } as unknown as BundlerSpecificConfig
           }
-          return configs[0]
+          return configs[0] as unknown as BundlerSpecificConfig
         }
         // 如果没有任何子配置，则回退到单一输出逻辑
       }
@@ -644,13 +650,14 @@ export class RollupAdapter implements IBundlerAdapter {
         this.multiConfigs = configs
 
         // 为了兼容测试，返回包含output数组的配置
+        // 使用类型断言，因为 Rollup 内部类型与 BundlerSpecificConfig 略有差异
         if (configs.length > 1) {
           return {
             ...rollupConfig,
             output: configs.map(config => config.output).filter(Boolean)
-          }
+          } as unknown as BundlerSpecificConfig
         }
-        return configs[0]
+        return configs[0] as unknown as BundlerSpecificConfig
       } else {
         const format = (outputConfig as any).format
         const mapped = this.formatMapper.mapFormat(format)
@@ -693,7 +700,8 @@ export class RollupAdapter implements IBundlerAdapter {
       rollupConfig.treeshake = config.treeshake
     }
 
-    return rollupConfig
+    // 使用类型断言，因为 Rollup 内部类型与 BundlerSpecificConfig 略有差异
+    return rollupConfig as unknown as BundlerSpecificConfig
   }
 
   /**

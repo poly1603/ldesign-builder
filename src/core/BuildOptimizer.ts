@@ -1,16 +1,17 @@
 /**
  * 构建优化器
- * 
+ *
  * 提供构建性能优化功能,包括:
  * - 并行构建
  * - 代码分割优化
  * - Tree-shaking 优化
  * - 压缩优化
- * 
+ *
  * @author LDesign Team
  * @version 1.0.0
  */
 
+import { cpus } from 'os'
 import type { BuilderConfig } from '../types/config'
 import { Logger } from '../utils/logger'
 
@@ -78,7 +79,7 @@ export class BuildOptimizer {
     this.logger = options.logger || new Logger()
     this.config = {
       parallel: true,
-      parallelTasks: require('os').cpus().length,
+      parallelTasks: cpus().length,
       codeSplitting: true,
       treeShaking: true,
       minify: true,
@@ -209,73 +210,50 @@ export class BuildOptimizer {
 
   /**
    * 估算构建时间
+   *
+   * @param config - 构建配置
+   * @returns 估算结果，包含总时间和各因素影响
    */
   estimateBuildTime(config: BuilderConfig): {
-    estimated: number
-    factors: Array<{ name: string; impact: number; description: string }>
+    total: number
+    breakdown: Record<string, number>
   } {
     let baseTime = 1000 // 基础时间 1 秒
-    const factors: Array<{ name: string; impact: number; description: string }> = []
+    const breakdown: Record<string, number> = {}
 
     // 输出格式影响
     const formats = config.output?.format || ['esm']
     const formatImpact = formats.length * 500
     baseTime += formatImpact
-    factors.push({
-      name: '输出格式',
-      impact: formatImpact,
-      description: `输出 ${formats.length} 种格式`
-    })
+    breakdown['输出格式'] = formatImpact
 
     // TypeScript 影响
     if (config.typescript?.declaration) {
       const tsImpact = 2000
       baseTime += tsImpact
-      factors.push({
-        name: 'TypeScript 类型声明',
-        impact: tsImpact,
-        description: '生成类型声明文件'
-      })
+      breakdown['TypeScript 类型声明'] = tsImpact
     }
 
     // 压缩影响
     if (config.minify) {
       const minifyImpact = 1500
       baseTime += minifyImpact
-      factors.push({
-        name: '代码压缩',
-        impact: minifyImpact,
-        description: '压缩 JavaScript 代码'
-      })
+      breakdown['代码压缩'] = minifyImpact
     }
 
     // Sourcemap 影响
     if (config.sourcemap) {
       const sourcemapImpact = 800
       baseTime += sourcemapImpact
-      factors.push({
-        name: 'Sourcemap',
-        impact: sourcemapImpact,
-        description: '生成 sourcemap 文件'
-      })
+      breakdown['Sourcemap'] = sourcemapImpact
     }
 
     // 缓存优化
     if (config.cache?.enabled) {
       const cacheBonus = -baseTime * 0.5
       baseTime += cacheBonus
-      factors.push({
-        name: '构建缓存',
-        impact: cacheBonus,
-        description: '使用缓存加速构建'
-      })
+      breakdown['构建缓存'] = cacheBonus
     }
-
-    // 转换为期望的格式
-    const breakdown: Record<string, number> = {}
-    factors.forEach(factor => {
-      breakdown[factor.name] = factor.impact
-    })
 
     return {
       total: Math.max(baseTime, 500),
