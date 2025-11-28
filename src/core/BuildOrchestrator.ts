@@ -393,10 +393,77 @@ export class BuildOrchestrator {
    * 清理资源
    */
   cleanup(): void {
+    this.logger.debug('开始清理 BuildOrchestrator 资源...')
+    
+    // 清理构建上下文
     if (this.currentContext) {
-      this.currentContext.cleanup()
+      try {
+        this.currentContext.cleanup()
+        this.logger.debug('✓ 构建上下文已清理')
+      } catch (error) {
+        this.logger.warn('清理构建上下文失败:', error)
+      }
     }
-    this.configResolver.cleanup()
+    
+    // 清理配置解析器
+    try {
+      this.configResolver.cleanup()
+      this.logger.debug('✓ 配置解析器已清理')
+    } catch (error) {
+      this.logger.warn('清理配置解析器失败:', error)
+    }
+    
+    // 清理打包器适配器（如果有cleanup方法）
+    if (this.bundlerAdapter && typeof (this.bundlerAdapter as any).cleanup === 'function') {
+      try {
+        (this.bundlerAdapter as any).cleanup()
+        this.logger.debug('✓ 打包器适配器已清理')
+      } catch (error) {
+        this.logger.warn('清理打包器适配器失败:', error)
+      }
+    }
+    
+    // 清理性能监控器（如果有cleanup方法）
+    if (this.performanceMonitor && typeof (this.performanceMonitor as any).cleanup === 'function') {
+      try {
+        (this.performanceMonitor as any).cleanup()
+        this.logger.debug('✓ 性能监控器已清理')
+      } catch (error) {
+        this.logger.warn('清理性能监控器失败:', error)
+      }
+    }
+    
+    // 清理增量构建器（如果有cleanup方法）
+    if (this.incrementalBuilder && typeof (this.incrementalBuilder as any).cleanup === 'function') {
+      try {
+        (this.incrementalBuilder as any).cleanup()
+        this.logger.debug('✓ 增量构建器已清理')
+      } catch (error) {
+        this.logger.warn('清理增量构建器失败:', error)
+      }
+    }
+    
+    // 清理构建优化器（如果有cleanup方法）
+    if (this.buildOptimizer && typeof (this.buildOptimizer as any).cleanup === 'function') {
+      try {
+        (this.buildOptimizer as any).cleanup()
+        this.logger.debug('✓ 构建优化器已清理')
+      } catch (error) {
+        this.logger.warn('清理构建优化器失败:', error)
+      }
+    }
+    
+    // 清理构建后验证器（如果有cleanup方法）
+    if (this.postBuildValidator && typeof (this.postBuildValidator as any).cleanup === 'function') {
+      try {
+        (this.postBuildValidator as any).cleanup()
+        this.logger.debug('✓ 构建后验证器已清理')
+      } catch (error) {
+        this.logger.warn('清理构建后验证器失败:', error)
+      }
+    }
+    
+    this.logger.debug('BuildOrchestrator 资源清理完成')
   }
 
   /**

@@ -327,6 +327,28 @@ const validateConfigImpl = function (config: unknown): {
   errors?: any
 } {
   try {
+    // 类型防护：确保config不是null或undefined
+    if (config === null || config === undefined) {
+      return {
+        success: false,
+        errors: {
+          message: '配置不能为 null 或 undefined',
+          code: 'CONFIG_NULL_OR_UNDEFINED'
+        }
+      }
+    }
+
+    // 类型防护：确保config是对象
+    if (typeof config !== 'object') {
+      return {
+        success: false,
+        errors: {
+          message: `配置必须是对象，当前类型: ${typeof config}`,
+          code: 'CONFIG_INVALID_TYPE'
+        }
+      }
+    }
+
     const result = BuilderConfigSchemaImpl.safeParse(config)
 
     if (result.success) {
@@ -341,9 +363,26 @@ const validateConfigImpl = function (config: unknown): {
       }
     }
   } catch (error) {
+    // 增强错误处理：区分错误类型
+    if (error instanceof Error) {
+      return {
+        success: false,
+        errors: {
+          message: error.message,
+          stack: error.stack,
+          name: error.name,
+          code: 'VALIDATION_ERROR'
+        }
+      }
+    }
+    
+    // 非标准错误对象
     return {
       success: false,
-      errors: error as any
+      errors: {
+        message: String(error),
+        code: 'UNKNOWN_VALIDATION_ERROR'
+      }
     }
   }
 }
@@ -352,10 +391,32 @@ const validateConfigImpl = function (config: unknown): {
  * 格式化 Zod 错误
  */
 const formatZodErrorsImpl = function (errors: any): string[] {
-  return errors.errors.map((err: any) => {
-    const path = err.path.join('.')
-    return `${path ? `[${path}] ` : ''}${err.message}`
-  })
+  // 类型防护：检查errors结构
+  if (!errors) {
+    return ['未知错误：错误对象为空']
+  }
+
+  // 处理增强的错误对象（包含code和message）
+  if (errors.code && errors.message && !errors.errors) {
+    return [`[${errors.code}] ${errors.message}`]
+  }
+
+  // 处理Zod错误
+  if (errors.errors && Array.isArray(errors.errors)) {
+    return errors.errors.map((err: any) => {
+      const path = err.path?.join?.('.') || ''
+      const message = err.message || '未知错误'
+      return `${path ? `[${path}] ` : ''}${message}`
+    })
+  }
+
+  // 处理Error对象
+  if (errors instanceof Error) {
+    return [errors.message]
+  }
+
+  // 降级处理：直接转换为字符串
+  return [String(errors)]
 }
 
 /**

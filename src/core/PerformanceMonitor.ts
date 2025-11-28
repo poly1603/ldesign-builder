@@ -60,6 +60,8 @@ export class PerformanceMonitor extends EventEmitter {
 
   private activeSessions: Map<string, BuildSession> = new Map()
   private completedSessions: BuildSession[] = []
+  // 追踪内存监控的interval，防止泄漏
+  private monitoringIntervals = new Map<string, NodeJS.Timeout>()
 
   constructor(options: PerformanceMonitorOptions = {}) {
     super()
@@ -175,10 +177,38 @@ export class PerformanceMonitor extends EventEmitter {
     this.logger.info(`构建监控完成: ${buildId} (${buildTime}ms)`)
     this.emit('build:end', { buildId, metrics, timestamp: session.endTime })
 
+    // 停止内存监控
+    this.stopMemoryMonitoring(buildId)
+
     // 清理会话
     this.sessions.delete(buildId)
+    this.activeSessions.delete(buildId)
 
     return metrics
+  }
+
+  /**
+   * 清理所有资源
+   */
+  cleanup(): void {
+    this.logger.debug('清理 PerformanceMonitor 资源...')
+
+    // 清理所有内存监控interval
+    for (const [buildId, interval] of this.monitoringIntervals) {
+      clearInterval(interval)
+      this.logger.debug(`✓ 停止内存监控: ${buildId}`)
+    }
+    this.monitoringIntervals.clear()
+
+    // 清理所有会话
+    this.sessions.clear()
+    this.activeSessions.clear()
+    this.completedSessions = []
+
+    // 移除所有事件监听器
+    this.removeAllListeners()
+
+    this.logger.debug('PerformanceMonitor 清理完成')
   }
 
   /**
@@ -280,26 +310,49 @@ export class PerformanceMonitor extends EventEmitter {
   }
 
   /**
-   * 开始内存监控
+   * 开始内存监控（带清理追踪）
    */
   private startMemoryMonitoring(buildId: string): void {
     const session = this.sessions.get(buildId)
     if (!session) return
 
+    // 清理已存在的监控（防止重复）
+    this.stopMemoryMonitoring(buildId)
+
     const interval = setInterval(() => {
-      if (!this.sessions.has(buildId)) {
-        clearInterval(interval)
+      const currentSession = this.sessions.get(buildId)
+      if (!currentSession) {
+        this.stopMemoryMonitoring(buildId)
         return
       }
 
-      const memoryUsage = this.getCurrentMemoryUsage()
-      session.memorySnapshots.push(memoryUsage)
+      try {
+        const memoryUsage = this.getCurrentMemoryUsage()
+        currentSession.memorySnapshots.push(memoryUsage)
 
-      // 限制快照数量
-      if (session.memorySnapshots.length > (this.options.maxSamples || 100)) {
-        session.memorySnapshots.shift()
+        // 限制快照数量
+        if (currentSession.memorySnapshots.length > (this.options.maxSamples || 100)) {
+          currentSession.memorySnapshots.shift()
+        }
+      } catch (error) {
+        this.logger.warn(`内存监控出错 [${buildId}]:`, error)
+        this.stopMemoryMonitoring(buildId)
       }
     }, this.options.sampleInterval)
+
+    // 追踪interval以便后续清理
+    this.monitoringIntervals.set(buildId, interval)
+  }
+
+  /**
+   * 停止内存监控
+   */
+  private stopMemoryMonitoring(buildId: string): void {
+    const interval = this.monitoringIntervals.get(buildId)
+    if (interval) {
+      clearInterval(interval)
+      this.monitoringIntervals.delete(buildId)
+    }
   }
 
   /**

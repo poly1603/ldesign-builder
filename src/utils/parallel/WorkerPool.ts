@@ -165,7 +165,7 @@ export class WorkerPool extends EventEmitter {
   }
 
   /**
-   * 在 Worker 上执行任务
+   * 在 Worker 上执行任务（带监听器清理）
    */
   private executeOnWorker(
     workerState: WorkerState,
@@ -178,19 +178,30 @@ export class WorkerPool extends EventEmitter {
     workerState.startTime = Date.now()
 
     const taskTimeout = task.timeout || this.timeout
+    let timeoutId: NodeJS.Timeout | undefined
+    let isCompleted = false
 
-    // 设置超时
-    const timeoutId = setTimeout(() => {
-      this.handleTaskTimeout(workerState, task)
-      reject(new Error(`Task ${task.id} timeout after ${taskTimeout}ms`))
-    }, taskTimeout)
+    // 清理函数 - 确保所有资源都被释放
+    const cleanup = () => {
+      if (isCompleted) return
+      isCompleted = true
 
-    // 消息处理
-    const messageHandler = (result: WorkerTaskResult) => {
-      clearTimeout(timeoutId)
+      if (timeoutId) {
+        clearTimeout(timeoutId)
+        timeoutId = undefined
+      }
+
+      // 移除事件监听器
+      workerState.worker.removeListener('message', messageHandler)
+      workerState.worker.removeListener('error', errorHandler)
 
       workerState.busy = false
       workerState.taskId = null
+    }
+
+    // 消息处理
+    const messageHandler = (result: WorkerTaskResult) => {
+      cleanup()
 
       this.emit('task-complete', result)
 
@@ -206,29 +217,37 @@ export class WorkerPool extends EventEmitter {
 
     // 错误处理
     const errorHandler = (error: Error) => {
-      clearTimeout(timeoutId)
-
-      workerState.busy = false
-      workerState.taskId = null
+      cleanup()
 
       this.emit('task-error', { task, error })
-
       reject(error)
 
       // 处理队列中的下一个任务
       this.processQueue()
     }
 
+    // 超时处理
+    timeoutId = setTimeout(() => {
+      cleanup()
+      this.handleTaskTimeout(workerState, task)
+      reject(new Error(`Task ${task.id} timeout after ${taskTimeout}ms`))
+    }, taskTimeout)
+
     workerState.worker.once('message', messageHandler)
     workerState.worker.once('error', errorHandler)
 
     // 发送任务
-    workerState.worker.postMessage({
-      type: 'task',
-      task
-    })
-
-    this.emit('task-start', task)
+    try {
+      workerState.worker.postMessage({
+        type: 'task',
+        task
+      })
+      this.emit('task-start', task)
+    } catch (error) {
+      // 如果发送失败，清理并拒绝
+      cleanup()
+      reject(error)
+    }
   }
 
   /**

@@ -45,6 +45,12 @@ export class MemoryManager extends EventEmitter {
   private cleanupInterval?: NodeJS.Timeout
   private memorySnapshots: Array<{ timestamp: number; heapUsed: number }> = []
   private maxSnapshots = 100
+  // 追踪进程事件监听器
+  private processListeners = {
+    exit: null as (() => void) | null,
+    sigint: null as (() => void) | null,
+    sigterm: null as (() => void) | null
+  }
 
   constructor(options: MemoryManagerOptions = {}) {
     super()
@@ -74,13 +80,23 @@ export class MemoryManager extends EventEmitter {
       this.cleanupInterval = setInterval(() => {
         this.performCleanup()
       }, this.options.cleanupInterval)
+      
+      // 防止定时器阻止进程退出
+      if (this.cleanupInterval.unref) {
+        this.cleanupInterval.unref()
+      }
+      
       this.resourceManager.addTimer(this.cleanupInterval)
     }
 
-    // 监听进程退出事件
-    process.on('exit', () => this.destroy())
-    process.on('SIGINT', () => this.destroy())
-    process.on('SIGTERM', () => this.destroy())
+    // 监听进程退出事件，并追踪监听器
+    this.processListeners.exit = () => this.destroy()
+    this.processListeners.sigint = () => this.destroy()
+    this.processListeners.sigterm = () => this.destroy()
+
+    process.on('exit', this.processListeners.exit)
+    process.on('SIGINT', this.processListeners.sigint)
+    process.on('SIGTERM', this.processListeners.sigterm)
   }
 
   /**
@@ -249,13 +265,27 @@ export class MemoryManager extends EventEmitter {
       this.cleanupInterval = undefined
     }
 
+    // 移除进程事件监听器
+    if (this.processListeners.exit) {
+      process.removeListener('exit', this.processListeners.exit)
+      this.processListeners.exit = null
+    }
+    if (this.processListeners.sigint) {
+      process.removeListener('SIGINT', this.processListeners.sigint)
+      this.processListeners.sigint = null
+    }
+    if (this.processListeners.sigterm) {
+      process.removeListener('SIGTERM', this.processListeners.sigterm)
+      this.processListeners.sigterm = null
+    }
+
     // 清理资源
     await this.resourceManager.cleanup()
 
     // 清空快照
     this.memorySnapshots = []
 
-    // 移除所有监听器
+    // 移除所有事件监听器
     this.removeAllListeners()
   }
 }

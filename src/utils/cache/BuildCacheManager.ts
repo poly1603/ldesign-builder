@@ -116,6 +116,8 @@ export class BuildCacheManager {
     dependencyGraph: new Map()
   }
   private cleanupTimer?: NodeJS.Timeout
+  // 用于防止并发访问同一key的锁机制
+  private loadingKeys = new Map<string, Promise<CacheEntry | null>>()
 
   constructor(config?: Partial<CacheConfig>, logger?: Logger) {
     const defaultConfig: CacheConfig = {
@@ -148,17 +150,37 @@ export class BuildCacheManager {
   }
 
   /**
-   * 获取缓存
+   * 获取缓存（带并发保护）
    */
   async get<T = any>(key: string, dependencies?: string[]): Promise<T | null> {
     const startTime = Date.now()
 
     try {
+      // 检查内存缓存
       let entry: CacheEntry | null = this.cache.get(key) || null
 
-      // 如果内存中没有，尝试从磁盘加载
+      // 如果内存中没有，尝试从磁盘加载（带并发保护）
       if (!entry) {
-        entry = await this.loadFromDisk(key)
+        // 检查是否已经有正在进行的加载操作
+        let loadingPromise = this.loadingKeys.get(key)
+        
+        if (!loadingPromise) {
+          // 创建新的加载操作
+          loadingPromise = this.loadFromDisk(key)
+          this.loadingKeys.set(key, loadingPromise)
+          
+          try {
+            entry = await loadingPromise
+          } finally {
+            // 清理加载标记
+            this.loadingKeys.delete(key)
+          }
+        } else {
+          // 等待已存在的加载操作完成
+          this.logger.debug(`等待并发加载完成: ${key}`)
+          entry = await loadingPromise
+        }
+
         if (!entry) {
           this.stats.misses++
           return null
@@ -168,7 +190,7 @@ export class BuildCacheManager {
         this.cache.set(key, entry)
       }
 
-      // 检查TTL
+      // 检查TTL（过期）
       if (entry.metadata.ttl && this.isExpired(entry)) {
         await this.delete(key)
         this.stats.misses++
@@ -285,11 +307,14 @@ export class BuildCacheManager {
   }
 
   /**
-   * 删除缓存
+   * 删除缓存（带清理加载标记）
    */
   async delete(key: string): Promise<boolean> {
     try {
       let deleted = false
+
+      // 清理可能正在进行的加载操作标记
+      this.loadingKeys.delete(key)
 
       // 从内存中删除
       if (this.cache.has(key)) {
@@ -783,29 +808,51 @@ export class BuildCacheManager {
    * 启动清理定时器
    */
   private startCleanupTimer(): void {
+    // 先清理已存在的定时器，防止泄漏
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer)
+      this.cleanupTimer = undefined
     }
 
-    this.cleanupTimer = setInterval(async () => {
-      try {
-        await this.cleanupExpired()
-      } catch (error) {
-        this.logger.error('定时清理失败:', error)
+    // 只有配置了清理间隔才启动定时器
+    if (this.config?.cleanupInterval && this.config.cleanupInterval > 0) {
+      this.cleanupTimer = setInterval(async () => {
+        try {
+          await this.cleanupExpired()
+        } catch (error) {
+          this.logger.error('定时清理失败:', error)
+        }
+      }, this.config.cleanupInterval * 1000)
+      
+      // 防止定时器阻止进程退出
+      if (this.cleanupTimer.unref) {
+        this.cleanupTimer.unref()
       }
-    }, this.config?.cleanupInterval * 1000)
+    }
   }
 
   /**
    * 销毁缓存管理器
    */
   async destroy(): Promise<void> {
+    this.logger.debug('开始销毁缓存管理器...')
+    
+    // 清理定时器
     if (this.cleanupTimer) {
       clearInterval(this.cleanupTimer)
+      this.cleanupTimer = undefined
+      this.logger.debug('✓ 清理定时器已停止')
     }
 
     // 保存当前状态
     const stats = this.getStats()
     this.logger.info(`缓存管理器销毁，最终统计: ${stats.totalEntries} 条目, ${Math.round(stats.totalSize / 1024)} KB`)
+    
+    // 清空内存缓存引用
+    this.cache.clear()
+    this.dependencyTracker.fileHashes.clear()
+    this.dependencyTracker.dependencyGraph.clear()
+    
+    this.logger.debug('缓存管理器销毁完成')
   }
 }

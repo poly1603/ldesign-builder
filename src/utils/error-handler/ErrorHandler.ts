@@ -434,11 +434,23 @@ export class ErrorHandler {
 
   /**
    * 记录错误日志
-   * 
+   *
    * @param error - 错误对象
    * @param context - 错误上下文
+   * @param depth - 递归深度（内部使用）
    */
-  private logError(error: Error, context?: string): void {
+  private logError(error: Error, context?: string, depth: number = 0): void {
+    // ========== 防止无限递归 ==========
+    const MAX_ERROR_DEPTH = 10
+    if (depth >= MAX_ERROR_DEPTH) {
+      if (this.logger) {
+        this.logger.warn(`错误链过深（深度 ${depth}），停止追踪以防止栈溢出`)
+      } else {
+        console.warn(`错误链过深（深度 ${depth}），停止追踪以防止栈溢出`)
+      }
+      return
+    }
+
     if (!this.logger) {
       console.error(error)
       return
@@ -449,39 +461,49 @@ export class ErrorHandler {
     if (context) {
       message = `${context}: ${message}`
     }
+    
+    // 添加深度指示器（仅在有嵌套时显示）
+    const depthPrefix = depth > 0 ? `${'  '.repeat(depth)}↳ ` : ''
 
     // ========== 记录基本错误信息 ==========
-    this.logger.error(message)
+    this.logger.error(`${depthPrefix}${message}`)
 
     // ========== 如果是构建器错误，显示额外信息 ==========
     if (error instanceof BuilderError) {
       if (error.phase) {
-        this.logger.error(`阶段: ${error.phase}`)
+        this.logger.error(`${depthPrefix}阶段: ${error.phase}`)
       }
 
       if (error.file) {
-        this.logger.error(`文件: ${error.file}`)
+        this.logger.error(`${depthPrefix}文件: ${error.file}`)
       }
 
       if (error.details) {
-        this.logger.debug('错误详情:', error.details)
+        this.logger.debug(`${depthPrefix}错误详情:`, error.details)
       }
 
       if (this.showSuggestions && error.suggestion) {
-        this.logger.info(`建议: ${error.suggestion}`)
+        this.logger.info(`${depthPrefix}建议: ${error.suggestion}`)
       }
     }
 
     // ========== 显示堆栈跟踪 ==========
     if (this.showStack && error.stack) {
-      this.logger.debug('堆栈跟踪:')
+      this.logger.debug(`${depthPrefix}堆栈跟踪:`)
       this.logger.debug(error.stack)
     }
 
-    // ========== 显示原因链 ==========
+    // ========== 显示原因链（带深度限制和循环检测） ==========
     if ((error as any).cause) {
-      this.logger.debug('原因:')
-      this.logError((error as any).cause as Error)
+      // 检测循环引用
+      const cause = (error as any).cause
+      if (cause === error) {
+        this.logger.warn(`${depthPrefix}检测到错误循环引用，停止追踪`)
+        return
+      }
+      
+      this.logger.debug(`${depthPrefix}原因:`)
+      this.logError(cause as Error, undefined, depth + 1)
     }
   }
 }

@@ -72,6 +72,7 @@ export class TaskQueue extends EventEmitter {
   private defaultTimeout: number
   private defaultRetries: number
   private paused = false
+  private destroyed = false
 
   constructor(options: TaskQueueOptions = {}) {
     super()
@@ -85,6 +86,10 @@ export class TaskQueue extends EventEmitter {
    * 添加任务
    */
   add<T = any>(task: Task<T>): this {
+    if (this.destroyed) {
+      throw new Error('Cannot add task to destroyed queue')
+    }
+
     // 设置默认值
     task.priority = task.priority ?? 0
     task.timeout = task.timeout ?? this.defaultTimeout
@@ -103,7 +108,7 @@ export class TaskQueue extends EventEmitter {
 
     this.emit('task-added', task)
 
-    if (this.autoStart && !this.paused) {
+    if (this.autoStart && !this.paused && !this.destroyed) {
       this.process()
     }
 
@@ -143,6 +148,27 @@ export class TaskQueue extends EventEmitter {
     this.pending = []
     this.results.clear()
     this.emit('cleared')
+  }
+
+  /**
+   * 销毁队列，清理所有资源
+   */
+  destroy(): void {
+    if (this.destroyed) return
+
+    this.destroyed = true
+    this.paused = true
+
+    // 清空所有任务
+    this.tasks.clear()
+    this.pending = []
+    this.running.clear()
+    this.results.clear()
+
+    // 移除所有事件监听器
+    this.removeAllListeners()
+
+    this.emit('destroyed')
   }
 
   /**
@@ -204,7 +230,7 @@ export class TaskQueue extends EventEmitter {
    * 处理队列
    */
   private process(): void {
-    if (this.paused) return
+    if (this.paused || this.destroyed) return
 
     // 填充到最大并发数
     while (
