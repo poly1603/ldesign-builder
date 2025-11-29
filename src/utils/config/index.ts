@@ -3,3 +3,4 @@
  */
 
 export * from './config-loader'
+export * from './TsConfigLoader'

@@ -28,6 +28,7 @@ interface BuildOptions {
   watch?: boolean
   report?: string | boolean
   sizeLimit?: string
+  debug?: boolean
 }
 
 /**
@@ -48,6 +49,7 @@ export const buildCommand = new Command('build')
   .option('--report [file]', '输出构建报告 JSON 文件（默认 dist/build-report.json）')
   .option('--size-limit <limit>', '设置总包体或单产物大小上限，如 200k、1mb、或字节数')
   .option('-w, --watch', '监听文件变化')
+  .option('--debug', '启用调试模式，输出详细构建信息')
   .action(async (options: BuildOptions, command: Command) => {
     try {
       await executeBuild(options, command.parent?.opts())
@@ -62,8 +64,20 @@ export const buildCommand = new Command('build')
  */
 async function executeBuild(options: BuildOptions, globalOptions: any = {}): Promise<void> {
   const startTime = Date.now()
+  const isDebug = options.debug || process.env.DEBUG === 'true'
 
-  // 全局拦截 TypeScript 警告输出
+  // 调试模式下输出详细信息
+  if (isDebug) {
+    logger.info('🔍 调试模式已启用')
+    logger.info('📋 构建选项:', JSON.stringify(options, null, 2))
+    logger.info('🌍 环境变量:', {
+      NODE_ENV: process.env.NODE_ENV,
+      DEBUG: process.env.DEBUG,
+      cwd: process.cwd()
+    })
+  }
+
+  // 全局拦截 TypeScript 警告输出（调试模式下不拦截）
   const originalStderrWrite = process.stderr.write
   const originalConsoleWarn = console.warn
   const originalConsoleError = console.error
@@ -78,7 +92,7 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     'TS2688'
   ]
 
-  const shouldSuppress = (msg: string) => suppressedPatterns.some(p => msg.includes(p))
+  const shouldSuppress = (msg: string) => !isDebug && suppressedPatterns.some(p => msg.includes(p))
 
   // 拦截 stderr
   process.stderr.write = function (...args: any[]): boolean {
@@ -97,7 +111,7 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     }
   }
 
-  // 拦截 console.error  
+  // 拦截 console.error
   console.error = (...args: any[]) => {
     const msg = args.join(' ')
     if (!shouldSuppress(msg)) {
@@ -110,21 +124,28 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     const timings: Record<string, number> = {}
     let phaseStart = Date.now()
 
-    // 创建构建器实例（静默初始化）
-    const silentLogger = logger.child('Builder', { level: 'error', silent: false })
+    // 创建构建器实例（调试模式使用详细日志）
+    const builderLogger = isDebug
+      ? logger.child('Builder', { level: 'debug', silent: false })
+      : logger.child('Builder', { level: 'error', silent: false })
     const builder = new LibraryBuilder({
-      logger: silentLogger,
+      logger: builderLogger,
       autoDetect: true
     })
 
     // 初始化构建器
     await builder.initialize()
     timings['初始化'] = Date.now() - phaseStart
+    if (isDebug) logger.debug(`⏱️ 初始化耗时: ${timings['初始化']}ms`)
 
     // 构建配置
     phaseStart = Date.now()
     const config = await buildConfig(options, globalOptions)
     timings['配置加载'] = Date.now() - phaseStart
+    if (isDebug) {
+      logger.debug(`⏱️ 配置加载耗时: ${timings['配置加载']}ms`)
+      logger.debug('📦 最终配置:', JSON.stringify(config, null, 2))
+    }
 
     // 显示简化的配置信息
     showBuildInfo(config)
@@ -134,25 +155,78 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     if (options.watch) {
       logger.info('启动监听模式...')
       const watcher = await builder.buildWatch(config)
+      let buildCount = 0
+      let lastBuildTime = Date.now()
+
+      // 清屏函数
+      const clearScreen = () => {
+        if (process.stdout.isTTY) {
+          process.stdout.write('\x1B[2J\x1B[0f')
+        }
+      }
+
+      // 系统通知函数（跨平台）
+      const sendNotification = async (title: string, message: string, success: boolean) => {
+        try {
+          const { exec } = await import('child_process')
+          const platform = process.platform
+          if (platform === 'darwin') {
+            exec(`osascript -e 'display notification "${message}" with title "${title}"'`)
+          } else if (platform === 'win32') {
+            // Windows PowerShell 通知
+            exec(`powershell -Command "[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null; $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02); $template.SelectSingleNode('//text[@id=1]').InnerText = '${title}'; $template.SelectSingleNode('//text[@id=2]').InnerText = '${message}'"`)
+          } else if (platform === 'linux') {
+            exec(`notify-send "${title}" "${message}"`)
+          }
+        } catch { /* 通知失败不影响构建 */ }
+      }
 
       // 监听构建事件
       watcher.on('change', (file) => {
-        logger.info(`文件变化: ${highlight.path(file)}`)
+        clearScreen()
+        logger.info(`📝 文件变化: ${highlight.path(file)}`)
+        logger.info('🔄 重新构建中...')
       })
 
-      watcher.on('build', (result) => {
-        showBuildResult(result, startTime, timings)
+      watcher.on('build', (buildResult) => {
+        buildCount++
+        const now = Date.now()
+        const rebuildTime = now - lastBuildTime
+        lastBuildTime = now
+
+        clearScreen()
+        logger.info(`\n${'═'.repeat(50)}`)
+        logger.info(`📦 构建 #${buildCount} 完成`)
+        logger.info(`⏱️  重建耗时: ${rebuildTime}ms`)
+        showBuildResult(buildResult, startTime, timings)
+        logger.info(`${'═'.repeat(50)}\n`)
+        logger.info('👀 监听文件变化中... (按 Ctrl+C 停止)')
+
+        // 发送系统通知
+        const success = !buildResult.errors?.length
+        sendNotification(
+          success ? '✅ 构建成功' : '❌ 构建失败',
+          success ? `构建 #${buildCount} 完成 (${rebuildTime}ms)` : `构建 #${buildCount} 失败`,
+          success
+        )
+      })
+
+      watcher.on('error', (error) => {
+        logger.error('❌ 构建错误:', error)
+        sendNotification('❌ 构建错误', String(error), false)
       })
 
       // 保持进程运行
       process.on('SIGINT', async () => {
-        logger.info(`正在停止监听...`)
+        logger.info(`\n🛑 正在停止监听...`)
         await watcher.close()
         await builder.dispose()
+        logger.info(`👋 已完成 ${buildCount} 次构建，再见！`)
         process.exit(0)
       })
 
-      logger.success(`监听模式已启动，按 Ctrl+C 停止`)
+      logger.success(`🚀 监听模式已启动`)
+      logger.info(`👀 监听文件变化中... (按 Ctrl+C 停止)`)
       return
     } else {
       phaseStart = Date.now()

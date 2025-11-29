@@ -50,5 +50,6 @@ export {
  */
 
 export * from './ParallelProcessor'
+export * from './ParallelBuildManager'
 export * from './TaskQueue'
 export * from './WorkerPool'
