@@ -2,17 +2,41 @@
   "name": "@examples/icon-font-lib",
   "version": "1.0.0",
   "description": "字体图标库示例 - 包含 woff/woff2/ttf 字体文件",
-  "main": "lib/index.js",
-  "module": "es/index.mjs",
-  "style": "dist/index.css",
+  "type": "module",
+  "sideEffects": false,
   "exports": {
-    ".": { "import": "./es/index.mjs", "require": "./lib/index.js" },
-    "./css": "./dist/index.css",
-    "./less": "./src/index.less",
-    "./fonts/*": "./dist/fonts/*"
+    ".": {
+      "types": "./esm/index.d.ts",
+      "import": "./esm/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./esm/index.js"
+    },
+    "./lib/index.css": "./lib/index.css",
+    "./dist/index.css": "./dist/index.css",
+    "./dist/index.min.css": "./dist/index.min.css",
+    "./package.json": "./package.json"
   },
-  "sideEffects": ["*.css", "*.less"],
-  "files": ["es", "lib", "dist", "src"],
-  "scripts": { "build": "ldesign-builder build" },
-  "devDependencies": { "@ldesign/builder": "workspace:*", "less": "^4.2.0" }
+  "main": "./lib/index.cjs",
+  "module": "./esm/index.js",
+  "types": "./esm/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "esm",
+    "lib",
+    "dist"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "less": "^4.2.0"
+  },
+  "style": "dist/index.css",
+  "typings": "./esm/index.d.ts",
+  "browser": "./dist/index.js"
 }

@@ -1,0 +1,80 @@
+{
+  "name": "@example/preact-lib",
+  "version": "1.0.0",
+  "description": "Preact 组件库示例",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./button": {
+      "types": "./es/button/index.d.ts",
+      "import": "./es/button/index.js",
+      "require": "./lib/button/index.cjs",
+      "default": "./es/button/index.js"
+    },
+    "./button/*": {
+      "types": "./es/button/*.d.ts",
+      "import": "./es/button/*.js",
+      "require": "./lib/button/*.cjs",
+      "default": "./es/button/*.js"
+    },
+    "./card": {
+      "types": "./es/card/index.d.ts",
+      "import": "./es/card/index.js",
+      "require": "./lib/card/index.cjs",
+      "default": "./es/card/index.js"
+    },
+    "./card/*": {
+      "types": "./es/card/*.d.ts",
+      "import": "./es/card/*.js",
+      "require": "./lib/card/*.cjs",
+      "default": "./es/card/*.js"
+    },
+    "./hooks": {
+      "types": "./es/hooks/index.d.ts",
+      "import": "./es/hooks/index.js",
+      "require": "./lib/hooks/index.cjs",
+      "default": "./es/hooks/index.js"
+    },
+    "./hooks/*": {
+      "types": "./es/hooks/*.d.ts",
+      "import": "./es/hooks/*.js",
+      "require": "./lib/hooks/*.cjs",
+      "default": "./es/hooks/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.js",
+  "jsdelivr": "./dist/index.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:rolldown": "ldesign-builder build --bundler rolldown",
+    "build:esbuild": "ldesign-builder build --bundler esbuild",
+    "clean": "rimraf es lib dist esm"
+  },
+  "peerDependencies": {
+    "preact": "^10.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "preact": "^10.19.0",
+    "typescript": "^5.0.0"
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}

@@ -331,7 +331,6 @@ export class StyleProcessor {
  * - lib/  - CommonJS，编译后的 CSS
  */
 export function getOutputDirsFromConfig(config: BuilderConfig): OutputDirConfig[] {
-  console.log('[DEBUG] getOutputDirsFromConfig received output:', JSON.stringify(config.output))
   const dirs: OutputDirConfig[] = []
   const output = config.output
 

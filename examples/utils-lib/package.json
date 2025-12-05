@@ -2,23 +2,157 @@
   "name": "@examples/utils-lib",
   "version": "1.0.0",
   "description": "纯 TypeScript 工具函数库示例",
-  "main": "lib/index.js",
-  "module": "es/index.mjs",
-  "types": "es/index.d.ts",
+  "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "import": "./es/index.mjs",
-      "require": "./lib/index.js",
-      "types": "./es/index.d.ts"
-    }
+      "types": "./esm/index.d.ts",
+      "import": "./esm/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./esm/index.js"
+    },
+    "./array": {
+      "types": "./esm/array/index.d.ts",
+      "import": "./esm/array/index.js",
+      "require": "./lib/array/index.cjs",
+      "default": "./esm/array/index.js"
+    },
+    "./array/*": {
+      "types": "./esm/array/*.d.ts",
+      "import": "./esm/array/*.js",
+      "require": "./lib/array/*.cjs",
+      "default": "./esm/array/*.js"
+    },
+    "./async": {
+      "types": "./esm/async/index.d.ts",
+      "import": "./esm/async/index.js",
+      "require": "./lib/async/index.cjs",
+      "default": "./esm/async/index.js"
+    },
+    "./async/*": {
+      "types": "./esm/async/*.d.ts",
+      "import": "./esm/async/*.js",
+      "require": "./lib/async/*.cjs",
+      "default": "./esm/async/*.js"
+    },
+    "./date": {
+      "types": "./esm/date/index.d.ts",
+      "import": "./esm/date/index.js",
+      "require": "./lib/date/index.cjs",
+      "default": "./esm/date/index.js"
+    },
+    "./date/*": {
+      "types": "./esm/date/*.d.ts",
+      "import": "./esm/date/*.js",
+      "require": "./lib/date/*.cjs",
+      "default": "./esm/date/*.js"
+    },
+    "./dom": {
+      "types": "./esm/dom/index.d.ts",
+      "import": "./esm/dom/index.js",
+      "require": "./lib/dom/index.cjs",
+      "default": "./esm/dom/index.js"
+    },
+    "./dom/*": {
+      "types": "./esm/dom/*.d.ts",
+      "import": "./esm/dom/*.js",
+      "require": "./lib/dom/*.cjs",
+      "default": "./esm/dom/*.js"
+    },
+    "./math": {
+      "types": "./esm/math/index.d.ts",
+      "import": "./esm/math/index.js",
+      "require": "./lib/math/index.cjs",
+      "default": "./esm/math/index.js"
+    },
+    "./math/*": {
+      "types": "./esm/math/*.d.ts",
+      "import": "./esm/math/*.js",
+      "require": "./lib/math/*.cjs",
+      "default": "./esm/math/*.js"
+    },
+    "./object": {
+      "types": "./esm/object/index.d.ts",
+      "import": "./esm/object/index.js",
+      "require": "./lib/object/index.cjs",
+      "default": "./esm/object/index.js"
+    },
+    "./object/*": {
+      "types": "./esm/object/*.d.ts",
+      "import": "./esm/object/*.js",
+      "require": "./lib/object/*.cjs",
+      "default": "./esm/object/*.js"
+    },
+    "./storage": {
+      "types": "./esm/storage/index.d.ts",
+      "import": "./esm/storage/index.js",
+      "require": "./lib/storage/index.cjs",
+      "default": "./esm/storage/index.js"
+    },
+    "./storage/*": {
+      "types": "./esm/storage/*.d.ts",
+      "import": "./esm/storage/*.js",
+      "require": "./lib/storage/*.cjs",
+      "default": "./esm/storage/*.js"
+    },
+    "./string": {
+      "types": "./esm/string/index.d.ts",
+      "import": "./esm/string/index.js",
+      "require": "./lib/string/index.cjs",
+      "default": "./esm/string/index.js"
+    },
+    "./string/*": {
+      "types": "./esm/string/*.d.ts",
+      "import": "./esm/string/*.js",
+      "require": "./lib/string/*.cjs",
+      "default": "./esm/string/*.js"
+    },
+    "./types": {
+      "types": "./esm/types/index.d.ts",
+      "import": "./esm/types/index.js",
+      "require": "./lib/types/index.cjs",
+      "default": "./esm/types/index.js"
+    },
+    "./types/*": {
+      "types": "./esm/types/*.d.ts",
+      "import": "./esm/types/*.js",
+      "require": "./lib/types/*.cjs",
+      "default": "./esm/types/*.js"
+    },
+    "./validate": {
+      "types": "./esm/validate/index.d.ts",
+      "import": "./esm/validate/index.js",
+      "require": "./lib/validate/index.cjs",
+      "default": "./esm/validate/index.js"
+    },
+    "./validate/*": {
+      "types": "./esm/validate/*.d.ts",
+      "import": "./esm/validate/*.js",
+      "require": "./lib/validate/*.cjs",
+      "default": "./esm/validate/*.js"
+    },
+    "./package.json": "./package.json"
   },
-  "sideEffects": false,
-  "files": ["es", "lib"],
+  "main": "./lib/index.cjs",
+  "module": "./esm/index.js",
+  "types": "./esm/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "esm",
+    "lib",
+    "dist"
+  ],
   "scripts": {
     "build": "ldesign-builder build"
   },
   "devDependencies": {
     "@ldesign/builder": "workspace:*",
     "typescript": "^5.0.0"
-  }
+  },
+  "typings": "./esm/index.d.ts",
+  "browser": "./dist/index.js"
 }

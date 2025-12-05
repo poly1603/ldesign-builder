@@ -1,0 +1,78 @@
+{
+  "name": "@example/web-components-lib",
+  "version": "1.0.0",
+  "description": "Web Components 组件库示例",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./button": {
+      "types": "./es/button/index.d.ts",
+      "import": "./es/button/index.js",
+      "require": "./lib/button/index.cjs",
+      "default": "./es/button/index.js"
+    },
+    "./button/*": {
+      "types": "./es/button/*.d.ts",
+      "import": "./es/button/*.js",
+      "require": "./lib/button/*.cjs",
+      "default": "./es/button/*.js"
+    },
+    "./modal": {
+      "types": "./es/modal/index.d.ts",
+      "import": "./es/modal/index.js",
+      "require": "./lib/modal/index.cjs",
+      "default": "./es/modal/index.js"
+    },
+    "./modal/*": {
+      "types": "./es/modal/*.d.ts",
+      "import": "./es/modal/*.js",
+      "require": "./lib/modal/*.cjs",
+      "default": "./es/modal/*.js"
+    },
+    "./tooltip": {
+      "types": "./es/tooltip/index.d.ts",
+      "import": "./es/tooltip/index.js",
+      "require": "./lib/tooltip/index.cjs",
+      "default": "./es/tooltip/index.js"
+    },
+    "./tooltip/*": {
+      "types": "./es/tooltip/*.d.ts",
+      "import": "./es/tooltip/*.js",
+      "require": "./lib/tooltip/*.cjs",
+      "default": "./es/tooltip/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib",
+    "dist"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:rolldown": "ldesign-builder build --bundler rolldown",
+    "build:esbuild": "ldesign-builder build --bundler esbuild",
+    "build:swc": "ldesign-builder build --bundler swc",
+    "clean": "rimraf es lib dist esm"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "typescript": "^5.0.0"
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}

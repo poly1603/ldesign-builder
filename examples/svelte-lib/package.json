@@ -1,0 +1,58 @@
+{
+  "name": "@example/svelte-lib",
+  "version": "1.0.0",
+  "description": "Svelte 组件库示例",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./utils": {
+      "types": "./es/utils/index.d.ts",
+      "import": "./es/utils/index.js",
+      "require": "./lib/utils/index.cjs",
+      "default": "./es/utils/index.js"
+    },
+    "./utils/*": {
+      "types": "./es/utils/*.d.ts",
+      "import": "./es/utils/*.js",
+      "require": "./lib/utils/*.cjs",
+      "default": "./es/utils/*.js"
+    },
+    "./es/index.css": "./es/index.css",
+    "./lib/index.css": "./lib/index.css",
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.js",
+  "jsdelivr": "./dist/index.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:rolldown": "ldesign-builder build --bundler rolldown",
+    "build:esbuild": "ldesign-builder build --bundler esbuild",
+    "clean": "rimraf es lib dist esm"
+  },
+  "peerDependencies": {
+    "svelte": "^4.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "svelte": "^4.2.0",
+    "typescript": "^5.0.0"
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}

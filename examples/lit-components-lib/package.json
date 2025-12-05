@@ -1,0 +1,81 @@
+{
+  "name": "@example/lit-components-lib",
+  "version": "1.0.0",
+  "description": "Lit Web Components 组件库示例",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./button": {
+      "types": "./es/button/index.d.ts",
+      "import": "./es/button/index.js",
+      "require": "./lib/button/index.cjs",
+      "default": "./es/button/index.js"
+    },
+    "./button/*": {
+      "types": "./es/button/*.d.ts",
+      "import": "./es/button/*.js",
+      "require": "./lib/button/*.cjs",
+      "default": "./es/button/*.js"
+    },
+    "./card": {
+      "types": "./es/card/index.d.ts",
+      "import": "./es/card/index.js",
+      "require": "./lib/card/index.cjs",
+      "default": "./es/card/index.js"
+    },
+    "./card/*": {
+      "types": "./es/card/*.d.ts",
+      "import": "./es/card/*.js",
+      "require": "./lib/card/*.cjs",
+      "default": "./es/card/*.js"
+    },
+    "./input": {
+      "types": "./es/input/index.d.ts",
+      "import": "./es/input/index.js",
+      "require": "./lib/input/index.cjs",
+      "default": "./es/input/index.js"
+    },
+    "./input/*": {
+      "types": "./es/input/*.d.ts",
+      "import": "./es/input/*.js",
+      "require": "./lib/input/*.cjs",
+      "default": "./es/input/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.js",
+  "jsdelivr": "./dist/index.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:rolldown": "ldesign-builder build --bundler rolldown",
+    "build:esbuild": "ldesign-builder build --bundler esbuild",
+    "clean": "rimraf es lib dist esm"
+  },
+  "peerDependencies": {
+    "lit": "^3.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "lit": "^3.1.0",
+    "typescript": "^5.0.0"
+  },
+  "customElements": "custom-elements.json",
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}

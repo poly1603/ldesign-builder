@@ -1,0 +1,43 @@
+{
+  "name": "@example/css-framework",
+  "version": "1.0.0",
+  "description": "纯 CSS 框架示例",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./es/index.css": "./es/index.css",
+    "./lib/index.css": "./lib/index.css",
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.js",
+  "jsdelivr": "./dist/index.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:rolldown": "ldesign-builder build --bundler rolldown",
+    "clean": "rimraf dist es lib esm"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "less": "^4.0.0",
+    "sass": "^1.70.0"
+  },
+  "style": "dist/index.css",
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}

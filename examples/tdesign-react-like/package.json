@@ -2,21 +2,69 @@
   "name": "@examples/tdesign-react-like",
   "version": "1.0.0",
   "description": "类 TDesign 风格的 React 组件库示例",
-  "main": "lib/index.js",
-  "module": "es/index.mjs",
-  "types": "es/index.d.ts",
+  "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
-      "import": "./es/index.mjs",
-      "require": "./lib/index.js",
-      "types": "./es/index.d.ts"
+      "types": "./esm/index.d.ts",
+      "import": "./esm/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./esm/index.js"
     },
-    "./es/*": "./es/*",
-    "./lib/*": "./lib/*",
-    "./style": "./es/style/index.css"
+    "./button": {
+      "types": "./esm/button/index.d.ts",
+      "import": "./esm/button/index.js",
+      "require": "./lib/button/index.cjs",
+      "default": "./esm/button/index.js"
+    },
+    "./button/*": {
+      "types": "./esm/button/*.d.ts",
+      "import": "./esm/button/*.js",
+      "require": "./lib/button/*.cjs",
+      "default": "./esm/button/*.js"
+    },
+    "./icon": {
+      "types": "./esm/icon/index.d.ts",
+      "import": "./esm/icon/index.js",
+      "require": "./lib/icon/index.cjs",
+      "default": "./esm/icon/index.js"
+    },
+    "./icon/*": {
+      "types": "./esm/icon/*.d.ts",
+      "import": "./esm/icon/*.js",
+      "require": "./lib/icon/*.cjs",
+      "default": "./esm/icon/*.js"
+    },
+    "./input": {
+      "types": "./esm/input/index.d.ts",
+      "import": "./esm/input/index.js",
+      "require": "./lib/input/index.cjs",
+      "default": "./esm/input/index.js"
+    },
+    "./input/*": {
+      "types": "./esm/input/*.d.ts",
+      "import": "./esm/input/*.js",
+      "require": "./lib/input/*.cjs",
+      "default": "./esm/input/*.js"
+    },
+    "./lib/index.css": "./lib/index.css",
+    "./dist/index.css": "./dist/index.css",
+    "./dist/index.min.css": "./dist/index.min.css",
+    "./package.json": "./package.json"
   },
-  "sideEffects": ["*.css", "*.less", "**/style/*"],
-  "files": ["es", "lib", "dist"],
+  "main": "./lib/index.cjs",
+  "module": "./esm/index.js",
+  "types": "./esm/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "esm",
+    "lib",
+    "dist"
+  ],
   "scripts": {
     "build": "ldesign-builder build"
   },
@@ -31,5 +79,7 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "less": "^4.2.0"
-  }
+  },
+  "typings": "./esm/index.d.ts",
+  "browser": "./dist/index.js"
 }

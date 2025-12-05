@@ -1,0 +1,96 @@
+{
+  "name": "@example/node-cli-lib",
+  "version": "1.0.0",
+  "description": "Node.js CLI 工具库示例",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./cli": {
+      "types": "./es/cli/index.d.ts",
+      "import": "./es/cli/index.js",
+      "require": "./lib/cli/index.cjs",
+      "default": "./es/cli/index.js"
+    },
+    "./cli/*": {
+      "types": "./es/cli/*.d.ts",
+      "import": "./es/cli/*.js",
+      "require": "./lib/cli/*.cjs",
+      "default": "./es/cli/*.js"
+    },
+    "./config": {
+      "types": "./es/config/index.d.ts",
+      "import": "./es/config/index.js",
+      "require": "./lib/config/index.cjs",
+      "default": "./es/config/index.js"
+    },
+    "./config/*": {
+      "types": "./es/config/*.d.ts",
+      "import": "./es/config/*.js",
+      "require": "./lib/config/*.cjs",
+      "default": "./es/config/*.js"
+    },
+    "./logger": {
+      "types": "./es/logger/index.d.ts",
+      "import": "./es/logger/index.js",
+      "require": "./lib/logger/index.cjs",
+      "default": "./es/logger/index.js"
+    },
+    "./logger/*": {
+      "types": "./es/logger/*.d.ts",
+      "import": "./es/logger/*.js",
+      "require": "./lib/logger/*.cjs",
+      "default": "./es/logger/*.js"
+    },
+    "./utils": {
+      "types": "./es/utils/index.d.ts",
+      "import": "./es/utils/index.js",
+      "require": "./lib/utils/index.cjs",
+      "default": "./es/utils/index.js"
+    },
+    "./utils/*": {
+      "types": "./es/utils/*.d.ts",
+      "import": "./es/utils/*.js",
+      "require": "./lib/utils/*.cjs",
+      "default": "./es/utils/*.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.js",
+  "jsdelivr": "./dist/index.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:rolldown": "ldesign-builder build --bundler rolldown",
+    "build:esbuild": "ldesign-builder build --bundler esbuild",
+    "build:swc": "ldesign-builder build --bundler swc",
+    "clean": "rimraf es lib dist esm"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "bin": {
+    "example-cli": "./bin/cli.js"
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}
