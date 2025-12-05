@@ -1,0 +1,174 @@
+/**
+ * 图标字体样式
+ */
+
+@font-face {
+  font-family: 'ticons';
+  src: url('./fonts/ticons.woff2') format('woff2'),
+    url('./fonts/ticons.woff') format('woff'),
+    url('./fonts/ticons.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.ti {
+  font-family: 'ticons' !important;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: middle;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  // 尺寸变体
+  &.ti-sm {
+    font-size: 14px;
+  }
+
+  &.ti-md {
+    font-size: 18px;
+  }
+
+  &.ti-lg {
+    font-size: 24px;
+  }
+
+  &.ti-xl {
+    font-size: 32px;
+  }
+
+  // 动画
+  &.ti-spin {
+    animation: ti-spin 1s linear infinite;
+  }
+
+  // 图标定义
+  &-close::before {
+    content: '\e001';
+  }
+
+  &-check::before {
+    content: '\e002';
+  }
+
+  &-info::before {
+    content: '\e003';
+  }
+
+  &-warning::before {
+    content: '\e004';
+  }
+
+  &-error::before {
+    content: '\e005';
+  }
+
+  &-loading::before {
+    content: '\e006';
+  }
+
+  &-search::before {
+    content: '\e007';
+  }
+
+  &-plus::before {
+    content: '\e008';
+  }
+
+  &-minus::before {
+    content: '\e009';
+  }
+
+  &-arrow-left::before {
+    content: '\e00a';
+  }
+
+  &-arrow-right::before {
+    content: '\e00b';
+  }
+
+  &-arrow-up::before {
+    content: '\e00c';
+  }
+
+  &-arrow-down::before {
+    content: '\e00d';
+  }
+
+  &-home::before {
+    content: '\e00e';
+  }
+
+  &-user::before {
+    content: '\e00f';
+  }
+
+  &-setting::before {
+    content: '\e010';
+  }
+
+  &-menu::before {
+    content: '\e011';
+  }
+
+  &-more::before {
+    content: '\e012';
+  }
+
+  &-edit::before {
+    content: '\e013';
+  }
+
+  &-delete::before {
+    content: '\e014';
+  }
+
+  &-copy::before {
+    content: '\e015';
+  }
+
+  &-folder::before {
+    content: '\e016';
+  }
+
+  &-file::before {
+    content: '\e017';
+  }
+
+  &-download::before {
+    content: '\e018';
+  }
+
+  &-upload::before {
+    content: '\e019';
+  }
+
+  &-link::before {
+    content: '\e01a';
+  }
+
+  &-star::before {
+    content: '\e01b';
+  }
+
+  &-heart::before {
+    content: '\e01c';
+  }
+
+  &-share::before {
+    content: '\e01d';
+  }
+}
+
+@keyframes ti-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}

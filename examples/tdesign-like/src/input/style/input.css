@@ -1,0 +1,64 @@
+/**
+ * Input 组件样式
+ */
+.t-input {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  height: 32px;
+  border: 1px solid #dcdcdc;
+  border-radius: 6px;
+  background-color: #fff;
+  transition: all 0.2s;
+}
+.t-input:hover {
+  border-color: #b5b5b5;
+}
+.t-input--focused {
+  border-color: #0052d9;
+  box-shadow: 0 0 0 2px rgba(0, 82, 217, 0.2);
+}
+.t-input--size-small {
+  height: 24px;
+}
+.t-input--size-large {
+  height: 40px;
+}
+.t-input--disabled {
+  background-color: #f3f3f3;
+  cursor: not-allowed;
+}
+.t-input--status-error {
+  border-color: #e34d59;
+}
+.t-input--status-warning {
+  border-color: #ed7b2f;
+}
+.t-input--status-success {
+  border-color: #00a870;
+}
+.t-input__inner {
+  flex: 1;
+  padding: 0 12px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.9);
+}
+.t-input__inner::placeholder {
+  color: rgba(0, 0, 0, 0.35);
+}
+.t-input__prefix,
+.t-input__suffix {
+  padding: 0 8px;
+  color: rgba(0, 0, 0, 0.6);
+}
+.t-input__clear {
+  padding: 0 8px;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.6);
+}
+.t-input__clear:hover {
+  color: rgba(0, 0, 0, 0.9);
+}

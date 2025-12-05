@@ -1,0 +1,202 @@
+/**
+ * Button 组件样式
+ */
+
+// 变量定义
+@prefix: t;
+@brand-color: #0052d9;
+@brand-color-hover: #366ef4;
+@brand-color-active: #004299;
+@error-color: #e34d59;
+@warning-color: #ed7b2f;
+@success-color: #00a870;
+@text-color-primary: rgba(0, 0, 0, 0.9);
+@text-color-anti: #fff;
+@bg-color-container: #fff;
+@border-color: #dcdcdc;
+@border-radius-default: 6px;
+@font-size-base: 14px;
+@font-size-s: 12px;
+@font-size-l: 16px;
+@size-s: 24px;
+@size-m: 32px;
+@size-l: 40px;
+
+@btn-prefix: ~'@{prefix}-button';
+
+.@{btn-prefix} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  height: @size-m;
+  font-size: @font-size-base;
+  font-weight: 400;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  border-radius: @border-radius-default;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  outline: none;
+
+  // 主题
+  &--theme-default {
+    background-color: @bg-color-container;
+    border-color: @border-color;
+    color: @text-color-primary;
+
+    &:hover {
+      border-color: @brand-color;
+      color: @brand-color;
+    }
+
+    &:active {
+      border-color: @brand-color-active;
+      color: @brand-color-active;
+    }
+  }
+
+  &--theme-primary {
+    background-color: @brand-color;
+    border-color: @brand-color;
+    color: @text-color-anti;
+
+    &:hover {
+      background-color: @brand-color-hover;
+      border-color: @brand-color-hover;
+    }
+
+    &:active {
+      background-color: @brand-color-active;
+      border-color: @brand-color-active;
+    }
+  }
+
+  &--theme-danger {
+    background-color: @error-color;
+    border-color: @error-color;
+    color: @text-color-anti;
+  }
+
+  &--theme-warning {
+    background-color: @warning-color;
+    border-color: @warning-color;
+    color: @text-color-anti;
+  }
+
+  &--theme-success {
+    background-color: @success-color;
+    border-color: @success-color;
+    color: @text-color-anti;
+  }
+
+  // 形式
+  &--variant-outline {
+    background-color: transparent;
+  }
+
+  &--variant-dashed {
+    background-color: transparent;
+    border-style: dashed;
+  }
+
+  &--variant-text {
+    background-color: transparent;
+    border-color: transparent;
+  }
+
+  // 尺寸
+  &--size-small {
+    height: @size-s;
+    padding: 0 8px;
+    font-size: @font-size-s;
+  }
+
+  &--size-medium {
+    height: @size-m;
+  }
+
+  &--size-large {
+    height: @size-l;
+    padding: 0 24px;
+    font-size: @font-size-l;
+  }
+
+  // 形状
+  &--shape-round {
+    border-radius: 999px;
+  }
+
+  &--shape-circle {
+    border-radius: 50%;
+    padding: 0;
+    width: @size-m;
+  }
+
+  &--shape-square {
+    border-radius: 0;
+  }
+
+  // 状态
+  &--disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+    pointer-events: none;
+  }
+
+  &--loading {
+    cursor: wait;
+    pointer-events: none;
+  }
+
+  &--block {
+    display: flex;
+    width: 100%;
+  }
+
+  &--ghost {
+    background-color: transparent;
+  }
+
+  // 子元素
+  &__icon,
+  &__loading,
+  &__suffix {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  &__icon {
+    margin-right: 8px;
+  }
+
+  &__suffix {
+    margin-left: 8px;
+  }
+
+  &__loading {
+    margin-right: 8px;
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: t-loading-spin 0.8s linear infinite;
+  }
+
+  &__text {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+@keyframes t-loading-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}

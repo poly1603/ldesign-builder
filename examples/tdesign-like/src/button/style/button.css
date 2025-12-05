@@ -1,0 +1,144 @@
+/**
+ * Button 组件样式
+ */
+.t-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  height: 32px;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.5;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+  outline: none;
+}
+.t-button--theme-default {
+  background-color: #fff;
+  border-color: #dcdcdc;
+  color: rgba(0, 0, 0, 0.9);
+}
+.t-button--theme-default:hover {
+  border-color: #0052d9;
+  color: #0052d9;
+}
+.t-button--theme-default:active {
+  border-color: #004299;
+  color: #004299;
+}
+.t-button--theme-primary {
+  background-color: #0052d9;
+  border-color: #0052d9;
+  color: #fff;
+}
+.t-button--theme-primary:hover {
+  background-color: #366ef4;
+  border-color: #366ef4;
+}
+.t-button--theme-primary:active {
+  background-color: #004299;
+  border-color: #004299;
+}
+.t-button--theme-danger {
+  background-color: #e34d59;
+  border-color: #e34d59;
+  color: #fff;
+}
+.t-button--theme-warning {
+  background-color: #ed7b2f;
+  border-color: #ed7b2f;
+  color: #fff;
+}
+.t-button--theme-success {
+  background-color: #00a870;
+  border-color: #00a870;
+  color: #fff;
+}
+.t-button--variant-outline {
+  background-color: transparent;
+}
+.t-button--variant-dashed {
+  background-color: transparent;
+  border-style: dashed;
+}
+.t-button--variant-text {
+  background-color: transparent;
+  border-color: transparent;
+}
+.t-button--size-small {
+  height: 24px;
+  padding: 0 8px;
+  font-size: 12px;
+}
+.t-button--size-medium {
+  height: 32px;
+}
+.t-button--size-large {
+  height: 40px;
+  padding: 0 24px;
+  font-size: 16px;
+}
+.t-button--shape-round {
+  border-radius: 999px;
+}
+.t-button--shape-circle {
+  border-radius: 50%;
+  padding: 0;
+  width: 32px;
+}
+.t-button--shape-square {
+  border-radius: 0;
+}
+.t-button--disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.t-button--loading {
+  cursor: wait;
+  pointer-events: none;
+}
+.t-button--block {
+  display: flex;
+  width: 100%;
+}
+.t-button--ghost {
+  background-color: transparent;
+}
+.t-button__icon,
+.t-button__loading,
+.t-button__suffix {
+  display: inline-flex;
+  align-items: center;
+}
+.t-button__icon {
+  margin-right: 8px;
+}
+.t-button__suffix {
+  margin-left: 8px;
+}
+.t-button__loading {
+  margin-right: 8px;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: t-loading-spin 0.8s linear infinite;
+}
+.t-button__text {
+  display: inline-flex;
+  align-items: center;
+}
+@keyframes t-loading-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

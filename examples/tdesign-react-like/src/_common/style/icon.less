@@ -1,0 +1,37 @@
+@import './_variables.less';
+
+@font-face {
+  font-family: 't-icon';
+  src: url('./fonts/t-icon.woff2') format('woff2');
+  font-weight: normal;
+  font-style: normal;
+}
+
+.t-icon {
+  font-family: 't-icon' !important;
+  font-style: normal;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+
+  &--spin {
+    animation: t-icon-spin 1s linear infinite;
+  }
+
+  &-close::before {
+    content: '\e001';
+  }
+
+  &-check::before {
+    content: '\e002';
+  }
+
+  &-loading::before {
+    content: '\e006';
+  }
+}
+
+@keyframes t-icon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

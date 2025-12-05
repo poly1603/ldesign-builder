@@ -1,0 +1,76 @@
+@import './_variables.less';
+@btn: ~'t-button';
+
+.@{btn} {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  height: @size-m;
+  font-size: @font-size-base;
+  border: 1px solid transparent;
+  border-radius: @border-radius-default;
+  cursor: pointer;
+  transition: all 0.2s;
+
+  &--theme-default {
+    background: @bg-color-container;
+    border-color: @border-color;
+    color: @text-color-primary;
+  }
+
+  &--theme-primary {
+    background: @brand-color;
+    color: #fff;
+  }
+
+  &--theme-danger {
+    background: @error-color;
+    color: #fff;
+  }
+
+  &--size-small {
+    height: @size-s;
+    padding: 0 8px;
+    font-size: @font-size-s;
+  }
+
+  &--size-large {
+    height: @size-l;
+    padding: 0 24px;
+  }
+
+  &--disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &--block {
+    display: flex;
+    width: 100%;
+  }
+
+  &__loading {
+    width: 14px;
+    height: 14px;
+    margin-right: 8px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: t-spin 0.8s linear infinite;
+  }
+
+  &__icon {
+    margin-right: 8px;
+  }
+
+  &__suffix {
+    margin-left: 8px;
+  }
+}
+
+@keyframes t-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

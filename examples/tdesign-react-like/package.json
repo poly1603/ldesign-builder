@@ -1,0 +1,35 @@
+{
+  "name": "@examples/tdesign-react-like",
+  "version": "1.0.0",
+  "description": "类 TDesign 风格的 React 组件库示例",
+  "main": "lib/index.js",
+  "module": "es/index.mjs",
+  "types": "es/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./es/index.mjs",
+      "require": "./lib/index.js",
+      "types": "./es/index.d.ts"
+    },
+    "./es/*": "./es/*",
+    "./lib/*": "./lib/*",
+    "./style": "./es/style/index.css"
+  },
+  "sideEffects": ["*.css", "*.less", "**/style/*"],
+  "files": ["es", "lib", "dist"],
+  "scripts": {
+    "build": "ldesign-builder build"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "@types/react": "^18.0.0",
+    "@types/react-dom": "^18.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "less": "^4.2.0"
+  }
+}

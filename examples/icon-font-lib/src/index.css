@@ -1,0 +1,131 @@
+/**
+ * 图标字体样式
+ */
+@font-face {
+  font-family: 'ticons';
+  src: url('fonts/ticons.woff2') format('woff2'), url('fonts/ticons.woff') format('woff'), url('fonts/ticons.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+.ti {
+  font-family: 'ticons' !important;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: middle;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+.ti.ti-sm {
+  font-size: 14px;
+}
+.ti.ti-md {
+  font-size: 18px;
+}
+.ti.ti-lg {
+  font-size: 24px;
+}
+.ti.ti-xl {
+  font-size: 32px;
+}
+.ti.ti-spin {
+  animation: ti-spin 1s linear infinite;
+}
+.ti-close::before {
+  content: '\e001';
+}
+.ti-check::before {
+  content: '\e002';
+}
+.ti-info::before {
+  content: '\e003';
+}
+.ti-warning::before {
+  content: '\e004';
+}
+.ti-error::before {
+  content: '\e005';
+}
+.ti-loading::before {
+  content: '\e006';
+}
+.ti-search::before {
+  content: '\e007';
+}
+.ti-plus::before {
+  content: '\e008';
+}
+.ti-minus::before {
+  content: '\e009';
+}
+.ti-arrow-left::before {
+  content: '\e00a';
+}
+.ti-arrow-right::before {
+  content: '\e00b';
+}
+.ti-arrow-up::before {
+  content: '\e00c';
+}
+.ti-arrow-down::before {
+  content: '\e00d';
+}
+.ti-home::before {
+  content: '\e00e';
+}
+.ti-user::before {
+  content: '\e00f';
+}
+.ti-setting::before {
+  content: '\e010';
+}
+.ti-menu::before {
+  content: '\e011';
+}
+.ti-more::before {
+  content: '\e012';
+}
+.ti-edit::before {
+  content: '\e013';
+}
+.ti-delete::before {
+  content: '\e014';
+}
+.ti-copy::before {
+  content: '\e015';
+}
+.ti-folder::before {
+  content: '\e016';
+}
+.ti-file::before {
+  content: '\e017';
+}
+.ti-download::before {
+  content: '\e018';
+}
+.ti-upload::before {
+  content: '\e019';
+}
+.ti-link::before {
+  content: '\e01a';
+}
+.ti-star::before {
+  content: '\e01b';
+}
+.ti-heart::before {
+  content: '\e01c';
+}
+.ti-share::before {
+  content: '\e01d';
+}
+@keyframes ti-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

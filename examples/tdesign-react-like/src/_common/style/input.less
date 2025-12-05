@@ -1,0 +1,60 @@
+@import './_variables.less';
+@input: ~'t-input';
+
+.@{input} {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  height: @size-m;
+  border: 1px solid @border-color;
+  border-radius: @border-radius-default;
+  background: @bg-color-container;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: @border-color-hover;
+  }
+
+  &--focused {
+    border-color: @brand-color;
+    box-shadow: 0 0 0 2px fade(@brand-color, 20%);
+  }
+
+  &--size-small {
+    height: @size-s;
+  }
+
+  &--size-large {
+    height: @size-l;
+  }
+
+  &--disabled {
+    background: @bg-color-page;
+    cursor: not-allowed;
+  }
+
+  &--status-error {
+    border-color: @error-color;
+  }
+
+  &__inner {
+    flex: 1;
+    padding: 0 12px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: @font-size-base;
+  }
+
+  &__prefix,
+  &__suffix {
+    padding: 0 8px;
+    color: @text-color-secondary;
+  }
+
+  &__clear {
+    padding: 0 8px;
+    cursor: pointer;
+    color: @text-color-secondary;
+  }
+}

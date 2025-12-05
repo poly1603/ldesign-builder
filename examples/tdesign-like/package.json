@@ -1,0 +1,118 @@
+{
+  "name": "@examples/tdesign-like",
+  "version": "1.0.0",
+  "description": "类 TDesign 风格的 Vue3 组件库示例 - 使用 TSX 格式",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./es/index.d.ts",
+      "import": "./es/index.js",
+      "require": "./lib/index.cjs",
+      "default": "./es/index.js"
+    },
+    "./button": {
+      "types": "./es/button/index.d.ts",
+      "import": "./es/button/index.js",
+      "require": "./lib/button/index.cjs",
+      "default": "./es/button/index.js"
+    },
+    "./button/*": {
+      "types": "./es/button/*.d.ts",
+      "import": "./es/button/*.js",
+      "require": "./lib/button/*.cjs",
+      "default": "./es/button/*.js"
+    },
+    "./hooks/*": {
+      "types": "./es/hooks/*.d.ts",
+      "import": "./es/hooks/*.js",
+      "require": "./lib/hooks/*.cjs",
+      "default": "./es/hooks/*.js"
+    },
+    "./icon": {
+      "types": "./es/icon/index.d.ts",
+      "import": "./es/icon/index.js",
+      "require": "./lib/icon/index.cjs",
+      "default": "./es/icon/index.js"
+    },
+    "./icon/*": {
+      "types": "./es/icon/*.d.ts",
+      "import": "./es/icon/*.js",
+      "require": "./lib/icon/*.cjs",
+      "default": "./es/icon/*.js"
+    },
+    "./input": {
+      "types": "./es/input/index.d.ts",
+      "import": "./es/input/index.js",
+      "require": "./lib/input/index.cjs",
+      "default": "./es/input/index.js"
+    },
+    "./input/*": {
+      "types": "./es/input/*.d.ts",
+      "import": "./es/input/*.js",
+      "require": "./lib/input/*.cjs",
+      "default": "./es/input/*.js"
+    },
+    "./message": {
+      "types": "./es/message/index.d.ts",
+      "import": "./es/message/index.js",
+      "require": "./lib/message/index.cjs",
+      "default": "./es/message/index.js"
+    },
+    "./message/*": {
+      "types": "./es/message/*.d.ts",
+      "import": "./es/message/*.js",
+      "require": "./lib/message/*.cjs",
+      "default": "./es/message/*.js"
+    },
+    "./utils/*": {
+      "types": "./es/utils/*.d.ts",
+      "import": "./es/utils/*.js",
+      "require": "./lib/utils/*.cjs",
+      "default": "./es/utils/*.js"
+    },
+    "./es/button/style/button.css": "./es/button/style/button.css",
+    "./es/icon/style/icon.css": "./es/icon/style/icon.css",
+    "./es/input/style/input.css": "./es/input/style/input.css",
+    "./es/message/style/message.css": "./es/message/style/message.css",
+    "./lib/button/index.css": "./lib/button/index.css",
+    "./lib/button/style/button.css": "./lib/button/style/button.css",
+    "./lib/icon/index.css": "./lib/icon/index.css",
+    "./lib/icon/style/icon.css": "./lib/icon/style/icon.css",
+    "./lib/index.css": "./lib/index.css",
+    "./lib/input/index.css": "./lib/input/index.css",
+    "./lib/input/style/input.css": "./lib/input/style/input.css",
+    "./lib/message/index.css": "./lib/message/index.css",
+    "./lib/message/style/message.css": "./lib/message/style/message.css",
+    "./dist/index.css": "./dist/index.css",
+    "./dist/index.min.css": "./dist/index.min.css",
+    "./package.json": "./package.json"
+  },
+  "main": "./lib/index.cjs",
+  "module": "./es/index.js",
+  "types": "./es/index.d.ts",
+  "unpkg": "./dist/index.min.js",
+  "jsdelivr": "./dist/index.min.js",
+  "files": [
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "es",
+    "lib",
+    "dist"
+  ],
+  "scripts": {
+    "build": "ldesign-builder build",
+    "build:style": "ldesign-builder build --style-only"
+  },
+  "peerDependencies": {
+    "vue": "^3.0.0"
+  },
+  "devDependencies": {
+    "@ldesign/builder": "workspace:*",
+    "vue": "^3.4.0",
+    "less": "^4.2.0"
+  },
+  "typings": "./es/index.d.ts",
+  "browser": "./dist/index.js"
+}

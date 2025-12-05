@@ -1,0 +1,97 @@
+/**
+ * Input 组件样式
+ */
+@prefix: t;
+@brand-color: #0052d9;
+@error-color: #e34d59;
+@warning-color: #ed7b2f;
+@success-color: #00a870;
+@text-color-primary: rgba(0, 0, 0, 0.9);
+@text-color-secondary: rgba(0, 0, 0, 0.6);
+@text-color-placeholder: rgba(0, 0, 0, 0.35);
+@bg-color-container: #fff;
+@bg-color-page: #f3f3f3;
+@border-color: #dcdcdc;
+@border-color-hover: #b5b5b5;
+@border-radius-default: 6px;
+@font-size-base: 14px;
+@size-s: 24px;
+@size-m: 32px;
+@size-l: 40px;
+
+@input-prefix: ~'@{prefix}-input';
+
+.@{input-prefix} {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  height: @size-m;
+  border: 1px solid @border-color;
+  border-radius: @border-radius-default;
+  background-color: @bg-color-container;
+  transition: all 0.2s;
+
+  &:hover {
+    border-color: @border-color-hover;
+  }
+
+  &--focused {
+    border-color: @brand-color;
+    box-shadow: 0 0 0 2px fade(@brand-color, 20%);
+  }
+
+  &--size-small {
+    height: @size-s;
+  }
+
+  &--size-large {
+    height: @size-l;
+  }
+
+  &--disabled {
+    background-color: @bg-color-page;
+    cursor: not-allowed;
+  }
+
+  &--status-error {
+    border-color: @error-color;
+  }
+
+  &--status-warning {
+    border-color: @warning-color;
+  }
+
+  &--status-success {
+    border-color: @success-color;
+  }
+
+  &__inner {
+    flex: 1;
+    padding: 0 12px;
+    border: none;
+    outline: none;
+    background: transparent;
+    font-size: @font-size-base;
+    color: @text-color-primary;
+
+    &::placeholder {
+      color: @text-color-placeholder;
+    }
+  }
+
+  &__prefix,
+  &__suffix {
+    padding: 0 8px;
+    color: @text-color-secondary;
+  }
+
+  &__clear {
+    padding: 0 8px;
+    cursor: pointer;
+    color: @text-color-secondary;
+
+    &:hover {
+      color: @text-color-primary;
+    }
+  }
+}

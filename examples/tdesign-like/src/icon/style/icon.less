@@ -1,0 +1,94 @@
+/**
+ * Icon 组件样式
+ */
+@prefix: t;
+@icon-prefix: ~'@{prefix}-icon';
+
+// 字体图标定义 (示例，实际需要字体文件)
+@font-face {
+  font-family: 't-icon';
+  src: url('./fonts/t-icon.woff2') format('woff2'),
+    url('./fonts/t-icon.woff') format('woff');
+  font-weight: normal;
+  font-style: normal;
+  font-display: block;
+}
+
+.@{icon-prefix} {
+  font-family: 't-icon' !important;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  vertical-align: middle;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  &--spin {
+    animation: t-icon-spin 1s linear infinite;
+  }
+
+  // 图标映射
+  &-close::before {
+    content: '\e001';
+  }
+
+  &-check::before {
+    content: '\e002';
+  }
+
+  &-info::before {
+    content: '\e003';
+  }
+
+  &-warning::before {
+    content: '\e004';
+  }
+
+  &-error::before {
+    content: '\e005';
+  }
+
+  &-loading::before {
+    content: '\e006';
+  }
+
+  &-search::before {
+    content: '\e007';
+  }
+
+  &-plus::before {
+    content: '\e008';
+  }
+
+  &-minus::before {
+    content: '\e009';
+  }
+
+  &-arrow-left::before {
+    content: '\e00a';
+  }
+
+  &-arrow-right::before {
+    content: '\e00b';
+  }
+
+  &-arrow-up::before {
+    content: '\e00c';
+  }
+
+  &-arrow-down::before {
+    content: '\e00d';
+  }
+}
+
+@keyframes t-icon-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
