@@ -1,0 +1,12 @@
+[
+  {
+    "id": "1765027560290",
+    "timestamp": 1765027560290,
+    "duration": 0.732,
+    "success": false,
+    "mode": "development",
+    "bundler": "rollup",
+    "outputSize": 142542,
+    "fileCount": 79
+  }
+]
