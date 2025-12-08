@@ -82,7 +82,7 @@ export async function getOutputInfo(projectPath: string): Promise<OutputInfo[]> 
               fileTypes[ext] = (fileTypes[ext] || 0) + 1
             }
           }
-        } catch {}
+        } catch { }
       }
 
       scanDir(dirPath)
@@ -106,10 +106,10 @@ export async function getConfigInfo(projectPath: string) {
       return { success: true, config, configFile }
     } catch (loadError) {
       // 配置文件存在但加载失败，返回部分信息
-      return { 
-        success: true, 
-        config: {} as BuilderConfig, 
-        configFile, 
+      return {
+        success: true,
+        config: {} as BuilderConfig,
+        configFile,
         loadError: String(loadError)
       }
     }
@@ -124,7 +124,7 @@ export function getPackageInfo(projectPath: string) {
   if (existsSync(pkgPath)) {
     try {
       return JSON.parse(readFileSync(pkgPath, 'utf-8'))
-    } catch {}
+    } catch { }
   }
   return null
 }
@@ -132,16 +132,16 @@ export function getPackageInfo(projectPath: string) {
 export function getDependencies(projectPath: string) {
   const pkg = getPackageInfo(projectPath)
   if (!pkg) return []
-  
+
   const deps: Array<{ name: string; version: string; type: string }> = []
-  
+
   for (const [name, version] of Object.entries(pkg.dependencies || {})) {
     deps.push({ name, version: String(version), type: 'production' })
   }
   for (const [name, version] of Object.entries(pkg.devDependencies || {})) {
     deps.push({ name, version: String(version), type: 'development' })
   }
-  
+
   return deps
 }
 
@@ -150,7 +150,7 @@ export function getBuildHistory(projectPath: string): BuildHistory[] {
   if (existsSync(historyPath)) {
     try {
       return JSON.parse(readFileSync(historyPath, 'utf-8'))
-    } catch {}
+    } catch { }
   }
   return []
 }
@@ -176,7 +176,7 @@ export function getCacheInfo(projectPath: string): CacheInfo {
           if (stat.isDirectory()) scanDir(itemPath)
           else { size += stat.size; entries++ }
         }
-      } catch {}
+      } catch { }
     }
     scanDir(cacheDir)
   }
@@ -199,7 +199,7 @@ export function getPlugins(config: BuilderConfig | null): PluginInfo[] {
   const libraryType = config?.libraryType
   const isVue = libraryType === LibraryType.VUE2 || libraryType === LibraryType.VUE3
   const isReact = libraryType === LibraryType.REACT
-  
+
   return [
     { name: 'typescript', enabled: true, description: 'TypeScript 编译' },
     { name: 'dts', enabled: config?.dts !== false, description: '类型声明生成' },
@@ -227,7 +227,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
       const plugins = getPlugins(configInfo.config)
       const buildHistory = getBuildHistory(projectPath)
       state.buildHistory = buildHistory
-      
+
       ws.send(JSON.stringify({
         type: 'init',
         projectPath,
@@ -276,7 +276,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
         const outputs = await getOutputInfo(projectPath)
         const totalSize = outputs.reduce((s, o) => s + o.totalSize, 0)
         const fileCount = outputs.reduce((s, o) => s + o.files.length, 0)
-        
+
         const historyEntry: BuildHistory = {
           id: Date.now().toString(),
           timestamp: Date.now(),
@@ -287,10 +287,10 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
           outputSize: totalSize,
           fileCount,
         }
-        
+
         state.buildHistory.push(historyEntry)
         saveBuildHistory(projectPath, state.buildHistory)
-        
+
         ws.send(JSON.stringify({
           type: 'log',
           level: code === 0 ? 'success' : 'error',
@@ -334,7 +334,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
         const versionHistory = vm.getVersionHistory()
         const archives = vm.getArchives()
         const archiveStats = vm.getArchiveStats()
-        
+
         ws.send(JSON.stringify({
           type: 'versionInfo',
           currentVersion,
@@ -424,7 +424,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
         const packageInfo = publisher.getPackageInfo()
         const publishHistory = publisher.getPublishHistory()
         const registries = publisher.getRegistries()
-        
+
         ws.send(JSON.stringify({
           type: 'publishInfo',
           packageInfo,
@@ -452,7 +452,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
       try {
         ws.send(JSON.stringify({ type: 'publishStart' }))
         const publisher = createNpmPublisher(projectPath)
-        
+
         const result = await publisher.publish({
           registry: data.options?.registry,
           tag: data.options?.tag || 'latest',
@@ -478,7 +478,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
       try {
         ws.send(JSON.stringify({ type: 'publishStart' }))
         const publisher = createNpmPublisher(projectPath)
-        
+
         const result = await publisher.bumpAndPublish(data.bumpType, {
           preid: data.preid,
           registry: data.options?.registry,
@@ -586,7 +586,7 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
         const recent = benchmark.getRecentMetrics(10)
         const byBundler = benchmark.getStatsByBundler()
         const byMode = benchmark.getStatsByMode()
-        
+
         ws.send(JSON.stringify({
           type: 'benchmarkStats',
           stats,
@@ -783,13 +783,13 @@ async function analyzeBundleSize(projectPath: string): Promise<{
 
 function scanDirForAnalysis(dirPath: string, prefix: string): BundleFile[] {
   const result: BundleFile[] = []
-  
+
   try {
     const items = readdirSync(dirPath)
     for (const item of items) {
       const itemPath = join(dirPath, item)
       const stat = statSync(itemPath)
-      
+
       if (stat.isDirectory()) {
         const children = scanDirForAnalysis(itemPath, `${prefix}/${item}`)
         result.push({
@@ -809,8 +809,8 @@ function scanDirForAnalysis(dirPath: string, prefix: string): BundleFile[] {
         })
       }
     }
-  } catch {}
-  
+  } catch { }
+
   return result
 }
 
@@ -827,20 +827,20 @@ function scanLicenses(projectPath: string): LicenseItem[] {
   const results: LicenseItem[] = []
   const pkgPath = resolve(projectPath, 'package.json')
   const nodeModules = resolve(projectPath, 'node_modules')
-  
+
   if (!existsSync(pkgPath) || !existsSync(nodeModules)) return results
-  
+
   const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8'))
   const deps = { ...pkg.dependencies, ...pkg.peerDependencies }
-  
+
   for (const name of Object.keys(deps)) {
     const depPkgPath = join(nodeModules, name, 'package.json')
     if (!existsSync(depPkgPath)) continue
-    
+
     try {
       const depPkg = JSON.parse(readFileSync(depPkgPath, 'utf-8'))
       const license = typeof depPkg.license === 'string' ? depPkg.license : 'UNKNOWN'
-      
+
       let risk: 'low' | 'medium' | 'high' | 'unknown' = 'unknown'
       const upper = license.toUpperCase()
       if (upper.includes('MIT') || upper.includes('BSD') || upper.includes('APACHE') || upper.includes('ISC')) {
@@ -850,16 +850,16 @@ function scanLicenses(projectPath: string): LicenseItem[] {
       } else if (upper.includes('GPL') || upper.includes('AGPL')) {
         risk = 'high'
       }
-      
+
       results.push({
         name,
         version: depPkg.version || '',
         license,
         risk
       })
-    } catch {}
+    } catch { }
   }
-  
+
   return results.sort((a, b) => {
     const riskOrder = { high: 0, medium: 1, unknown: 2, low: 3 }
     return riskOrder[a.risk] - riskOrder[b.risk]
@@ -872,7 +872,7 @@ function getEnvInfo(projectPath: string): { files: string[]; variables: Record<s
   const envFiles = ['.env', '.env.local', '.env.development', '.env.production', '.env.test']
   const files: string[] = []
   const variables: Record<string, Record<string, string>> = {}
-  
+
   for (const file of envFiles) {
     const filePath = resolve(projectPath, file)
     if (existsSync(filePath)) {
@@ -890,10 +890,10 @@ function getEnvInfo(projectPath: string): { files: string[]; variables: Record<s
           }
         }
         variables[file] = vars
-      } catch {}
+      } catch { }
     }
   }
-  
+
   return { files, variables }
 }
 
@@ -918,7 +918,7 @@ export default defineConfig({
 // ========== 服务器创建 ==========
 
 export function createUIServer(projectPath: string, options: DashboardOptions) {
-  const port = options.port || 4568
+  const port = options.port || 4567
   const host = options.host || 'localhost'
   const state = { buildHistory: [] as BuildHistory[] }
 
@@ -939,7 +939,7 @@ export function createUIServer(projectPath: string, options: DashboardOptions) {
   const wss = new WebSocketServer({ server })
 
   wss.on('connection', async (ws) => {
-    logger.info('🔗 Dashboard 客户端已连接')
+    logger.info('🔗 客户端已连接')
 
     ws.on('message', async (message) => {
       try {
@@ -951,7 +951,7 @@ export function createUIServer(projectPath: string, options: DashboardOptions) {
     })
 
     ws.on('close', () => {
-      logger.info('🔌 Dashboard 客户端已断开')
+      logger.info('🔌 客户端已断开')
     })
   })
 
@@ -968,10 +968,11 @@ export function createUIServer(projectPath: string, options: DashboardOptions) {
     const url = `http://localhost:${port}`
     console.log('')
     console.log('╭──────────────────────────────────────────────────╮')
-    console.log('│  🎨 LDesign Builder Dashboard                     │')
+    console.log('│  🎨 LDesign Builder 控制台                        │')
     console.log('├──────────────────────────────────────────────────┤')
     console.log(`│  📂 项目: ${projectPath.slice(-35).padEnd(35)}  │`)
     console.log(`│  🌐 地址: ${url.padEnd(35)}  │`)
+    console.log('│  💡 支持: 暗黑模式 / 主题色切换 / 全功能管理      │')
     console.log('╰──────────────────────────────────────────────────╯')
     console.log('')
 
