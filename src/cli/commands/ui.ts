@@ -43,7 +43,7 @@ export function registerUICommand(program: Command): void {
 
       logger.info('🚀 正在启动 Builder UI 控制台...')
 
-      createUIServer(projectPath, {
+      await createUIServer(projectPath, {
         port: parseInt(options.port),
         host: options.host,
         open: options.open,

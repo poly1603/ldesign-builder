@@ -136,10 +136,13 @@ export function getDependencies(projectPath: string) {
   const deps: Array<{ name: string; version: string; type: string }> = []
 
   for (const [name, version] of Object.entries(pkg.dependencies || {})) {
-    deps.push({ name, version: String(version), type: 'production' })
+    deps.push({ name, version: String(version), type: 'prod' })
   }
   for (const [name, version] of Object.entries(pkg.devDependencies || {})) {
-    deps.push({ name, version: String(version), type: 'development' })
+    deps.push({ name, version: String(version), type: 'dev' })
+  }
+  for (const [name, version] of Object.entries(pkg.peerDependencies || {})) {
+    deps.push({ name, version: String(version), type: 'peer' })
   }
 
   return deps
@@ -708,6 +711,114 @@ async function handleWSMessage(ws: WebSocket, data: any, projectPath: string, st
       }
       break
     }
+
+    // ========== NPM 源和标签管理 ==========
+    case 'getRegistries': {
+      try {
+        const publisher = createNpmPublisher(projectPath)
+        const registries = publisher.getRegistries()
+        ws.send(JSON.stringify({ type: 'registries', registries }))
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'registries', registries: [{ name: 'npm官方', url: 'https://registry.npmjs.org', isDefault: true, loggedIn: false }] }))
+      }
+      break
+    }
+
+    case 'getDistTags': {
+      try {
+        const packageInfo = getPackageInfo(projectPath)
+        if (!packageInfo?.name) {
+          ws.send(JSON.stringify({ type: 'distTags', tags: [] }))
+          break
+        }
+        // 使用npm dist-tag ls获取标签
+        exec(`npm dist-tag ls ${packageInfo.name}`, { cwd: projectPath }, (error, stdout) => {
+          if (error) {
+            ws.send(JSON.stringify({ type: 'distTags', tags: [] }))
+            return
+          }
+          const tags = stdout.trim().split('\n').filter(Boolean).map(line => {
+            const [name, version] = line.split(': ')
+            return { name: name.trim(), version: version?.trim() || '' }
+          })
+          ws.send(JSON.stringify({ type: 'distTags', tags }))
+        })
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'distTags', tags: [], error: String(error) }))
+      }
+      break
+    }
+
+    case 'addDistTag': {
+      try {
+        const packageInfo = getPackageInfo(projectPath)
+        if (!packageInfo?.name) break
+        exec(`npm dist-tag add ${packageInfo.name}@${data.version} ${data.tag}`, { cwd: projectPath }, () => {
+          // 刷新标签列表
+          exec(`npm dist-tag ls ${packageInfo.name}`, { cwd: projectPath }, (error, stdout) => {
+            const tags = stdout?.trim().split('\n').filter(Boolean).map(line => {
+              const [name, version] = line.split(': ')
+              return { name: name.trim(), version: version?.trim() || '' }
+            }) || []
+            ws.send(JSON.stringify({ type: 'distTags', tags }))
+          })
+        })
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'distTagError', error: String(error) }))
+      }
+      break
+    }
+
+    case 'removeDistTag': {
+      try {
+        const packageInfo = getPackageInfo(projectPath)
+        if (!packageInfo?.name) break
+        exec(`npm dist-tag rm ${packageInfo.name} ${data.tag}`, { cwd: projectPath }, () => {
+          exec(`npm dist-tag ls ${packageInfo.name}`, { cwd: projectPath }, (error, stdout) => {
+            const tags = stdout?.trim().split('\n').filter(Boolean).map(line => {
+              const [name, version] = line.split(': ')
+              return { name: name.trim(), version: version?.trim() || '' }
+            }) || []
+            ws.send(JSON.stringify({ type: 'distTags', tags }))
+          })
+        })
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'distTagError', error: String(error) }))
+      }
+      break
+    }
+
+    case 'removeRegistry': {
+      // 从本地配置中移除源
+      try {
+        const publisher = createNpmPublisher(projectPath)
+        const registries = publisher.getRegistries().filter((r: any) => r.url !== data.url)
+        ws.send(JSON.stringify({ type: 'registries', registries }))
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'registryError', error: String(error) }))
+      }
+      break
+    }
+
+    case 'loginRegistry': {
+      try {
+        // 模拟登录（实际应该调用npm login）
+        ws.send(JSON.stringify({ type: 'loginSuccess', url: data.url }))
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'loginError', error: String(error) }))
+      }
+      break
+    }
+
+    case 'getDependencies': {
+      try {
+        const deps = getDependencies(projectPath)
+        ws.send(JSON.stringify({ type: 'dependencies', dependencies: deps }))
+      } catch (error) {
+        ws.send(JSON.stringify({ type: 'dependencies', dependencies: [] }))
+      }
+      break
+    }
   }
 }
 
@@ -915,12 +1026,47 @@ export default defineConfig({
 `
 }
 
+// ========== 端口检测 ==========
+
+function isPortAvailable(port: number): Promise<boolean> {
+  return new Promise((resolve) => {
+    const testServer = createServer()
+    testServer.once('error', () => resolve(false))
+    testServer.once('listening', () => {
+      testServer.close(() => resolve(true))
+    })
+    testServer.listen(port)
+  })
+}
+
+async function findAvailablePort(startPort: number, maxAttempts = 10): Promise<number> {
+  for (let i = 0; i < maxAttempts; i++) {
+    const port = startPort + i
+    if (await isPortAvailable(port)) {
+      return port
+    }
+  }
+  throw new Error(`无法找到可用端口 (尝试范围: ${startPort}-${startPort + maxAttempts - 1})`)
+}
+
 // ========== 服务器创建 ==========
 
-export function createUIServer(projectPath: string, options: DashboardOptions) {
-  const port = options.port || 4567
+export async function createUIServer(projectPath: string, options: DashboardOptions) {
+  const preferredPort = options.port || 4567
   const host = options.host || 'localhost'
   const state = { buildHistory: [] as BuildHistory[] }
+
+  // 查找可用端口
+  let port: number
+  try {
+    port = await findAvailablePort(preferredPort)
+    if (port !== preferredPort) {
+      logger.warn(`端口 ${preferredPort} 已被占用，使用端口 ${port}`)
+    }
+  } catch (error) {
+    logger.error(`无法启动服务器: ${error}`)
+    process.exit(1)
+  }
 
   const server = createServer(async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*')
@@ -956,11 +1102,7 @@ export function createUIServer(projectPath: string, options: DashboardOptions) {
   })
 
   server.on('error', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EADDRINUSE') {
-      console.error(`❌ 端口 ${port} 已被占用，请尝试其他端口`)
-    } else {
-      console.error('❌ 服务器错误:', err.message)
-    }
+    console.error('❌ 服务器错误:', err.message)
     process.exit(1)
   })
 

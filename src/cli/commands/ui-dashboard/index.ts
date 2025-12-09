@@ -35,7 +35,7 @@ export function registerDashboardCommand(program: Command): void {
       logger.info('💡 提示: 推荐使用 `ldesign-builder ui` 命令')
       logger.info('🚀 正在启动 Builder 控制台...')
 
-      createUIServer(projectPath, {
+      await createUIServer(projectPath, {
         port: parseInt(options.port),
         host: options.host,
         open: options.open,
