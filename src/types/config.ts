@@ -14,6 +14,7 @@ import type {
   KeyValueMap
 } from './common'
 import type { ExternalOption } from './adapter'
+import type { BundlerType } from './bundler'
 import type {
   LibraryType,
   TypeScriptLibraryConfig,
@@ -70,7 +71,7 @@ export interface BuilderConfig {
   target?: string | string[]
 
   /** 打包核心选择 */
-  bundler?: 'rollup' | 'rolldown'
+  bundler?: BundlerType
 
   /** 构建模式 */
   mode?: BuildMode

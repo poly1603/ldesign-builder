@@ -31,6 +31,7 @@ import { PluginManager } from './PluginManager'
 import { LibraryDetector } from './LibraryDetector'
 import { PerformanceMonitor } from './PerformanceMonitor'
 import { PostBuildValidator } from './PostBuildValidator'
+import { SmartBundlerSelector } from './SmartBundlerSelector'
 import { BundlerAdapterFactory } from '../adapters/base/AdapterFactory'
 import type { IBundlerAdapter } from '../types/adapter'
 import { Logger, createLogger } from '../utils/logger'
@@ -90,6 +91,9 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
 
   /** 打包后验证器 */
   protected postBuildValidator!: PostBuildValidator
+
+  /** 智能打包引擎选择器 */
+  protected smartBundlerSelector!: SmartBundlerSelector
 
   /** 当前构建统计 */
   protected currentStats: BuildStats | null = null
@@ -618,11 +622,26 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       // 加载配置
       await this.loadConfig()
 
+      // 确定打包引擎：配置 > 智能检测 > 默认 rollup
+      let bundler = this.config?.bundler
+      
+      if (!bundler) {
+        // 使用智能选择器自动检测最佳引擎
+        this.logger.debug('🔍 未指定打包引擎，启用智能检测...')
+        try {
+          bundler = await this.smartBundlerSelector.quickDetect()
+          this.logger.info(`🧠 智能选择打包引擎: ${bundler}`)
+        } catch (error) {
+          this.logger.debug('智能检测失败，使用默认引擎 rollup')
+          bundler = 'rollup'
+        }
+      }
+
       // 初始化适配器
-      this.setBundler(this.config?.bundler || 'rollup')
+      this.setBundler(bundler)
 
       this.setStatus(BuilderStatus.IDLE)
-      this.logger.debug('LibraryBuilder 初始化完成') // 改为 debug 级别
+      this.logger.debug('LibraryBuilder 初始化完成')
     } catch (error) {
       this.setStatus(BuilderStatus.ERROR)
       throw this.errorHandler.createError(
@@ -725,7 +744,13 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       errorHandler: this.errorHandler
     })
 
-    // 初始化默认适配器
+    // 初始化智能打包引擎选择器
+    this.smartBundlerSelector = new SmartBundlerSelector(
+      process.cwd(),
+      this.logger
+    )
+
+    // 初始化默认适配器（initialize 时会根据智能检测更新）
     this.bundlerAdapter = BundlerAdapterFactory.create('rollup', {
       logger: this.logger,
       performanceMonitor: this.performanceMonitor

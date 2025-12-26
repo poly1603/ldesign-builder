@@ -210,8 +210,9 @@ export class ConfigManager extends EventEmitter {
       }
 
       // 打包器验证
-      if (config.bundler && !['rollup', 'rolldown'].includes(config.bundler)) {
-        result.errors.push(`不支持的打包器: ${config.bundler}`)
+      const supportedBundlers = ['rollup', 'rolldown', 'esbuild', 'swc', 'vite', 'rspack', 'turbopack', 'webpack', 'parcel']
+      if (config.bundler && !supportedBundlers.includes(config.bundler)) {
+        result.errors.push(`不支持的打包器: ${config.bundler}，支持: ${supportedBundlers.join(', ')}`)
       }
 
       // 格式验证

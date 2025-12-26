@@ -41,6 +41,7 @@ import { registerCreateCommands } from './commands/create'
 import { registerMigrateCommands } from './commands/migrate'
 import { registerVisualizeCommand } from './commands/visualize'
 import { registerGraphCommand } from './commands/graph'
+import { registerGenerateCommand } from './commands/generate'
 import { logger, setLogLevel } from '../utils/logger'
 import { setupGlobalErrorHandling } from '../utils/error-handler'
 
@@ -120,6 +121,7 @@ function createCLI(): Command {
   registerMigrateCommands(program)
   registerVisualizeCommand(program)
   registerGraphCommand(program)
+  registerGenerateCommand(program)
 
   // 处理全局选项
   program.hook('preAction', (thisCommand) => {

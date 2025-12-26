@@ -8,6 +8,7 @@ import { logger, highlight } from '../../utils/logger'
 import { formatFileSize, formatDuration } from '../../utils/formatters/format-utils'
 import { ConfigLoader } from '../../utils/config/config-loader'
 import { ConfigValidator } from '../../core/ConfigValidator'
+import { SmartBundlerSelector } from '../../core/SmartBundlerSelector'
 import type { BuilderConfig } from '../../types/config'
 import path from 'path'
 import { writeFile } from '../../utils/file-system'
@@ -151,10 +152,25 @@ async function executeBuild(options: BuildOptions, globalOptions: any = {}): Pro
     // 显示简化的配置信息
     showBuildInfo(config)
 
-    // 🔍 智能兼容性检查
-    const bundlerName = globalOptions?.bundler || config.bundler || 'rollup'
+    // 🧠 智能选择打包引擎（如果未指定）
+    let bundlerName = globalOptions?.bundler || config.bundler
     const skipCompatCheck = globalOptions?.compatCheck === false || globalOptions?.force
 
+    if (!bundlerName) {
+      // 使用智能选择器自动检测最佳引擎
+      try {
+        const selector = new SmartBundlerSelector(process.cwd())
+        bundlerName = await selector.quickDetect()
+        logger.info(`🧠 智能选择打包引擎: ${bundlerName}`)
+        // 更新配置
+        config.bundler = bundlerName
+      } catch {
+        bundlerName = 'rollup'
+        logger.debug('智能检测失败，使用默认引擎 rollup')
+      }
+    }
+
+    // 🔍 智能兼容性检查
     if (bundlerName && bundlerName !== 'rollup' && !skipCompatCheck) {
       const validator = new ConfigValidator({}, logger)
       const compatResult = await validator.validateBundlerCompatibility(
