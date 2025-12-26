@@ -1,7 +1,8 @@
 /**
  * Rolldown 适配器
  * 
- * 提供 Rolldown 打包器的适配实现
+ * 提供 Rolldown 打包器的完整适配实现
+ * Rolldown 是基于 Rust 的高性能 Rollup 兼容打包器
  * 
  * @author LDesign Team
  * @version 1.0.0
@@ -19,9 +20,27 @@ import type { PerformanceMetrics } from '../../types/performance'
 import { Logger } from '../../utils/logger'
 import { BuilderError } from '../../utils/error-handler'
 import { ErrorCode } from '../../constants/errors'
+import path from 'path'
+import fs from 'fs-extra'
+
+// 导入共享基础设施
+import {
+  BaseAdapterCacheManager,
+  BaseAdapterBannerGenerator,
+  BaseAdapterOutputManager,
+  BaseAdapterStyleHandler,
+  AdapterBuildHelper,
+  OUTPUT_DIRS
+} from '../shared'
 
 /**
  * Rolldown 适配器类
+ * 
+ * 特点：
+ * - Rust 实现，极高性能
+ * - 完全兼容 Rollup 插件
+ * - 多格式并行构建支持
+ * - 缓存机制与 Banner 支持
  */
 export class RolldownAdapter implements IBundlerAdapter {
   readonly name = 'rolldown' as const
@@ -30,8 +49,22 @@ export class RolldownAdapter implements IBundlerAdapter {
 
   private logger: Logger
 
+  // 辅助模块
+  private cacheManager: BaseAdapterCacheManager
+  private bannerGenerator: BaseAdapterBannerGenerator
+  private outputManager: BaseAdapterOutputManager
+  private styleHandler: BaseAdapterStyleHandler
+  private buildHelper: AdapterBuildHelper
+
   constructor(options: Partial<AdapterOptions> = {}) {
     this.logger = options.logger || new Logger()
+
+    // 初始化辅助模块
+    this.cacheManager = new BaseAdapterCacheManager('rolldown', {}, this.logger)
+    this.bannerGenerator = new BaseAdapterBannerGenerator(this.logger)
+    this.outputManager = new BaseAdapterOutputManager(this.logger)
+    this.styleHandler = new BaseAdapterStyleHandler(this.logger)
+    this.buildHelper = new AdapterBuildHelper(this.logger)
 
     // 在 ES 模块环境中，我们无法在构造函数中同步加载 rolldown
     // 所以我们假设它是可用的，并在实际使用时进行检查
@@ -64,8 +97,26 @@ export class RolldownAdapter implements IBundlerAdapter {
       // 尝试加载 rolldown，支持异步加载
       const rolldown = await this.ensureRolldownLoaded()
 
+      // 检查缓存
+      const cacheEnabled = this.cacheManager.isCacheEnabled(config)
+      const cacheKey = this.cacheManager.generateCacheKey(config)
+
+      if (cacheEnabled) {
+        const cachedResult = await this.cacheManager.getCachedResult(cacheKey)
+        if (cachedResult) {
+          const outputExists = await this.cacheManager.validateOutputArtifacts(config)
+          if (outputExists) {
+            this.logger.info('使用缓存的构建结果')
+            return cachedResult
+          }
+        }
+      }
+
       this.logger.info('开始 Rolldown 构建...')
       const startTime = Date.now()
+
+      // 获取 Banner 配置
+      const banners = await this.bannerGenerator.resolveAll(config)
 
       // 检查是否需要多格式构建
       const outputConfig = config.output
@@ -192,6 +243,11 @@ export class RolldownAdapter implements IBundlerAdapter {
         timestamp: Date.now(),
         bundler: 'rolldown',
         mode: 'production'
+      }
+
+      // 缓存结果
+      if (cacheEnabled) {
+        await this.cacheManager.cacheResult(cacheKey, buildResult)
       }
 
       this.logger.success(`Rolldown 构建完成 (${duration}ms)，成功构建 ${allResults.length}/${supportedFormats.length} 个格式`)

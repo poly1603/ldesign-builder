@@ -1,7 +1,7 @@
 /**
  * ESBuild 适配器
  * 
- * 提供 ESBuild 打包器的适配实现，专注于极速开发构建
+ * 提供 ESBuild 打包器的完整适配实现，专注于极速构建
  * 
  * @author LDesign Team
  * @version 1.0.0
@@ -21,13 +21,25 @@ import { ErrorCode } from '../../constants/errors'
 import path from 'path'
 import fs from 'fs-extra'
 
+// 导入共享基础设施
+import {
+  BaseAdapterCacheManager,
+  BaseAdapterBannerGenerator,
+  BaseAdapterOutputManager,
+  BaseAdapterStyleHandler,
+  AdapterBuildHelper,
+  OUTPUT_DIRS
+} from '../shared'
+
 /**
  * ESBuild 适配器类
  * 
  * 特点：
  * - 极速构建（10-100x 速度提升）
- * - 适合开发模式
+ * - 多格式输出支持（ESM、CJS、IIFE）
  * - 内置 TypeScript/JSX 支持
+ * - 缓存机制与增量构建
+ * - Banner/Footer 支持
  * - 限制：不支持装饰器、某些复杂转换
  */
 export class EsbuildAdapter implements IBundlerAdapter {
@@ -38,10 +50,24 @@ export class EsbuildAdapter implements IBundlerAdapter {
   private logger: Logger
   private esbuild: any
 
+  // 辅助模块
+  private cacheManager: BaseAdapterCacheManager
+  private bannerGenerator: BaseAdapterBannerGenerator
+  private outputManager: BaseAdapterOutputManager
+  private styleHandler: BaseAdapterStyleHandler
+  private buildHelper: AdapterBuildHelper
+
   constructor(options: Partial<AdapterOptions> = {}) {
     this.logger = options.logger || new Logger()
     this.version = 'unknown'
     this.available = true // 假设可用，在实际使用时验证
+
+    // 初始化辅助模块
+    this.cacheManager = new BaseAdapterCacheManager('esbuild', {}, this.logger)
+    this.bannerGenerator = new BaseAdapterBannerGenerator(this.logger)
+    this.outputManager = new BaseAdapterOutputManager(this.logger)
+    this.styleHandler = new BaseAdapterStyleHandler(this.logger)
+    this.buildHelper = new AdapterBuildHelper(this.logger)
 
     // 尝试同步加载
     this.checkAvailability()
@@ -99,86 +125,137 @@ export class EsbuildAdapter implements IBundlerAdapter {
       // 确保 esbuild 已加载
       const esbuild = await this.ensureEsbuildLoaded()
 
-      // 转换配置
-      const esbuildConfig = await this.transformConfig(config)
+      // 检查缓存
+      const cacheEnabled = this.cacheManager.isCacheEnabled(config)
+      const cacheKey = this.cacheManager.generateCacheKey(config)
 
-      // 执行构建
-      const result = await esbuild.build(esbuildConfig)
-
-      // 处理输出
-      const outputs = await this.processOutputs(result, config)
-
-      // 计算性能指标
-      const duration = Date.now() - startTime
-      const metrics = this.getPerformanceMetrics()
-
-      const totalRawSize = outputs.reduce((sum, o) => sum + (o.size || 0), 0)
-
-      return {
-        success: true,
-        outputs,
-        duration,
-        stats: {
-          buildTime: duration,
-          fileCount: outputs.length,
-          totalSize: {
-            raw: totalRawSize,
-            gzip: 0,
-            brotli: 0,
-            byType: {},
-            byFormat: {} as any,
-            largest: {
-              file: outputs[0]?.fileName || '',
-              size: outputs[0]?.size || 0
-            },
-            fileCount: outputs.length
-          },
-          byFormat: {} as any,
-          modules: {
-            total: 0,
-            external: 0,
-            internal: 0,
-            largest: {
-              id: '',
-              size: 0,
-              renderedLength: 0,
-              originalLength: 0,
-              isEntry: false,
-              isExternal: false,
-              importedIds: [],
-              dynamicallyImportedIds: [],
-              importers: [],
-              dynamicImporters: []
-            }
-          },
-          dependencies: {
-            total: 0,
-            external: [],
-            bundled: [],
-            circular: []
+      if (cacheEnabled) {
+        const cachedResult = await this.cacheManager.getCachedResult(cacheKey)
+        if (cachedResult) {
+          const outputExists = await this.cacheManager.validateOutputArtifacts(config)
+          if (outputExists) {
+            this.logger.info('使用缓存的构建结果')
+            return cachedResult
           }
-        },
-        performance: metrics,
-        warnings: result.warnings.map((w: any) => ({
-          message: w.text,
-          location: w.location
-        })),
-        errors: [],
-        buildId: `esbuild-${Date.now()}`,
-        timestamp: Date.now(),
-        bundler: this.name,
-        mode: config.mode || 'development',
-        libraryType: config.libraryType
+        }
       }
-    } catch (error) {
+
+      // 解析输出配置
+      const parsedOutput = this.outputManager.parseOutputConfig(config)
+      const allOutputs: any[] = []
+      const allWarnings: any[] = []
+
+      // 获取 Banner 配置
+      const banners = await this.bannerGenerator.resolveAll(config)
+
+      // 为每种格式构建
+      for (const formatConfig of parsedOutput.configs) {
+        this.logger.info(`构建 ${formatConfig.format.toUpperCase()} 格式...`)
+
+        const formatStartTime = Date.now()
+        const esbuildConfig = await this.createEsbuildConfig(config, formatConfig, banners)
+
+        // 执行构建
+        const result = await esbuild.build(esbuildConfig)
+
+        // 处理输出
+        const outputs = await this.processOutputs(result, config, formatConfig)
+        allOutputs.push(...outputs)
+
+        // 收集警告
+        if (result.warnings) {
+          allWarnings.push(...result.warnings.map((w: any) => ({
+            message: w.text,
+            location: w.location
+          })))
+        }
+
+        const formatDuration = Date.now() - formatStartTime
+        this.logger.info(`${formatConfig.format.toUpperCase()} 构建完成 (${formatDuration}ms)`)
+      }
+
       const duration = Date.now() - startTime
 
+      // 创建构建结果
+      const buildResult = this.buildHelper.createBuildResult({
+        success: true,
+        outputs: allOutputs,
+        duration,
+        bundler: this.name,
+        mode: (config as any).mode || 'production',
+        libraryType: (config as any).libraryType,
+        warnings: allWarnings
+      })
+
+      // 缓存结果
+      if (cacheEnabled) {
+        await this.cacheManager.cacheResult(cacheKey, buildResult)
+      }
+
+      this.logger.success(`ESBuild 构建完成 (${duration}ms)`)
+      return buildResult
+
+    } catch (error) {
       throw new BuilderError(
         ErrorCode.BUILD_FAILED,
         `ESBuild 构建失败: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error as Error }
       )
     }
+  }
+
+  /**
+   * 创建 esbuild 配置
+   */
+  private async createEsbuildConfig(config: UnifiedConfig, formatConfig: any, banners: any): Promise<any> {
+    const input = this.resolveInput(config.input)
+    const format = this.mapFormat(formatConfig.format)
+
+    const esbuildConfig: any = {
+      entryPoints: Array.isArray(input) ? input : [input],
+      bundle: true,
+      outdir: formatConfig.dir,
+      format,
+      target: (config as any).typescript?.target || 'es2020',
+      minify: config.minify === true,
+      sourcemap: config.sourcemap === true || config.sourcemap === 'inline',
+      splitting: format === 'esm', // 仅 ESM 支持代码分割
+      platform: 'neutral',
+      external: config.external as string[] || [],
+      define: (config as any).define || {},
+      loader: {
+        '.ts': 'ts',
+        '.tsx': 'tsx',
+        '.js': 'js',
+        '.jsx': 'jsx',
+        '.json': 'json',
+        '.css': 'css',
+        '.less': 'css',
+        '.scss': 'css'
+      },
+      logLevel: 'warning',
+      metafile: true,
+      outExtension: {
+        '.js': formatConfig.extension
+      }
+    }
+
+    // 添加 Banner
+    if (banners.banner) {
+      esbuildConfig.banner = {
+        js: banners.banner,
+        css: banners.banner
+      }
+    }
+
+    // 添加 Footer
+    if (banners.footer) {
+      esbuildConfig.footer = {
+        js: banners.footer
+      }
+    }
+
+    return esbuildConfig
   }
 
   /**
@@ -232,11 +309,11 @@ export class EsbuildAdapter implements IBundlerAdapter {
       entryPoints: Array.isArray(input) ? input : [input],
       bundle: true,
       outdir,
-      format: this.mapFormat(config.output?.format as string),
+      format: this.mapFormat(this.getOutputFormat(config)),
       target: config.typescript?.target || 'es2020',
       minify: config.minify === true,
       sourcemap: config.sourcemap === true || config.sourcemap === 'inline',
-      splitting: config.output?.format === 'esm', // 仅 ESM 支持代码分割
+      splitting: this.getOutputFormat(config) === 'esm', // 仅 ESM 支持代码分割
       platform: 'neutral', // 或 'browser', 'node'
       external: config.external,
       define: config.define || {},
@@ -391,12 +468,14 @@ export class EsbuildAdapter implements IBundlerAdapter {
    * 解析输出目录
    */
   private resolveOutDir(config: UnifiedConfig): string {
-    if (config.output?.dir) {
-      return config.output.dir
+    const outputConfig = Array.isArray(config.output) ? config.output[0] : config.output
+
+    if (outputConfig?.dir) {
+      return outputConfig.dir
     }
 
     // 根据格式选择默认目录
-    const format = config.output?.format as string
+    const format = this.getOutputFormat(config)
     if (format === 'esm' || format === 'es') {
       return 'es'
     } else if (format === 'cjs' || format === 'commonjs') {
@@ -404,6 +483,14 @@ export class EsbuildAdapter implements IBundlerAdapter {
     }
 
     return 'dist'
+  }
+
+  /**
+   * 获取输出格式
+   */
+  private getOutputFormat(config: UnifiedConfig): string {
+    const outputConfig = Array.isArray(config.output) ? config.output[0] : config.output
+    return (outputConfig?.format as string) || 'esm'
   }
 
   /**
@@ -424,8 +511,9 @@ export class EsbuildAdapter implements IBundlerAdapter {
   /**
    * 处理输出文件
    */
-  private async processOutputs(result: any, config: UnifiedConfig): Promise<any[]> {
+  private async processOutputs(result: any, config: UnifiedConfig, formatConfig?: any): Promise<any[]> {
     const outputs: any[] = []
+    const format = formatConfig?.format || 'esm'
 
     if (result.metafile && result.metafile.outputs) {
       for (const [fileName, output] of Object.entries(result.metafile.outputs as Record<string, any>)) {
@@ -433,8 +521,8 @@ export class EsbuildAdapter implements IBundlerAdapter {
 
         outputs.push({
           fileName: relativePath,
-          type: fileName.endsWith('.map') ? 'sourcemap' : 'chunk',
-          format: config.output?.format || 'esm',
+          type: fileName.endsWith('.map') ? 'asset' : 'chunk',
+          format,
           size: output.bytes || 0,
           code: undefined, // ESBuild 直接写入文件
           map: undefined
@@ -445,6 +533,8 @@ export class EsbuildAdapter implements IBundlerAdapter {
     return outputs
   }
 }
+
+export default EsbuildAdapter
 
 
 

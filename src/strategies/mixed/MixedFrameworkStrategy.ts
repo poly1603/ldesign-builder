@@ -311,6 +311,7 @@ export class MixedFrameworkStrategy implements BuildStrategy {
         try {
           const { registerTS } = await import('@vue/compiler-sfc')
           const typescript = await import('typescript')
+          // @ts-ignore - TypeScript 版本兼容性问题
           registerTS(() => typescript.default)
           this.logger.debug('已注册 TypeScript 支持')
         } catch (tsError) {

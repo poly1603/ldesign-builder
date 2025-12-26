@@ -2,6 +2,7 @@
  * Vite 打包适配器
  * 
  * 利用 Vite 的极速构建能力进行库打包
+ * 完整实现包含多格式输出、缓存、Banner 支持
  * 
  * @author LDesign Team
  * @version 1.0.0
@@ -19,14 +20,24 @@ import { BuilderError } from '../../utils/error-handler'
 import { ErrorCode } from '../../constants/errors'
 import path from 'path'
 
+// 导入共享基础设施
+import {
+  BaseAdapterCacheManager,
+  BaseAdapterBannerGenerator,
+  BaseAdapterOutputManager,
+  AdapterBuildHelper,
+  OUTPUT_DIRS
+} from '../shared'
+
 /**
  * Vite 打包适配器
  * 
  * 特点：
  * - 极速冷启动
  * - 基于 ESM 的开发服务
- * - 优化的生产构建
+ * - 多格式并行构建（ESM、CJS、UMD）
  * - 内置对 Vue、React 等框架支持
+ * - 缓存机制与 Banner 支持
  */
 export class ViteAdapter implements IBundlerAdapter {
   readonly name = 'vite' as const
@@ -36,10 +47,22 @@ export class ViteAdapter implements IBundlerAdapter {
   private logger: Logger
   private vite: any = null
 
+  // 辅助模块
+  private cacheManager: BaseAdapterCacheManager
+  private bannerGenerator: BaseAdapterBannerGenerator
+  private outputManager: BaseAdapterOutputManager
+  private buildHelper: AdapterBuildHelper
+
   constructor(options: Partial<AdapterOptions> = {}) {
     this.logger = options.logger || new Logger()
     this.version = 'unknown'
     this.available = false
+
+    // 初始化辅助模块
+    this.cacheManager = new BaseAdapterCacheManager('vite', {}, this.logger)
+    this.bannerGenerator = new BaseAdapterBannerGenerator(this.logger)
+    this.outputManager = new BaseAdapterOutputManager(this.logger)
+    this.buildHelper = new AdapterBuildHelper(this.logger)
 
     // 检查 Vite 是否可用
     this.checkAvailability()
@@ -80,70 +103,66 @@ export class ViteAdapter implements IBundlerAdapter {
         this.vite = await import('vite')
       }
 
-      // 转换配置
-      const viteConfig = await this.transformConfig(config)
+      // 检查缓存
+      const cacheEnabled = this.cacheManager.isCacheEnabled(config)
+      const cacheKey = this.cacheManager.generateCacheKey(config)
 
-      // 执行构建
-      const result = await this.vite.build(viteConfig)
-
-      // 处理输出
-      const outputs = this.processOutputs(result, config)
-      const duration = Date.now() - startTime
-      const totalRawSize = outputs.reduce((sum: number, o: any) => sum + (o.size || 0), 0)
-
-      return {
-        success: true,
-        outputs,
-        duration,
-        stats: {
-          buildTime: duration,
-          fileCount: outputs.length,
-          totalSize: {
-            raw: totalRawSize,
-            gzip: 0,
-            brotli: 0,
-            byType: {},
-            byFormat: {} as any,
-            largest: {
-              file: outputs[0]?.fileName || '',
-              size: outputs[0]?.size || 0
-            },
-            fileCount: outputs.length
-          },
-          byFormat: {} as any,
-          modules: {
-            total: 0,
-            external: 0,
-            internal: 0,
-            largest: {
-              id: '',
-              size: 0,
-              renderedLength: 0,
-              originalLength: 0,
-              isEntry: false,
-              isExternal: false,
-              importedIds: [],
-              dynamicallyImportedIds: [],
-              importers: [],
-              dynamicImporters: []
-            }
-          },
-          dependencies: {
-            total: 0,
-            external: [],
-            bundled: [],
-            circular: []
+      if (cacheEnabled) {
+        const cachedResult = await this.cacheManager.getCachedResult(cacheKey)
+        if (cachedResult) {
+          const outputExists = await this.cacheManager.validateOutputArtifacts(config)
+          if (outputExists) {
+            this.logger.info('使用缓存的构建结果')
+            return cachedResult
           }
-        },
-        performance: this.getPerformanceMetrics(),
-        warnings: [],
-        errors: [],
-        buildId: `vite-${Date.now()}`,
-        timestamp: Date.now(),
+        }
+      }
+
+      // 解析输出配置
+      const parsedOutput = this.outputManager.parseOutputConfig(config)
+      const allOutputs: any[] = []
+
+      // 获取 Banner 配置
+      const banners = await this.bannerGenerator.resolveAll(config)
+
+      // 为每种格式构建
+      for (const formatConfig of parsedOutput.configs) {
+        this.logger.info(`构建 ${formatConfig.format.toUpperCase()} 格式...`)
+
+        const formatStartTime = Date.now()
+        const viteConfig = await this.createViteConfig(config, formatConfig, banners)
+
+        // 执行构建
+        const result = await this.vite.build(viteConfig)
+
+        // 处理输出
+        const outputs = this.processOutputs(result, config, formatConfig)
+        allOutputs.push(...outputs)
+
+        const formatDuration = Date.now() - formatStartTime
+        this.logger.info(`${formatConfig.format.toUpperCase()} 构建完成 (${formatDuration}ms)`)
+      }
+
+      const duration = Date.now() - startTime
+
+      // 创建构建结果
+      const buildResult = this.buildHelper.createBuildResult({
+        success: true,
+        outputs: allOutputs,
+        duration,
         bundler: this.name,
         mode: (config as any).mode || 'production',
         libraryType: (config as any).libraryType
+      })
+
+      // 缓存结果
+      if (cacheEnabled) {
+        await this.cacheManager.cacheResult(cacheKey, buildResult)
       }
+
+      this.logger.success(`Vite 构建完成 (${duration}ms)`)
+      return buildResult
+
     } catch (error) {
       throw new BuilderError(
         ErrorCode.BUILD_FAILED,
@@ -151,6 +170,65 @@ export class ViteAdapter implements IBundlerAdapter {
         { cause: error as Error }
       )
     }
+  }
+
+  /**
+   * 创建 Vite 配置
+   */
+  private async createViteConfig(config: UnifiedConfig, formatConfig: any, banners: any): Promise<any> {
+    const input = this.resolveInput(config.input)
+    const outputConfig = Array.isArray(config.output) ? config.output[0] : config.output
+    const format = this.mapViteFormat(formatConfig.format)
+
+    const viteConfig: any = {
+      root: process.cwd(),
+      mode: 'production',
+      logLevel: 'warn',
+
+      build: {
+        lib: {
+          entry: input,
+          name: outputConfig?.name || 'Library',
+          formats: [format],
+          fileName: (fmt: string) => {
+            const baseName = path.basename(String(input), path.extname(String(input)))
+            return `${baseName}${formatConfig.extension}`
+          }
+        },
+        outDir: formatConfig.dir,
+        emptyDir: false,
+        sourcemap: config.sourcemap ?? true,
+        minify: config.minify ?? false,
+
+        rollupOptions: {
+          external: config.external || [],
+          output: {
+            globals: (config as any).globals || {},
+            banner: banners.banner,
+            footer: banners.footer,
+            intro: banners.intro,
+            outro: banners.outro
+          }
+        }
+      },
+
+      plugins: await this.transformPlugins(config.plugins || [])
+    }
+
+    return viteConfig
+  }
+
+  /**
+   * 映射 Vite 格式
+   */
+  private mapViteFormat(format: string): string {
+    const formatMap: Record<string, string> = {
+      'esm': 'es',
+      'cjs': 'cjs',
+      'umd': 'umd',
+      'iife': 'iife'
+    }
+    return formatMap[format] || 'es'
   }
 
   /**
@@ -391,9 +469,9 @@ export class ViteAdapter implements IBundlerAdapter {
   /**
    * 处理输出文件
    */
-  private processOutputs(result: any, config: UnifiedConfig): any[] {
+  private processOutputs(result: any, config: UnifiedConfig, formatConfig?: any): any[] {
     const outputs: any[] = []
-    const outputDir = this.resolveOutDir(config)
+    const format = formatConfig?.format || 'esm'
 
     // Vite build 返回 RollupOutput 或 RollupOutput[]
     const rollupOutputs = Array.isArray(result) ? result : [result]
@@ -402,13 +480,14 @@ export class ViteAdapter implements IBundlerAdapter {
       if (rollupOutput?.output) {
         for (const chunk of rollupOutput.output) {
           outputs.push({
-            fileName: chunk.fileName,
+            fileName: path.join(formatConfig?.dir || 'dist', chunk.fileName),
             type: chunk.type === 'chunk' ? 'chunk' : 'asset',
-            format: this.detectFormat(chunk.fileName),
+            format,
             size: chunk.type === 'chunk'
               ? Buffer.byteLength(chunk.code, 'utf8')
               : Buffer.byteLength(String(chunk.source), 'utf8'),
-            isEntry: chunk.type === 'chunk' && chunk.isEntry
+            isEntry: chunk.type === 'chunk' && chunk.isEntry,
+            code: chunk.type === 'chunk' ? chunk.code : undefined
           })
         }
       }

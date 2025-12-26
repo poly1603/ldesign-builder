@@ -1,9 +1,25 @@
 /**
  * 内存优化器
  * 监控和优化构建过程中的内存使用
+ * 
+ * @deprecated 建议使用 MemoryManager 替代，它提供了更全面的内存管理功能，包括：
+ * - 资源自动清理和生命周期管理
+ * - 流式处理支持
+ * - 内存泄漏检测
+ * - 事件监听器和定时器管理
+ * 
+ * @example
+ * ```typescript
+ * // 旧的用法 (已废弃)
+ * import { MemoryOptimizer } from './memory'
+ * const optimizer = new MemoryOptimizer()
+ * 
+ * // 新的用法 (推荐)
+ * import { getGlobalMemoryManager } from './memory'
+ * const manager = getGlobalMemoryManager()
+ * ```
  */
 
-import { performance } from 'perf_hooks'
 import v8 from 'v8'
 import { Logger } from '../logger'
 

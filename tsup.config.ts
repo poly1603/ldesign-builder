@@ -152,7 +152,7 @@ export default defineConfig({
   // 输出目录
   outDir: 'dist',
 
-  // 类型声明：使用 tsc 单独生成以避免内存问题
+  // 类型声明：由 build:types 命令单独生成
   dts: false,
 
   // 代码分割：关闭以保持简单的文件结构

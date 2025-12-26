@@ -44,13 +44,9 @@ export const BUILD_CONSTANTS = {
 /**
  * 默认构建器配置
  */
-export const DEFAULT_BUILDER_CONFIG: Omit<
-  Required<Omit<BuilderConfig, 'env' | 'library' | 'libraryType' | 'qwik'>>,
-  never
-> & {
+export const DEFAULT_BUILDER_CONFIG: Partial<BuilderConfig> & {
   env: Record<string, Partial<BuilderConfig>>
   library: Required<LibraryBuildOptions>
-  // 默认库类型，可以被自动检测覆盖
   libraryType?: LibraryType
   qwik?: import('../types/library').QwikLibraryConfig
 } = {

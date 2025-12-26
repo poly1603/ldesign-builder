@@ -85,6 +85,7 @@ export class Vue3PluginBuilder {
     try {
       const { registerTS } = await import('@vue/compiler-sfc')
       const typescript = await import('typescript')
+      // @ts-ignore - TypeScript 版本兼容性问题
       registerTS(() => typescript.default)
     } catch (error) {
       console.warn('Failed to register TypeScript support for Vue SFC:', error)

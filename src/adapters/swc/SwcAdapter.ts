@@ -1,7 +1,8 @@
 /**
  * SWC 适配器
  * 
- * 提供 SWC 打包器的适配实现，专注于快速生产构建
+ * 提供 SWC 打包器的完整适配实现，专注于快速生产构建
+ * 支持多格式输出、缓存机制、Banner 支持
  * 
  * @author LDesign Team
  * @version 1.0.0
@@ -21,14 +22,24 @@ import path from 'path'
 import fs from 'fs-extra'
 import fastGlob from 'fast-glob'
 
+// 导入共享基础设施
+import {
+  BaseAdapterCacheManager,
+  BaseAdapterBannerGenerator,
+  BaseAdapterOutputManager,
+  AdapterBuildHelper,
+  OUTPUT_DIRS
+} from '../shared'
+
 /**
  * SWC 适配器类
  * 
  * 特点：
  * - 20x 速度提升（相比 Babel）
- * - 适合生产构建
+ * - 多格式输出支持（ESM、CJS、UMD）
  * - 完整的 TypeScript/JSX 支持
  * - 装饰器支持
+ * - 缓存机制与 Banner 支持
  */
 export class SwcAdapter implements IBundlerAdapter {
   readonly name = 'swc' as const
@@ -38,10 +49,22 @@ export class SwcAdapter implements IBundlerAdapter {
   private logger: Logger
   private swc: any
 
+  // 辅助模块
+  private cacheManager: BaseAdapterCacheManager
+  private bannerGenerator: BaseAdapterBannerGenerator
+  private outputManager: BaseAdapterOutputManager
+  private buildHelper: AdapterBuildHelper
+
   constructor(options: Partial<AdapterOptions> = {}) {
     this.logger = options.logger || new Logger()
     this.version = 'unknown'
     this.available = true // 假设可用，在实际使用时验证
+
+    // 初始化辅助模块
+    this.cacheManager = new BaseAdapterCacheManager('swc', {}, this.logger)
+    this.bannerGenerator = new BaseAdapterBannerGenerator(this.logger)
+    this.outputManager = new BaseAdapterOutputManager(this.logger)
+    this.buildHelper = new AdapterBuildHelper(this.logger)
 
     // 尝试同步加载
     this.checkAvailability()
@@ -98,95 +121,96 @@ export class SwcAdapter implements IBundlerAdapter {
       // 确保 SWC 已加载
       const swc = await this.ensureSwcLoaded()
 
+      // 检查缓存
+      const cacheEnabled = this.cacheManager.isCacheEnabled(config)
+      const cacheKey = this.cacheManager.generateCacheKey(config)
+
+      if (cacheEnabled) {
+        const cachedResult = await this.cacheManager.getCachedResult(cacheKey)
+        if (cachedResult) {
+          const outputExists = await this.cacheManager.validateOutputArtifacts(config)
+          if (outputExists) {
+            this.logger.info('使用缓存的构建结果')
+            return cachedResult
+          }
+        }
+      }
+
+      // 解析输出配置
+      const parsedOutput = this.outputManager.parseOutputConfig(config)
+
+      // 获取 Banner 配置
+      const banners = await this.bannerGenerator.resolveAll(config)
+
       // 解析入口文件
       const inputFiles = await this.resolveInputFiles(config.input)
-      const outputs: any[] = []
+      const allOutputs: any[] = []
+
+      // 为每种格式构建
+      for (const formatConfig of parsedOutput.configs) {
+        this.logger.info(`构建 ${formatConfig.format.toUpperCase()} 格式...`)
+
+        const formatStartTime = Date.now()
 
       // 转换配置
-      const swcConfig = await this.transformConfig(config)
+        const swcConfig = await this.createSwcConfig(config, formatConfig)
 
-      // 处理每个文件
-      for (const inputFile of inputFiles) {
-        const result = await swc.transformFile(inputFile, swcConfig)
+        // 处理每个文件
+        for (const inputFile of inputFiles) {
+          const result = await swc.transformFile(inputFile, swcConfig)
 
-        const outputFile = this.getOutputPath(inputFile, config)
-        await fs.ensureDir(path.dirname(outputFile))
-        await fs.writeFile(outputFile, result.code)
+          // 添加 Banner
+          let code = result.code
+          if (banners.banner) {
+            code = banners.banner + '\n' + code
+          }
+          if (banners.footer) {
+            code = code + '\n' + banners.footer
+          }
 
-        // 如果有 source map
-        if (result.map && config.sourcemap) {
-          await fs.writeFile(outputFile + '.map', result.map)
+          const outputFile = this.getOutputPathForFormat(inputFile, formatConfig)
+          await fs.ensureDir(path.dirname(outputFile))
+          await fs.writeFile(outputFile, code)
+
+          // 如果有 source map
+          if (result.map && config.sourcemap) {
+            await fs.writeFile(outputFile + '.map', result.map)
+          }
+
+          allOutputs.push({
+            fileName: path.relative(process.cwd(), outputFile),
+            type: 'chunk',
+            format: formatConfig.format,
+            size: Buffer.byteLength(code),
+            code,
+            map: result.map
+          })
         }
 
-        outputs.push({
-          fileName: path.relative(process.cwd(), outputFile),
-          type: 'chunk',
-          format: config.output?.format || 'esm',
-          size: Buffer.byteLength(result.code),
-          code: result.code,
-          map: result.map
-        })
+        const formatDuration = Date.now() - formatStartTime
+        this.logger.info(`${formatConfig.format.toUpperCase()} 构建完成 (${formatDuration}ms)`)
       }
 
-      // 计算性能指标
       const duration = Date.now() - startTime
-      const metrics = this.getPerformanceMetrics()
 
-      const totalRawSize = outputs.reduce((sum, o) => sum + (o.size || 0), 0)
-
-      return {
+      // 创建构建结果
+      const buildResult = this.buildHelper.createBuildResult({
         success: true,
-        outputs,
+        outputs: allOutputs,
         duration,
-        stats: {
-          buildTime: duration,
-          fileCount: outputs.length,
-          totalSize: {
-            raw: totalRawSize,
-            gzip: 0,
-            brotli: 0,
-            byType: {},
-            byFormat: {} as any,
-            largest: {
-              file: outputs[0]?.fileName || '',
-              size: outputs[0]?.size || 0
-            },
-            fileCount: outputs.length
-          },
-          byFormat: {} as any,
-          modules: {
-            total: 0,
-            external: 0,
-            internal: 0,
-            largest: {
-              id: '',
-              size: 0,
-              renderedLength: 0,
-              originalLength: 0,
-              isEntry: false,
-              isExternal: false,
-              importedIds: [],
-              dynamicallyImportedIds: [],
-              importers: [],
-              dynamicImporters: []
-            }
-          },
-          dependencies: {
-            total: 0,
-            external: [],
-            bundled: [],
-            circular: []
-          }
-        },
-        performance: metrics,
-        warnings: [],
-        errors: [],
-        buildId: `swc-${Date.now()}`,
-        timestamp: Date.now(),
         bundler: this.name,
-        mode: config.mode || 'production',
-        libraryType: config.libraryType
+        mode: (config as any).mode || 'production',
+        libraryType: (config as any).libraryType
+      })
+
+      // 缓存结果
+      if (cacheEnabled) {
+        await this.cacheManager.cacheResult(cacheKey, buildResult)
       }
+
+      this.logger.success(`SWC 构建完成 (${duration}ms)`)
+      return buildResult
+
     } catch (error) {
       throw new BuilderError(
         ErrorCode.BUILD_FAILED,
@@ -194,6 +218,63 @@ export class SwcAdapter implements IBundlerAdapter {
         { cause: error as Error }
       )
     }
+  }
+
+  /**
+   * 创建 SWC 配置
+   */
+  private async createSwcConfig(config: UnifiedConfig, formatConfig: any): Promise<any> {
+    const moduleType = this.mapModuleType(formatConfig.format)
+
+    return {
+      jsc: {
+        parser: {
+          syntax: 'typescript',
+          tsx: true,
+          decorators: true,
+          dynamicImport: true
+        },
+        transform: {
+          react: {
+            runtime: 'automatic',
+            development: (config as any).mode === 'development'
+          },
+          decoratorMetadata: true,
+          legacyDecorator: true
+        },
+        target: this.mapTarget((config as any).typescript?.target),
+        loose: false,
+        externalHelpers: true,
+        keepClassNames: true
+      },
+      module: {
+        type: moduleType,
+        strict: false,
+        strictMode: true,
+        lazy: false,
+        noInterop: false
+      },
+      minify: config.minify === true,
+      sourceMaps: config.sourcemap === true || config.sourcemap === 'inline',
+      inlineSourcesContent: true
+    }
+  }
+
+  /**
+   * 根据格式获取输出路径
+   */
+  private getOutputPathForFormat(inputFile: string, formatConfig: any): string {
+    const relativePath = path.relative(process.cwd(), inputFile)
+
+    // 移除 src 前缀
+    const withoutSrc = relativePath.startsWith('src/') || relativePath.startsWith('src\\')
+      ? relativePath.slice(4)
+      : relativePath
+
+    // 更改扩展名
+    const outputPath = withoutSrc.replace(/\.(ts|tsx|js|jsx)$/, formatConfig.extension)
+
+    return path.join(process.cwd(), formatConfig.dir, outputPath)
   }
 
   /**
@@ -264,7 +345,7 @@ export class SwcAdapter implements IBundlerAdapter {
         keepClassNames: true
       },
       module: {
-        type: this.mapModuleType(config.output?.format as string),
+        type: this.mapModuleType(this.getOutputFormat(config)),
         strict: false,
         strictMode: true,
         lazy: false,
@@ -412,10 +493,26 @@ export class SwcAdapter implements IBundlerAdapter {
   }
 
   /**
+   * 获取输出格式
+   */
+  private getOutputFormat(config: UnifiedConfig): string {
+    const outputConfig = Array.isArray(config.output) ? config.output[0] : config.output
+    return (outputConfig?.format as string) || 'esm'
+  }
+
+  /**
+   * 获取输出目录
+   */
+  private getOutputDir(config: UnifiedConfig): string {
+    const outputConfig = Array.isArray(config.output) ? config.output[0] : config.output
+    return outputConfig?.dir || 'dist'
+  }
+
+  /**
    * 获取输出路径
    */
   private getOutputPath(inputFile: string, config: UnifiedConfig): string {
-    const outDir = config.output?.dir || 'dist'
+    const outDir = this.getOutputDir(config)
     const relativePath = path.relative(process.cwd(), inputFile)
 
     // 移除 src 前缀
@@ -424,7 +521,7 @@ export class SwcAdapter implements IBundlerAdapter {
       : relativePath
 
     // 更改扩展名
-    const format = config.output?.format as string
+    const format = this.getOutputFormat(config)
     let ext = '.js'
     if (format === 'cjs' || format === 'commonjs') {
       ext = '.cjs'

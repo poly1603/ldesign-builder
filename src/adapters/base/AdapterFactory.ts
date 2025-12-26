@@ -324,13 +324,14 @@ export class BundlerAdapterFactory {
       'vite': '极速开发服务，优秀的开发体验',
       'webpack': '成熟稳定，生态最丰富',
       'turbopack': 'Rust 实现，增量编译，极致性能',
-      'parcel': '零配置，自动处理资源'
+      'parcel': '零配置，自动处理资源',
+      'rspack': 'Webpack 兼容，Rust 实现，高性能'
     }
 
     const alternatives: Array<{ bundler: BundlerType; reason: string }> = []
 
     // 提供备选方案
-    const allBundlers: BundlerType[] = ['esbuild', 'swc', 'rollup', 'rolldown', 'vite', 'webpack', 'turbopack', 'parcel']
+    const allBundlers: BundlerType[] = ['esbuild', 'swc', 'rollup', 'rolldown', 'vite', 'webpack', 'turbopack', 'parcel', 'rspack']
     for (const bundler of allBundlers) {
       if (bundler !== selected && this.isAvailable(bundler)) {
         alternatives.push({
@@ -362,6 +363,7 @@ import { EsbuildAdapter } from '../esbuild/EsbuildAdapter'
 import { SwcAdapter } from '../swc/SwcAdapter'
 import { ViteAdapter } from '../vite/ViteAdapter'
 import { TurbopackAdapter } from '../turbopack/TurbopackAdapter'
+import { RspackAdapter } from '../rspack/RspackAdapter'
 
 // 注册真实的适配器
 BundlerAdapterFactory.register('rollup', RollupAdapter)
@@ -370,3 +372,4 @@ BundlerAdapterFactory.register('esbuild', EsbuildAdapter)
 BundlerAdapterFactory.register('swc', SwcAdapter)
 BundlerAdapterFactory.register('vite', ViteAdapter as any)
 BundlerAdapterFactory.register('turbopack', TurbopackAdapter as any)
+BundlerAdapterFactory.register('rspack', RspackAdapter as any)

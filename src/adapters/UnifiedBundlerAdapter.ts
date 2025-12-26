@@ -168,7 +168,8 @@ export class UnifiedBundlerAdapter implements IBundlerAdapter {
       this.logger.info('='.repeat(60))
       this.logger.info(`开始构建 [${this.name.toUpperCase()}]`)
       this.logger.info(`输入: ${optimizedConfig.input}`)
-      this.logger.info(`输出: ${optimizedConfig.output?.dir || optimizedConfig.output?.file}`)
+      const outputInfo = Array.isArray(optimizedConfig.output) ? optimizedConfig.output[0] : optimizedConfig.output
+      this.logger.info(`输出: ${outputInfo?.dir || outputInfo?.file}`)
 
       // 执行构建
       let result: BuildResult
@@ -279,13 +280,13 @@ export class UnifiedBundlerAdapter implements IBundlerAdapter {
       }
     }
 
-    // 优化输出配置
+      // 优化输出配置
     if (optimized.output) {
       const output = Array.isArray(optimized.output) ? optimized.output[0] : optimized.output
 
       // 启用压缩
-      if (!output.compact) {
-        output.compact = true
+      if (!(output as any).compact) {
+        (output as any).compact = true
       }
 
       // 优化sourcemap

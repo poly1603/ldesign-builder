@@ -240,6 +240,7 @@ export class Vue3Strategy extends BaseStrategy implements ILibraryStrategy {
       try {
         const { registerTS } = await import('@vue/compiler-sfc')
         const typescript = await import('typescript')
+        // @ts-ignore - TypeScript 版本兼容性问题
         registerTS(() => typescript.default)
       } catch (error) {
         // 如果无法导入 TypeScript 或 @vue/compiler-sfc，继续执行

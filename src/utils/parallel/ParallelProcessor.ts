@@ -443,6 +443,11 @@ export class ParallelProcessor extends EventEmitter {
       this.emit('performance:metrics', metrics)
     }, 5000)
 
+    // 防止定时器阻止进程退出
+    if (interval.unref) {
+      interval.unref()
+    }
+
     // 清理监控（在 dispose 时）
     this.once('dispose', () => {
       clearInterval(interval)

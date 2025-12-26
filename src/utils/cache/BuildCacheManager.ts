@@ -124,6 +124,10 @@ export class BuildCacheManager {
   private cleanupTimer?: NodeJS.Timeout
   // 用于防止并发访问同一key的锁机制
   private loadingKeys = new Map<string, Promise<CacheEntry | null>>()
+  // 缓存索引是否已加载
+  private indexLoaded = false
+  // 缓存索引加载 Promise（用于懒加载）
+  private indexLoadPromise: Promise<void> | null = null
 
   constructor(config?: Partial<CacheConfig>, logger?: Logger) {
     const defaultConfig: CacheConfig = {
@@ -143,15 +147,102 @@ export class BuildCacheManager {
 
   /**
    * 初始化缓存
+   * 注意：现在使用懒加载模式，不会立即加载所有缓存条目
    */
   async initialize(): Promise<void> {
     try {
       await fs.ensureDir(this.config?.cacheDir)
-      await this.loadCacheIndex()
-      this.logger.info(`缓存管理器初始化完成，缓存目录: ${this.config?.cacheDir}`)
+      // 不再同步加载所有缓存，改为懒加载
+      this.logger.debug(`缓存管理器初始化完成（懒加载模式），缓存目录: ${this.config?.cacheDir}`)
     } catch (error) {
       this.logger.error('缓存初始化失败:', error)
       throw error
+    }
+  }
+
+  /**
+   * 缓存预热 - 预加载指定的缓存条目
+   * 
+   * @param keys - 要预热的缓存键列表，如果不传则预热所有缓存
+   * @param options - 预热选项
+   * @returns 预热的条目数量
+   */
+  async warmup(keys?: string[], options?: {
+    /** 最大预热数量 */
+    maxEntries?: number
+    /** 是否只预热最近访问的条目 */
+    recentOnly?: boolean
+    /** 最近访问的时间阈值（毫秒） */
+    recentThreshold?: number
+  }): Promise<number> {
+    const { maxEntries = 100, recentOnly = true, recentThreshold = 24 * 60 * 60 * 1000 } = options || {}
+    
+    try {
+      const startTime = Date.now()
+      let loadedCount = 0
+      
+      if (keys && keys.length > 0) {
+        // 预热指定的缓存键
+        for (const key of keys) {
+          if (loadedCount >= maxEntries) break
+          const entry = await this.loadFromDisk(key)
+          if (entry) {
+            this.cache.set(key, entry)
+            loadedCount++
+          }
+        }
+      } else {
+        // 预热所有缓存（按最近访问排序）
+        const files = await fs.readdir(this.config?.cacheDir).catch(() => [])
+        const cacheFiles = files.filter(file => file.endsWith('.cache'))
+        
+        // 获取文件信息并排序
+        const fileInfos: { file: string; mtime: number }[] = []
+        for (const file of cacheFiles) {
+          try {
+            const filePath = path.join(this.config?.cacheDir, file)
+            const stats = await fs.stat(filePath)
+            fileInfos.push({ file, mtime: stats.mtime.getTime() })
+          } catch {
+            // 忽略无法访问的文件
+          }
+        }
+        
+        // 按最近访问时间排序（最新的在前）
+        fileInfos.sort((a, b) => b.mtime - a.mtime)
+        
+        const now = Date.now()
+        for (const { file, mtime } of fileInfos) {
+          if (loadedCount >= maxEntries) break
+          
+          // 如果只预热最近的条目，检查时间阈值
+          if (recentOnly && (now - mtime) > recentThreshold) {
+            continue
+          }
+          
+          try {
+            const filePath = path.join(this.config?.cacheDir, file)
+            const content = await fs.readFile(filePath, 'utf8')
+            const entry: CacheEntry = JSON.parse(content)
+            
+            // 恢复日期对象
+            entry.metadata.createdAt = new Date(entry.metadata.createdAt)
+            entry.metadata.lastAccessed = new Date(entry.metadata.lastAccessed)
+            
+            this.cache.set(entry.key, entry)
+            loadedCount++
+          } catch {
+            // 忽略加载失败的条目
+          }
+        }
+      }
+      
+      const duration = Date.now() - startTime
+      this.logger.info(`缓存预热完成: 加载了 ${loadedCount} 个条目, 耗时 ${duration}ms`)
+      return loadedCount
+    } catch (error) {
+      this.logger.warn('缓存预热失败:', error)
+      return 0
     }
   }
 
@@ -744,9 +835,35 @@ export class BuildCacheManager {
   }
 
   /**
-   * 加载缓存索引
+   * 加载缓存索引（懒加载实现）
+   * 仅在需要时调用，用于加载所有缓存到内存
    */
   private async loadCacheIndex(): Promise<void> {
+    // 如果已加载，直接返回
+    if (this.indexLoaded) {
+      return
+    }
+    
+    // 如果正在加载，等待加载完成
+    if (this.indexLoadPromise) {
+      return this.indexLoadPromise
+    }
+    
+    // 开始加载
+    this.indexLoadPromise = this.doLoadCacheIndex()
+    
+    try {
+      await this.indexLoadPromise
+      this.indexLoaded = true
+    } finally {
+      this.indexLoadPromise = null
+    }
+  }
+  
+  /**
+   * 实际执行缓存索引加载
+   */
+  private async doLoadCacheIndex(): Promise<void> {
     try {
       const files = await fs.readdir(this.config?.cacheDir)
       const cacheFiles = files.filter(file => file.endsWith('.cache'))
@@ -767,7 +884,7 @@ export class BuildCacheManager {
         }
       }
 
-      this.logger.info(`加载了 ${this.cache.size} 个缓存条目`)
+      this.logger.debug(`懒加载了 ${this.cache.size} 个缓存条目`)
     } catch (error) {
       this.logger.warn('加载缓存索引失败:', error)
     }

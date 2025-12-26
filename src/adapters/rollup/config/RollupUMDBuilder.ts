@@ -50,7 +50,7 @@ export class RollupUMDBuilder {
     }
 
     const umdSection = this.getUMDSection(config)
-    const outputConfig = config.output || {}
+    const outputConfig = Array.isArray(config.output) ? config.output[0] : (config.output || {})
 
     // 确定 UMD 入口文件
     const umdEntry = await this.resolveUMDEntry(config, umdSection, filteredInput)

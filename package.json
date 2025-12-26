@@ -132,9 +132,9 @@
     "dist"
   ],
   "scripts": {
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=8192 tsup",
-    "build:prod": "cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=8192 tsup",
-    "build:types": "tsc --emitDeclarationOnly --outDir dist",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=16384 tsup && npm run build:types",
+    "build:prod": "cross-env NODE_ENV=production NODE_OPTIONS=--max-old-space-size=16384 tsup && npm run build:types",
+    "build:types": "tsc --emitDeclarationOnly --declaration --skipLibCheck --outDir dist",
     "dev": "tsup --watch",
     "test": "vitest",
     "test:run": "vitest run",

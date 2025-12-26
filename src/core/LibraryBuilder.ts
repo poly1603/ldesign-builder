@@ -106,6 +106,12 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /** 清理函数列表 */
   protected cleanupFunctions: Array<() => void | Promise<void>> = []
 
+  /** 库类型检测缓存 */
+  protected libraryTypeCache = new Map<string, { type: LibraryType; timestamp: number }>()
+
+  /** 库类型缓存过期时间（毫秒，默认5分钟） */
+  protected libraryTypeCacheTTL = 5 * 60 * 1000
+
   constructor(options: BuilderOptions = {}) {
     super()
 
@@ -169,7 +175,10 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
 
       // 获取库类型（优先使用配置中指定的类型；否则基于项目根目录自动检测）
       const projectRoot = mergedConfig.cwd || process.cwd()
-      this.logger.debug('🔍 检测库类型...')
+      
+      // 发出检测库类型进度事件
+      this.emitProgress('detecting', { phase: 'library-type', message: '检测库类型...' })
+      
       let libraryType = mergedConfig.libraryType || await this.detectLibraryType(projectRoot)
 
       // 确保 libraryType 是正确的枚举值
@@ -178,16 +187,23 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       }
       this.logger.debug(`📦 库类型: ${libraryType}`)
 
+      // 发出应用策略进度事件
+      this.emitProgress('applying-strategy', { phase: 'strategy', libraryType, message: '应用构建策略...' })
+
       // 获取构建策略
-      this.logger.debug('⚙️  应用构建策略...')
       const strategy = this.strategyManager.getStrategy(libraryType)
 
       // 应用策略配置
       const strategyConfig = await strategy.applyStrategy(mergedConfig)
 
+      // 发出执行打包进度事件
+      this.emitProgress('bundling', { phase: 'bundle', message: '执行打包...' })
+
       // 执行构建
-      this.logger.debug('🔨 执行打包...')
       const result = await this.bundlerAdapter.build(strategyConfig)
+
+      // 发出处理样式进度事件
+      this.emitProgress('processing-styles', { phase: 'styles', message: '处理组件样式...' })
 
       // 处理组件库样式 (TDesign 风格)
       await this.processComponentStyles(mergedConfig, projectRoot)
@@ -195,6 +211,7 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
       // 执行打包后验证（如果启用）
       let validationResult: PostBuildValidationResult | undefined
       if (mergedConfig.postBuildValidation?.enabled) {
+        this.emitProgress('validating', { phase: 'validation', message: '执行打包后验证...' })
         validationResult = await this.runPostBuildValidation(mergedConfig, result, buildId)
       }
 
@@ -434,25 +451,73 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   }
 
   /**
-   * 检测库类型
+   * 检测库类型（带缓存）
    * - 传入路径可能为文件路径或子目录，这里做归一化：
    *   1) 若为文件，取其所在目录
    *   2) 自下而上查找最近的 package.json 作为项目根
    *   3) 若未找到，回退到当前工作目录
+   * 
+   * 注意：检测结果会被缓存，默认5分钟过期
    */
   async detectLibraryType(projectPath: string): Promise<LibraryType> {
     try {
       const projectRoot = await this.resolveProjectRoot(projectPath)
-      console.log(`[LibraryBuilder] 正在检测库类型，根目录: ${projectRoot}`)
+      
+      // 检查缓存
+      const cached = this.libraryTypeCache.get(projectRoot)
+      if (cached && (Date.now() - cached.timestamp) < this.libraryTypeCacheTTL) {
+        this.logger.debug(`[缓存命中] 库类型: ${cached.type}`)
+        return cached.type
+      }
+      
+      this.logger.debug(`[检测库类型] 根目录: ${projectRoot}`)
       const result = await this.libraryDetector.detect(projectRoot)
-      console.log(`[LibraryBuilder] 检测结果: ${result.type}, 置信度: ${result.confidence}`)
+      this.logger.debug(`[检测结果] 类型: ${result.type}, 置信度: ${result.confidence}`)
+      
+      // 缓存结果
+      this.libraryTypeCache.set(projectRoot, {
+        type: result.type,
+        timestamp: Date.now()
+      })
+      
       return result.type
     } catch (error) {
-      console.warn('[LibraryBuilder] 库类型检测失败:', error)
+      this.logger.warn('库类型检测失败:', error)
       const fallbackRoot = this.getFallbackRoot()
       const result = await this.libraryDetector.detect(fallbackRoot)
       return result.type
     }
+  }
+
+  /**
+   * 清除库类型检测缓存
+   * 
+   * @param projectPath - 可选，指定要清除的项目路径，不传则清除所有
+   */
+  clearLibraryTypeCache(projectPath?: string): void {
+    if (projectPath) {
+      this.libraryTypeCache.delete(projectPath)
+    } else {
+      this.libraryTypeCache.clear()
+    }
+  }
+
+  /**
+   * 发出构建进度事件
+   * 
+   * @param stage - 构建阶段
+   * @param data - 进度数据
+   */
+  private emitProgress(stage: string, data: {
+    phase: string
+    message?: string
+    [key: string]: any
+  }): void {
+    this.emit('build:progress', {
+      stage,
+      ...data,
+      timestamp: Date.now()
+    })
   }
 
   /**
