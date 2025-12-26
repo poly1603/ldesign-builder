@@ -2,15 +2,17 @@
  * 适配器工厂
  * 
  * 负责创建和管理不同的打包器适配器
+ * 支持智能引擎选择，零配置自动选择最优打包引擎
  * 
  * @author LDesign Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 
 import type { IBundlerAdapter, AdapterOptions } from '../../types/adapter'
 import type { BundlerType } from '../../types/bundler'
 import { ErrorCode } from '../../constants/errors'
 import { BuilderError } from '../../utils/error-handler'
+import { SmartBundlerSelector, type BundlerRecommendation, type ProjectAnalysis } from '../../core/SmartBundlerSelector'
 
 /**
  * 基础适配器实现（临时）
@@ -256,10 +258,7 @@ export class BundlerAdapterFactory {
    * 
    * 根据项目特征自动选择最合适的打包引擎：
    * 1. 用户明确指定 → 使用指定引擎
-   * 2. 开发模式 + 简单项目 → esbuild（极速）
-   * 3. 生产模式 + TypeScript → SWC（速度+质量）
-   * 4. 复杂插件需求 → Rollup（生态最完善）
-   * 5. Rolldown（默认备选，未来主力）
+   * 2. 智能分析项目特征 → 自动选择最优引擎
    */
   static selectBestAdapter(config: any): BundlerType {
     // 1. 用户明确指定
@@ -267,44 +266,90 @@ export class BundlerAdapterFactory {
       return config.bundler as BundlerType
     }
 
-    // 2. 开发模式 + 简单项目 → esbuild
-    if (config.mode === 'development') {
-      // 检查是否有装饰器（esbuild 不支持）
-      const hasDecorators = config.typescript?.experimentalDecorators
+    // 2. 使用快速选择逻辑（同步，不进行文件分析）
+    return this.quickSelectBundler(config)
+  }
 
+  /**
+   * 快速选择引擎（同步，不进行文件分析）
+   */
+  private static quickSelectBundler(config: any): BundlerType {
+    // 开发模式 + 简单项目 → esbuild
+    if (config.mode === 'development') {
+      const hasDecorators = config.typescript?.experimentalDecorators
       if (!hasDecorators && this.isAvailable('esbuild')) {
         return 'esbuild'
       }
     }
 
-    // 3. 生产模式 + TypeScript → SWC
-    if (config.mode === 'production' && config.libraryType === 'typescript') {
+    // TypeScript + 装饰器 → SWC
+    if (config.typescript?.experimentalDecorators) {
       if (this.isAvailable('swc')) {
         return 'swc'
       }
     }
 
-    // 4. 有复杂插件需求 → Rollup
+    // Vue/Svelte 组件库 → Rollup
+    if (['vue2', 'vue3', 'svelte'].includes(config.libraryType)) {
+      if (this.isAvailable('rollup')) {
+        return 'rollup'
+      }
+    }
+
+    // React 项目 → SWC
+    if (config.libraryType === 'react') {
+      if (this.isAvailable('swc')) {
+        return 'swc'
+      }
+    }
+
+    // 纯 TypeScript 工具库 → esbuild
+    if (config.libraryType === 'typescript' && config.mode !== 'production') {
+      if (this.isAvailable('esbuild')) {
+        return 'esbuild'
+      }
+    }
+
+    // 复杂插件需求 → Rollup
     if (config.plugins && config.plugins.length > 3) {
       if (this.isAvailable('rollup')) {
         return 'rollup'
       }
     }
 
-    // 5. Vue/React 组件库 → Rollup（生态最好）
-    if (['vue2', 'vue3', 'react', 'svelte'].includes(config.libraryType)) {
-      if (this.isAvailable('rollup')) {
-        return 'rollup'
-      }
-    }
-
-    // 6. Rolldown 作为现代化备选
+    // Rolldown 作为现代化备选
     if (this.isAvailable('rolldown')) {
       return 'rolldown'
     }
 
-    // 7. 最终回退到 Rollup
+    // 默认 Rollup
     return 'rollup'
+  }
+
+  /**
+   * 🆕 智能选择最佳适配器（异步，进行完整项目分析）
+   * 
+   * 零配置自动检测项目特征，选择最优引擎
+   */
+  static async smartSelectBundler(projectPath?: string): Promise<BundlerRecommendation> {
+    const selector = new SmartBundlerSelector(projectPath)
+    return selector.selectBestBundler()
+  }
+
+  /**
+   * 🆕 快速智能选择（异步，仅返回引擎名称）
+   */
+  static async autoSelectBundler(projectPath?: string): Promise<BundlerType> {
+    const selector = new SmartBundlerSelector(projectPath)
+    return selector.quickDetect()
+  }
+
+  /**
+   * 🆕 获取项目分析结果
+   */
+  static async analyzeProject(projectPath?: string): Promise<ProjectAnalysis> {
+    const selector = new SmartBundlerSelector(projectPath)
+    return selector.analyzeProject()
   }
 
   /**
