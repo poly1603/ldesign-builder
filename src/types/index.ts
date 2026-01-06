@@ -1,13 +1,23 @@
 /**
  * @ldesign/builder - 类型定义统一导出
  * 
- * 提供所有公共类型定义的统一导出
+ * @description 提供所有公共类型定义的统一导出，包括：
+ * - 构建器相关类型 (builder)
+ * - 配置相关类型 (config)
+ * - 适配器类型 (adapter)
+ * - 策略类型 (strategy)
+ * - 插件类型 (plugin)
+ * - 库类型 (library)
+ * - 打包器类型 (bundler)
+ * - 输出类型 (output)
+ * - 性能类型 (performance)
+ * - 通用类型和工具函数 (common)
  * 
  * @author LDesign Team
- * @version 1.0.0
+ * @version 2.0.0
  */
 
-// 核心类型
+// ==================== 核心类型 ====================
 export * from './builder'
 export * from './config'
 export * from './adapter'

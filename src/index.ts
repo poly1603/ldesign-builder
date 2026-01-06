@@ -1,11 +1,34 @@
 /**
  * @ldesign/builder - 主入口文件
  * 
- * 基于 rollup/rolldown 的通用库打包工具
- * 支持多种前端库类型的打包和双打包核心的灵活切换
+ * @description
+ * 最智能的前端库打包工具，基于 rollup/rolldown 实现。
+ * 支持多种前端库类型的打包和双打包核心的灵活切换。
+ * 
+ * @features
+ * - 零配置叴开箱即用
+ * - 自动检测 11 种主流框架
+ * - 支持 4 种打包引擎 (Rollup/Rolldown/esbuild/SWC)
+ * - 内置增强型 DTS 生成器
+ * - 三级缓存系统
+ * - 并行构建支持
+ * - 构建生命周期钩子
  * 
  * @author LDesign Team
- * @version 1.0.0
+ * @version 2.0.0
+ * @license MIT
+ * 
+ * @example
+ * ```typescript
+ * // 最简单的使用方式
+ * import { defineConfig } from '@ldesign/builder'
+ * export default defineConfig('universal-library')
+ * 
+ * // 程序化使用
+ * import { LibraryBuilder } from '@ldesign/builder'
+ * const builder = new LibraryBuilder()
+ * await builder.build()
+ * ```
  */
 
 // 核心类导出

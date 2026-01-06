@@ -1,6 +1,29 @@
 /**
  * 极简配置系统
- * 只需要 name 和 libs 配置，其他全部自动推断
+ * 
+ * @description 实现零配置构建，只需要最少的配置，其他全部自动推断。
+ * 通过分析项目结构、package.json 和依赖关系，自动生成最优构建配置。
+ * 
+ * @module config/minimal-config
+ * @author LDesign Team
+ * @version 1.0.0
+ * 
+ * @example
+ * ```typescript
+ * // 最简配置 - 完全零配置
+ * export default defineConfig('universal-library')
+ * 
+ * // 指定库名称
+ * export default defineConfig({ name: 'MyLib' })
+ * 
+ * // 自定义输出格式
+ * export default defineConfig({
+ *   libs: {
+ *     esm: { output: 'dist/es' },
+ *     cjs: { output: 'dist/lib' }
+ *   }
+ * })
+ * ```
  */
 
 import * as path from 'path'
@@ -11,32 +34,83 @@ import type { BuilderConfig } from '../types/config'
 import { LibraryType } from '../types/library'
 
 /**
- * 极简用户配置
+ * 极简用户配置接口
+ * 
+ * @description 提供最简化的配置选项，所有字段都是可选的
+ * @example
+ * ```typescript
+ * const config: MinimalConfig = {
+ *   name: 'MyAwesomeLib',
+ *   libs: {
+ *     esm: { output: 'es' },
+ *     cjs: { output: 'lib' }
+ *   }
+ * }
+ * ```
  */
 export interface MinimalConfig {
-  /** UMD 全局名称 */
+  /**
+   * UMD 全局变量名称
+   * 
+   * @description 在浏览器环境下，库将通过此名称挂载到 window 对象
+   * @example 'MyLib' -> window.MyLib
+   */
   name?: string
 
-  /** 库输出配置（可选） */
+  /**
+   * 库输出配置
+   * 
+   * @description 配置各种模块格式的输出选项
+   */
   libs?: {
-    /** ESM 配置 */
+    /**
+     * ESM (ES Modules) 配置
+     * 
+     * @description 生成符合 ES6 模块规范的输出
+     */
     esm?: {
+      /** 入口文件或模式 */
       input?: string | string[]
+      /** 输出目录，默认 'es' */
       output?: string
     }
-    /** CommonJS 配置 */
+    /**
+     * CommonJS 配置
+     * 
+     * @description 生成符合 CommonJS 规范的输出，用于 Node.js 环境
+     */
     cjs?: {
+      /** 入口文件或模式 */
       input?: string | string[]
+      /** 输出目录，默认 'lib' */
       output?: string
     }
-    /** UMD 配置 */
+    /**
+     * UMD (Universal Module Definition) 配置
+     * 
+     * @description 生成兼容 AMD、CommonJS 和全局变量的输出
+     */
     umd?: {
+      /** 入口文件 */
       input?: string
+      /** 输出目录，默认 'dist' */
       output?: string
     }
   }
 
-  /** 覆盖自动配置（高级用户） */
+  /**
+   * 覆盖自动生成的配置
+   * 
+   * @description 高级用户可以通过此字段覆盖任何自动推断的配置
+   * @example
+   * ```typescript
+   * override: {
+   *   minify: true,
+   *   sourcemap: false,
+   *   external: ['lodash']
+   * }
+   * ```
+   */
   override?: Partial<BuilderConfig>
 }
 

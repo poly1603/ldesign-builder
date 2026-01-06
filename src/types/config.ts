@@ -1,5 +1,10 @@
 /**
  * 配置相关类型定义
+ * 
+ * @description 提供构建器的核心配置接口定义，支持多种构建场景
+ * @author LDesign Team
+ * @version 1.0.0
+ * @module types/config
  */
 
 import type {
@@ -196,9 +201,14 @@ export interface BuilderConfig {
 
   /** React 配置 */
   react?: {
+    /** JSX 转换模式 */
     jsx?: 'classic' | 'automatic'
+    /** JSX 导入源 */
     jsxImportSource?: string
+    /** 运行时模式 */
     runtime?: 'automatic' | 'classic'
+    /** React 刷新插件（开发模式） */
+    refresh?: boolean
   }
 
   /** 优化配置 */
@@ -211,7 +221,19 @@ export interface BuilderConfig {
     treeShaking?: boolean
     /** 公共依赖提取 */
     commonChunks?: boolean
+    /** 作用域提升（Rollup scope hoisting） */
+    scopeHoisting?: boolean
+    /** 死代码消除 */
+    deadCodeElimination?: boolean
+    /** 常量折叠 */
+    constantFolding?: boolean
   }
+
+  /** 构建生命周期钩子 */
+  hooks?: BuildHooksConfig
+
+  /** 高级构建选项 */
+  advanced?: AdvancedBuildOptions
 
   // ==================== 简化配置（常用快捷方式） ====================
 
@@ -664,7 +686,241 @@ export interface PackageUpdateConfig {
 }
 
 /**
+ * 构建生命周期钩子配置
+ * 
+ * @description 提供构建过程各阶段的钩子函数，用于扩展和自定义构建行为
+ * @example
+ * ```typescript
+ * export default defineConfig({
+ *   hooks: {
+ *     beforeBuild: async (ctx) => {
+ *       console.log('构建开始:', ctx.buildId)
+ *     },
+ *     afterBuild: async (ctx, result) => {
+ *       console.log('构建完成:', result.duration, 'ms')
+ *     }
+ *   }
+ * })
+ * ```
+ */
+export interface BuildHooksConfig {
+  /**
+   * 构建开始前钩子
+   * 
+   * @description 在构建开始前调用，可用于准备工作、验证配置等
+   * @param context - 构建上下文
+   * @returns void 或 Promise<void>
+   */
+  beforeBuild?: (context: BuildHookContext) => void | Promise<void>
+
+  /**
+   * 构建完成后钩子
+   * 
+   * @description 在构建成功完成后调用，可用于后处理、报告生成等
+   * @param context - 构建上下文
+   * @param result - 构建结果
+   * @returns void 或 Promise<void>
+   */
+  afterBuild?: (context: BuildHookContext, result: BuildHookResult) => void | Promise<void>
+
+  /**
+   * 构建错误钩子
+   * 
+   * @description 在构建出错时调用，可用于错误恢复、日志记录等
+   * @param context - 构建上下文
+   * @param error - 错误信息
+   * @returns void 或 Promise<void>
+   */
+  onError?: (context: BuildHookContext, error: Error) => void | Promise<void>
+
+  /**
+   * 文件处理前钩子
+   * 
+   * @description 在处理每个文件前调用，可用于文件过滤、预处理等
+   * @param filePath - 文件路径
+   * @param content - 文件内容
+   * @returns 返回处理后的内容，或 null 跳过此文件
+   */
+  transformFile?: (filePath: string, content: string) => string | null | Promise<string | null>
+
+  /**
+   * 结果输出前钩子
+   * 
+   * @description 在写入输出文件前调用，可用于输出内容修改
+   * @param output - 输出配置
+   * @param content - 输出内容
+   * @returns 返回修改后的内容
+   */
+  beforeWrite?: (output: { path: string; format: string }, content: string) => string | Promise<string>
+
+  /**
+   * 监听模式文件变化钩子
+   * 
+   * @description 在监听模式下检测到文件变化时调用
+   * @param event - 变化事件类型
+   * @param path - 文件路径
+   */
+  onWatchChange?: (event: 'add' | 'change' | 'unlink', path: string) => void | Promise<void>
+
+  /**
+   * 清理钩子
+   * 
+   * @description 在构建器销毁时调用，用于资源清理
+   */
+  cleanup?: () => void | Promise<void>
+}
+
+/**
+ * 构建钩子上下文
+ */
+export interface BuildHookContext {
+  /** 构建 ID */
+  buildId: string
+  /** 配置 */
+  config: BuilderConfig
+  /** 工作目录 */
+  cwd: string
+  /** 构建模式 */
+  mode: BuildMode
+  /** 打包器类型 */
+  bundler: string
+  /** 库类型 */
+  libraryType?: string
+  /** 开始时间 */
+  startTime: number
+  /** 日志记录器 */
+  logger: any
+}
+
+/**
+ * 构建钩子结果
+ */
+export interface BuildHookResult {
+  /** 是否成功 */
+  success: boolean
+  /** 输出文件 */
+  outputs: Array<{ path: string; size: number; format: string }>
+  /** 耗时（毫秒） */
+  duration: number
+  /** 警告 */
+  warnings: string[]
+  /** 错误 */
+  errors: string[]
+}
+
+/**
+ * 高级构建选项
+ * 
+ * @description 提供高级用户的细粒度控制选项
+ */
+export interface AdvancedBuildOptions {
+  /**
+   * 启用并行构建
+   * 
+   * @description 利用多核 CPU 并行处理文件
+   * @default true
+   */
+  parallel?: boolean | {
+    /** Worker 数量，默认为 CPU 核心数 - 1 */
+    workers?: number
+    /** 每个 Worker 的任务堆栈大小 */
+    taskStackSize?: number
+  }
+
+  /**
+   * 增量构建配置
+   * 
+   * @description 只重新构建变更的文件，提高构建速度
+   */
+  incremental?: boolean | {
+    /** 缓存目录 */
+    cacheDir?: string
+    /** 最大缓存大小（字节） */
+    maxCacheSize?: number
+    /** 缓存 TTL（秒） */
+    ttl?: number
+  }
+
+  /**
+   * 内存优化配置
+   * 
+   * @description 限制内存使用，防止大项目 OOM
+   */
+  memory?: {
+    /** 最大堆内存（MB） */
+    maxHeapSize?: number
+    /** 启用 GC 优化 */
+    gcOptimization?: boolean
+    /** 流式处理阈值（文件大小，字节） */
+    streamThreshold?: number
+  }
+
+  /**
+   * 调试配置
+   */
+  debug?: {
+    /** 打印详细日志 */
+    verbose?: boolean
+    /** 输出性能报告 */
+    profiling?: boolean
+    /** 输出中间文件 */
+    intermediateFiles?: boolean
+    /** 保存 AST 转换结果 */
+    saveAst?: boolean
+  }
+
+  /**
+   * 实验性功能
+   * 
+   * @description 启用实验性功能，可能不稳定
+   */
+  experimental?: {
+    /** 最小化工具类型 */
+    minifier?: 'terser' | 'esbuild' | 'swc'
+    /** AST 共享（多输出格式） */
+    sharedAst?: boolean
+    /** 懒加载插件 */
+    lazyPlugins?: boolean
+    /** 启用撤回功能 */
+    rollback?: boolean
+  }
+
+  /**
+   * 构建报告配置
+   */
+  report?: {
+    /** 是否生成报告 */
+    enabled?: boolean
+    /** 报告格式 */
+    format?: 'json' | 'html' | 'markdown'
+    /** 报告输出路径 */
+    output?: string
+    /** 是否包含详细性能数据 */
+    includePerformance?: boolean
+    /** 是否包含 bundle 分析 */
+    includeBundleAnalysis?: boolean
+  }
+
+  /**
+   * 日志配置
+   */
+  logging?: {
+    /** 日志级别 */
+    level?: LogLevel
+    /** 日志文件路径 */
+    file?: string
+    /** 是否显示时间戳 */
+    timestamps?: boolean
+    /** 是否显示颜色 */
+    colors?: boolean
+  }
+}
+
+/**
  * 深度部分类型
+ * 
+ * @description 将类型 T 的所有属性（包括嵌套属性）变为可选
+ * @template T - 源类型
  */
 type DeepPartial<T> = {
   [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P]

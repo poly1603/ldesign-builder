@@ -116,6 +116,28 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /** 库类型缓存过期时间（毫秒，默认5分钟） */
   protected libraryTypeCacheTTL = 5 * 60 * 1000
 
+  /** 构建历史记录（用于统计和对比） */
+  protected buildHistory: Array<{
+    buildId: string
+    success: boolean
+    duration: number
+    timestamp: number
+    outputSize: number
+  }> = []
+
+  /** 最大构建历史记录数 */
+  protected maxBuildHistory = 50
+
+  /** 重试配置 */
+  protected retryConfig = {
+    /** 最大重试次数 */
+    maxRetries: 2,
+    /** 重试延迟（毫秒） */
+    retryDelay: 1000,
+    /** 可重试的错误类型 */
+    retryableErrors: ['ENOENT', 'EMFILE', 'ENFILE', 'EBUSY']
+  }
+
   constructor(options: BuilderOptions = {}) {
     super()
 
@@ -138,19 +160,67 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
   /**
    * 执行库构建
    * 
+   * @description 核心构建方法，支持生命周期钩子、自动重试和详细进度报告
    * @param config 可选的配置覆盖
    * @returns 构建结果
+   * @throws 构建失败时抛出错误
+   * @example
+   * ```typescript
+   * const builder = new LibraryBuilder()
+   * const result = await builder.build({
+   *   mode: 'production',
+   *   minify: true
+   * })
+   * console.log(`构建完成: ${result.duration}ms`)
+   * ```
    */
   async build(config?: BuilderConfig): Promise<BuildResult> {
     const buildId = this.generateBuildId()
     const startTime = Date.now()
+    let retryCount = 0
 
+    // 合并配置
+    const mergedConfig = config ? this.mergeConfig(this.config, config) : this.config
+
+    // 创建构建上下文（用于钩子）
+    const buildContext = this.createBuildHookContext(buildId, mergedConfig, startTime)
+
+    // 执行 beforeBuild 钩子
+    await this.executeHook('beforeBuild', mergedConfig.hooks?.beforeBuild, buildContext)
+
+    while (retryCount <= this.retryConfig.maxRetries) {
+      try {
+        return await this.executeBuildInternal(buildId, mergedConfig, buildContext, startTime)
+      } catch (error) {
+        const shouldRetry = this.shouldRetryBuild(error as Error, retryCount)
+        if (shouldRetry) {
+          retryCount++
+          this.logger.warn(`构建失败，第 ${retryCount} 次重试...`)
+          await this.delay(this.retryConfig.retryDelay * retryCount)
+        } else {
+          // 执行 onError 钩子
+          await this.executeHook('onError', mergedConfig.hooks?.onError, buildContext, error as Error)
+          throw error
+        }
+      }
+    }
+
+    // 不应该执行到这里
+    throw new Error('构建失败: 超过最大重试次数')
+  }
+
+  /**
+   * 内部构建执行方法
+   */
+  private async executeBuildInternal(
+    buildId: string,
+    mergedConfig: BuilderConfig,
+    buildContext: any,
+    startTime: number
+  ): Promise<BuildResult> {
     try {
       // 设置构建状态
       this.setStatus(BuilderStatus.BUILDING)
-
-      // 合并配置
-      const mergedConfig = config ? this.mergeConfig(this.config, config) : this.config
 
       // 打印美化的构建开始信息
       this.printBuildStart(mergedConfig)
@@ -248,6 +318,18 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
 
       // 打印美化的构建完成信息
       this.printBuildSuccess(buildResult, startTime)
+
+      // 记录构建历史
+      this.recordBuildHistory(buildResult)
+
+      // 执行 afterBuild 钩子
+      await this.executeHook('afterBuild', mergedConfig.hooks?.afterBuild, buildContext, {
+        success: true,
+        outputs: result.outputs.map((o: any) => ({ path: o.fileName, size: o.size || 0, format: o.format || 'esm' })),
+        duration: buildResult.duration,
+        warnings: buildResult.warnings.map(w => w.message || String(w)),
+        errors: []
+      })
 
       // 发出构建结束事件
       this.emit('build:end', {
@@ -1128,6 +1210,189 @@ export class LibraryBuilder extends EventEmitter implements ILibraryBuilder {
     } catch (error) {
       // 样式处理失败不阻断构建，只记录警告
       this.logger.warn('样式处理失败:', (error as Error).message)
+    }
+  }
+
+  // ==================== 新增辅助方法 ====================
+
+  /**
+   * 创建构建钩子上下文
+   * 
+   * @param buildId - 构建 ID
+   * @param config - 构建配置
+   * @param startTime - 开始时间
+   * @returns 构建钩子上下文
+   */
+  private createBuildHookContext(buildId: string, config: BuilderConfig, startTime: number): any {
+    return {
+      buildId,
+      config,
+      cwd: config.cwd || process.cwd(),
+      mode: config.mode || 'production',
+      bundler: config.bundler || 'rollup',
+      libraryType: config.libraryType,
+      startTime,
+      logger: this.logger
+    }
+  }
+
+  /**
+   * 执行生命周期钩子
+   * 
+   * @description 安全地执行钩子函数，捕获并记录错误
+   * @param hookName - 钩子名称
+   * @param hookFn - 钩子函数
+   * @param args - 钩子参数
+   */
+  private async executeHook<T extends (...args: any[]) => any>(
+    hookName: string,
+    hookFn: T | undefined,
+    ...args: Parameters<T>
+  ): Promise<void> {
+    if (!hookFn) return
+
+    try {
+      this.logger.debug(`执行钩子: ${hookName}`)
+      const result = hookFn(...args)
+      if (result instanceof Promise) {
+        await result
+      }
+    } catch (error) {
+      this.logger.warn(`钩子 ${hookName} 执行失败:`, error)
+      // 钩子错误不应该阻止构建，只记录警告
+    }
+  }
+
+  /**
+   * 判断是否应该重试构建
+   * 
+   * @param error - 错误对象
+   * @param retryCount - 当前重试次数
+   * @returns 是否应该重试
+   */
+  private shouldRetryBuild(error: Error, retryCount: number): boolean {
+    // 超过最大重试次数
+    if (retryCount >= this.retryConfig.maxRetries) {
+      return false
+    }
+
+    // 检查是否是可重试的错误类型
+    const errorCode = (error as any).code
+    if (errorCode && this.retryConfig.retryableErrors.includes(errorCode)) {
+      return true
+    }
+
+    // 检查错误消息中是否包含可重试的关键词
+    const retryableKeywords = ['ECONNRESET', 'ETIMEDOUT', 'ECONNREFUSED', 'temporarily unavailable']
+    const errorMessage = error.message.toLowerCase()
+    return retryableKeywords.some(keyword => errorMessage.includes(keyword.toLowerCase()))
+  }
+
+  /**
+   * 记录构建历史
+   * 
+   * @param result - 构建结果
+   */
+  private recordBuildHistory(result: BuildResult): void {
+    const totalSize = result.outputs?.reduce((sum, output) => sum + (output.size || 0), 0) || 0
+
+    this.buildHistory.push({
+      buildId: result.buildId,
+      success: result.success,
+      duration: result.duration,
+      timestamp: result.timestamp,
+      outputSize: totalSize
+    })
+
+    // 保持历史记录在最大限制内
+    if (this.buildHistory.length > this.maxBuildHistory) {
+      this.buildHistory.shift()
+    }
+  }
+
+  /**
+   * 延迟执行
+   * 
+   * @param ms - 延迟毫秒数
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms))
+  }
+
+  /**
+   * 获取构建历史
+   * 
+   * @description 返回最近的构建历史记录
+   * @param limit - 返回的记录数量，默认 10
+   * @returns 构建历史记录数组
+   */
+  getBuildHistory(limit = 10): typeof this.buildHistory {
+    return this.buildHistory.slice(-limit)
+  }
+
+  /**
+   * 获取构建统计信息
+   * 
+   * @description 返回构建的汇总统计信息
+   * @returns 构建统计
+   */
+  getBuildStatistics(): {
+    totalBuilds: number
+    successfulBuilds: number
+    failedBuilds: number
+    averageDuration: number
+    totalOutputSize: number
+    successRate: number
+  } {
+    const history = this.buildHistory
+    const totalBuilds = history.length
+    const successfulBuilds = history.filter(h => h.success).length
+    const failedBuilds = totalBuilds - successfulBuilds
+    const totalDuration = history.reduce((sum, h) => sum + h.duration, 0)
+    const totalOutputSize = history.reduce((sum, h) => sum + h.outputSize, 0)
+
+    return {
+      totalBuilds,
+      successfulBuilds,
+      failedBuilds,
+      averageDuration: totalBuilds > 0 ? totalDuration / totalBuilds : 0,
+      totalOutputSize,
+      successRate: totalBuilds > 0 ? (successfulBuilds / totalBuilds) * 100 : 0
+    }
+  }
+
+  /**
+   * 比较两次构建结果
+   * 
+   * @description 比较两个构建结果的差异
+   * @param buildId1 - 第一个构建 ID
+   * @param buildId2 - 第二个构建 ID
+   * @returns 比较结果
+   */
+  compareBuildResults(buildId1: string, buildId2: string): {
+    durationDiff: number
+    durationDiffPercent: number
+    sizeDiff: number
+    sizeDiffPercent: number
+  } | null {
+    const build1 = this.buildHistory.find(h => h.buildId === buildId1)
+    const build2 = this.buildHistory.find(h => h.buildId === buildId2)
+
+    if (!build1 || !build2) {
+      return null
+    }
+
+    const durationDiff = build2.duration - build1.duration
+    const durationDiffPercent = build1.duration > 0 ? (durationDiff / build1.duration) * 100 : 0
+
+    const sizeDiff = build2.outputSize - build1.outputSize
+    const sizeDiffPercent = build1.outputSize > 0 ? (sizeDiff / build1.outputSize) * 100 : 0
+
+    return {
+      durationDiff,
+      durationDiffPercent,
+      sizeDiff,
+      sizeDiffPercent
     }
   }
 }

@@ -1,10 +1,32 @@
 /**
  * Worker 线程池
  * 
- * 使用 worker_threads 实现真正的多线程并行构建
+ * @description 使用 worker_threads 实现真正的多线程并行构建
+ * 
+ * 主要特性：
+ * - 自动管理 Worker 线程生命周期
+ * - 支持任务优先级队列
+ * - 内存限制和超时保护
+ * - 自动故障恢复
+ * - 批量任务执行
  * 
  * @author LDesign Team
- * @version 1.0.0
+ * @version 2.0.0
+ * @example
+ * ```typescript
+ * const pool = new WorkerPool({
+ *   workerScript: './build-worker.js',
+ *   maxWorkers: 4,
+ *   timeout: 30000
+ * })
+ * 
+ * const result = await pool.execute({
+ *   id: 'task-1',
+ *   type: 'transform',
+ *   data: { file: 'src/index.ts' },
+ *   priority: 1
+ * })
+ * ```
  */
 
 import { Worker } from 'worker_threads'
@@ -16,16 +38,22 @@ import path from 'path'
  * Worker 池选项
  */
 export interface WorkerPoolOptions {
-  /** 最大 Worker 数量 */
+  /** 最大 Worker 数量，默认为 CPU 核心数 */
   maxWorkers?: number
   /** Worker 脚本路径 */
   workerScript: string
-  /** 默认超时时间（毫秒） */
+  /** 默认超时时间（毫秒），默认 30000 */
   timeout?: number
-  /** 内存限制（MB） */
+  /** 每个 Worker 的内存限制（MB），默认 512 */
   memoryLimit?: number
-  /** Worker 数据 */
+  /** 传递给每个 Worker 的初始数据 */
   workerData?: any
+  /** 是否启用优先级队列，默认 true */
+  enablePriority?: boolean
+  /** 空闲超时时间（毫秒），超过此时间的空闲 Worker 会被销毁 */
+  idleTimeout?: number
+  /** 最小 Worker 数量，保持的最小 Worker 池大小 */
+  minWorkers?: number
 }
 
 /**
